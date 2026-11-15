@@ -324,7 +324,7 @@ export function TeamPage() {
   const loadPeace = useCallback(() => api<PeaceData>(`/api/games/${id}/peace`).then(setPeace).catch(() => {}), [id]);
   /** Мир из строки команды: предложение — только после подтверждения «Да / Нет» (решение владельца 21.09). */
   /** Профиль команды из «Внимания» (решение владельца 05.11): предложение мира принимают или отклоняют в нём. */
-  const [profileTeam, setProfileTeam] = useState<PeaceTeamDto["team"] | null>(null);
+  const [profileTeam, setProfileTeam] = useState<Pick<PeaceTeamDto["team"], "id" | "name" | "color" | "avatarId"> | null>(null);
   /** Обмен городами из карточки своего города (решение владельца 04.11): ключ города, выставляемого на обмен. */
   const [tradeCity, setTradeCity] = useState<string | null>(null);
   const loadBattles = useCallback(() => api<{ battles: BattleDto[] }>(`/api/games/${id}/my-battles`).then((r) => {
@@ -719,7 +719,8 @@ export function TeamPage() {
   const menuOpen = !storm.active && menuView !== "home";
   const closeMenu = () => { rememberScroll(); setMenuView("home"); };
   // Порядок плиток дока (решение владельца 30.10, слева направо): внимание, испытания, служение, команды, летопись, дела.
-  const DOCK_ORDER: MenuView[] = ["attention", "battles", "service", "standings", "feed", "deeds"];
+  // Колокольчик «Внимание» — в шапке карты, в панели остаются пять разделов в прежнем порядке (решение владельца 15.11).
+  const DOCK_ORDER: MenuView[] = ["battles", "service", "standings", "feed", "deeds"];
   const dockItems = DOCK_ORDER.map((k) => MENU_ITEMS.find((m) => m.key === k)!);
   /** Плашка серии и праздник рубежа открывают «Моё служение» на вкладке «Награды» (кнопки наград над картой нет — решение владельца 30.10). */
   const openAwards = () => { setMenu(true); setMenuView("service"); setServiceTab("awards"); setSelectedId(null); };
@@ -950,8 +951,9 @@ export function TeamPage() {
         )}
         <div className="hud-left">
           <Link to="/" className="btn secondary icon hud-btn" aria-label={t("Мои игры")} title={t("Мои игры")}><Icon name="back" /></Link>
-          <button type="button" className="hud-team" aria-label={team.name}>
-            <TeamAvatar name={team.name} color={team.color} avatarId={team.avatarId} teamId={team.id} /><span className="name">{team.name}</span>
+          {/* Кнопка команды открывает профиль команды; маленькая стрелка показывает, что она нажимается (решение владельца 15.11). */}
+          <button type="button" className="hud-team" aria-label={team.name} onClick={() => setProfileTeam({ id: team.id, name: team.name, color: team.color, avatarId: team.avatarId })}>
+            <TeamAvatar name={team.name} color={team.color} avatarId={team.avatarId} zoom={false} /><span className="name">{team.name}</span><Icon name="chevron" className="go" />
           </button>
           {/* Время суток (решение владельца 03.10): ночью только карта, утром отправляют вызов — подсказка у названия команды. */}
           {phase === "night" && <span className="hud-tod night" title={t("Ночь: города спят, дела и испытания ждут утра")}><Icon name="moon" />{t("Ночь до 7:00")}</span>}
@@ -960,13 +962,17 @@ export function TeamPage() {
         {/* Серия дней (решение владельца 29.10): плашка при заходе раз в игровые сутки; в день рубежа — праздник со значком. */}
         {streakShow && awards && !milestone && !selectedId && <StreakBanner streak={awards.streak} celebrate={streakLit} onOpen={() => { closeStreak(); openAwards(); }} onClose={closeStreak} />}
         {/* Огонёк серии в шапке карты (решение владельца 31.10): горит, если сегодняшний день засчитан; нажатие открывает награды. */}
-        {awards && (
-          <div className="hud-right">
+        {/* Колокольчик «Внимание» — в шапке, прозрачный, как остальные кнопки над картой (решение владельца 15.11); число — сколько ждёт действия. */}
+        <div className="hud-right">
+          <button type="button" className={"btn secondary icon hud-btn hud-bell" + (menuView === "attention" ? " on" : "")} aria-pressed={menuView === "attention"} aria-label={attention > 0 ? t("Внимание: {n}", { n: attention }) : t("Внимание")} title={t("Внимание")} onClick={() => { if (menuView === "attention") closeMenu(); else openView("attention"); }}>
+            <Icon name="bell" />{attention > 0 && <span className="count-chip hot">{attention}</span>}
+          </button>
+          {awards && (
             <button type="button" className={"hud-streak" + (awards.streak.today ? " lit" : "")} onClick={openAwards} aria-label={t("Серия: {n}", { n: plural(awards.streak.current, ["день подряд", "дня подряд", "дней подряд"]) })} title={awards.streak.today ? t("Сегодня засчитан") : t("Сегодня ещё не засчитан")}>
               <FlameIcon lit={awards.streak.today} size="sm" /><b>{awards.streak.current}</b>
             </button>
-          </div>
-        )}
+          )}
+        </div>
         {milestone && <MilestoneCard code={milestone} onOpen={() => { closeMilestone(); openAwards(); }} onClose={closeMilestone} />}
         {standings?.status === "FINISHED" && (
           <div className="finish-banner" role="status"><Icon name="trophy" /><span>{winner ? t("Игра завершена: победила «{team}»", { team: winner }) : t("Игра завершена")}</span></div>
