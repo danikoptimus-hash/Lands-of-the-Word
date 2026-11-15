@@ -443,4 +443,6 @@ require('./patchesC.cjs')(P, { HELPERS, BASE, SHEET });
 require('./patchesFix.cjs')(P, { HELPERS, BASE, FRAME, DOCK, SHEET });
 require('./patchesFix2.cjs')(P);
 require('./patchesFix3.cjs')(P);
+require('./patchesFix4.cjs')(P);
+require('./patchesFix5.cjs')(P);
 module.exports = P;
