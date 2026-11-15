@@ -47,8 +47,24 @@ fi
 
 echo "==> Запуск"
 (cd deploy && docker compose up -d --remove-orphans)
-# Caddyfile смонтирован с диска: изменения подхватываются перезагрузкой конфига, без перезапуска.
-(cd deploy && docker compose exec -T caddy caddy reload --config /etc/caddy/Caddyfile 2>/dev/null) || echo "caddy reload не удался (при первом запуске это нормально)"
+# Настройки прокси. Caddyfile смонтирован в контейнер одним файлом: git при обновлении заменяет файл новым, а контейнер
+# продолжает видеть прежний — «перечитать настройки» читало бы старое содержимое, и правка Caddyfile не начинала действовать
+# (находка независимого разбора 15.11). Поэтому: если файл в контейнере отличается от файла в репозитории, новый сначала
+# проверяет сам Caddy, и только после удачной проверки прокси перезапускается — тогда он видит новый файл. Это несколько
+# секунд без связи у прода и стенда, и только в ту выкладку, которая меняет настройки прокси. Не прошёл проверку —
+# прокси остаётся на прежних настройках, выкладка помечается неудачной в конце.
+CADDY_OK=1
+if docker ps --format '{{.Names}}' | grep -qx lotw-caddy; then
+  if ! docker exec lotw-caddy cat /etc/caddy/Caddyfile 2>/dev/null | cmp -s - deploy/caddy/Caddyfile; then
+    echo "==> Настройки прокси изменились: проверка и перезапуск прокси"
+    if docker cp deploy/caddy/Caddyfile lotw-caddy:/tmp/Caddyfile.new >/dev/null && docker exec lotw-caddy caddy validate --config /tmp/Caddyfile.new --adapter caddyfile >/dev/null 2>&1; then
+      (cd deploy && docker compose restart caddy)
+    else
+      CADDY_OK=0; echo "новый Caddyfile не прошёл проверку: прокси оставлен на прежних настройках"
+      docker exec lotw-caddy caddy validate --config /tmp/Caddyfile.new --adapter caddyfile 2>&1 | tail -5 || true
+    fi
+  fi
+fi
 
 echo "==> Ежедневный бэкап базы (cron 03:30)"
 mkdir -p /opt/lotw-backups
@@ -62,3 +78,4 @@ fi
 # Чистка старых образов не должна ронять выкладку: контейнер уже поднят, а параллельная чистка отвечает «a prune operation is already running».
 docker image prune -f >/dev/null 2>&1 || true
 echo "==> Готово: $(git rev-parse --short HEAD)"
+if [[ "$CADDY_OK" == 0 ]]; then echo "ВНИМАНИЕ: настройки прокси не применены — см. сообщение проверки выше"; exit 1; fi

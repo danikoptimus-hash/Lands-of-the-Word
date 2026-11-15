@@ -187,7 +187,9 @@ export function TeamPage() {
   const shownMap = useMemo(() => (map && historyAt ? mapAt(map, historyAt) : map), [map, historyAt]);
   // Шторм (решение владельца 24.10): по расписанию из ответа сервера; в шторм — только карта с бурей, без кнопок и действий.
   const stormReload = useRef<() => void>(() => {});
-  const storm = useStorm(map?.daytime, map?.now, () => stormReload.current());
+  // Часы сервера для шторма — время самого ответа (daytime.now): map.now — момент расчёта карты, а она лежит в памяти
+  // сервера до минуты, и шторм начинался бы у части игроков с таким же опозданием.
+  const storm = useStorm(map?.daytime, map?.daytime?.now ?? map?.now, () => stormReload.current());
   const stormWas = useRef(storm.active);
   // Карта обёрнута в memo и получает обработчики с постоянной «личностью»: сами функции объявлены ниже и создаются заново при
   // каждой отрисовке страницы, а обёртки вызывают их последнюю версию. Так карта перерисовывается только от своих данных,
@@ -379,8 +381,14 @@ export function TeamPage() {
   // зависит (морские пути, сцена, списки), не считается заново. Раньше каждый ответ — раз в минуту и после каждого события —
   // пересобирал карту целиком, даже когда в игре ничего не происходило (ревизия 15.11). Номер версии хранится отдельно:
   // он нужен только для сверки «разниц» и не должен перерисовывать экран.
+  // Последняя принятая карта и её номер версии хранятся рядом и обновляются одновременно, сразу — не дожидаясь перерисовки:
+  // две «разницы», пришедшие подряд (телефон вернулся из фона), накладываются по очереди на свежую карту. Если бы карта
+  // бралась из состояния React, вторая «разница» легла бы на устаревший объект при уже новом номере, и изменение
+  // потерялось бы молча (находка независимого разбора 15.11).
   const mapRev = useRef<number | undefined>(firstMap?.rev);
-  const acceptMap = useCallback((m: MyMapDto) => { mapRev.current = m.rev; setMap((prev) => keepSame(prev, m, MAP_VOLATILE)); }, []);
+  const mapRef = useRef<MyMapDto | null>(firstMap);
+  const putMap = useCallback((next: MyMapDto | null) => { mapRef.current = next; setMap(next); }, []);
+  const acceptMap = useCallback((m: MyMapDto) => { mapRev.current = m.rev; putMap(keepSame(mapRef.current, m, MAP_VOLATILE)); }, [putMap]);
   const fetchMap = useCallback((join: boolean) => apiReady<MapResp>(`/api/games/${id}/my-map`, { join }).then((m) => { acceptMap(m); setMapError(null); setDisplayTimeZone(m.daytime?.timeZone); if (m.gameName) setGameName(m.gameName); }).catch((e) => setMapError(e instanceof ApiError ? e.message : t("Ошибка сети"))), [id, acceptMap]);
   const loadMap = useCallback(() => fetchMap(false), [fetchMap]);
   // Первый показ берёт ответы, которые главная уже запросила заранее и которые ещё в пути.
@@ -404,7 +412,6 @@ export function TeamPage() {
   const cityLater = useCoalesced(() => setCityVersion((v) => v + 1)), feedLater = useCoalesced(() => setFeedVersion((v) => v + 1));
   const awardsLater = useCoalesced(() => setAwardsVersion((v) => v + 1));
   // Карта приходит разницей от сервера (решение владельца 24.10): применяем к своей версии; если версии разошлись — перечитываем.
-  const mapRef = useRef(map); mapRef.current = map;
   const onMapPush = (m: MapPush) => {
     const cur = mapRef.current;
     // Эта версия уже есть: после своего действия карта перечитывается сразу, а «разница» к ней приходит следом. Раньше она
@@ -427,6 +434,11 @@ export function TeamPage() {
     // статус игры, камни Каменоломни в шапке, визиты, заморозку дел.
     if (e.type === "game" || e.type === "quarry" || e.type === "cities" || e.type === "teams" || e.type === "wrecks") mapLater();
     if (e.type === "cities" || e.type === "game" || e.type === "battles") { cityLater(); passagesLater(); }
+    // Запрос прохода и ответ на него приходят событием карты своей команды; положение меняется с каждым принятым делом.
+    // Раньше то и другое обновлялось «заодно» с каждым перечитыванием состава (находка независимого разбора 15.11).
+    if (e.type === "map" && (!e.teamId || e.teamId === team?.id)) passagesLater();
+    if (e.type === "tasks" || e.type === "submissions") standingsLater();
+    if (e.type === "deeds") mapLater();
     if (e.type === "battles" || e.type === "game" || e.type === "submissions") battlesLater();
     if (e.type === "game" || e.type === "cities" || e.type === "battles" || e.type === "teams") standingsLater();
     if (e.type === "peace" || e.type === "teams" || e.type === "game") peaceLater();
@@ -694,7 +706,8 @@ export function TeamPage() {
   const arrivals = map.arrivals ?? [];
   /** Пункт прочитан (решение владельца 07.11): исчезает сразу и только у меня; отметка хранится на сервере. */
   const markSeen = (kind: "quarry" | "wreck" | "arrival", refId: string) => {
-    setMap((m) => (m ? { ...m, quarryNew: kind === "quarry" ? (m.quarryNew ?? []).filter((d) => d.id !== refId) : m.quarryNew, seenWrecks: kind === "wreck" ? [...(m.seenWrecks ?? []), refId] : m.seenWrecks, arrivals: kind === "arrival" ? (m.arrivals ?? []).filter((a) => a.id !== refId) : m.arrivals } : m));
+    const m = mapRef.current;
+    if (m) putMap({ ...m, quarryNew: kind === "quarry" ? (m.quarryNew ?? []).filter((d) => d.id !== refId) : m.quarryNew, seenWrecks: kind === "wreck" ? [...(m.seenWrecks ?? []), refId] : m.seenWrecks, arrivals: kind === "arrival" ? (m.arrivals ?? []).filter((a) => a.id !== refId) : m.arrivals });
     void api(`/api/games/${id}/attention/seen`, { method: "POST", body: JSON.stringify({ kind, refId }) }).catch(() => {});
   };
   const attention = ourTasks.filter((tk) => tk.status === "REJECTED").length + incoming.length + peaceOffers.length + activeBattles.filter((b) => isMyTurn(b, team.id)).length + allyAsks + (isLeader ? visitsDue.length : 0) + returnedEntries.length + returnedBlocks.length + newWrecks.length + newQuarry.length + arrivals.length + assignedToMe.length;

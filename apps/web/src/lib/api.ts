@@ -54,6 +54,8 @@ export async function api<T>(url: string, init: RequestInit = {}): Promise<T> {
 const READY = new Map<string, unknown>();
 /** Запросы «в пути»: кто просит то же самое и готов взять уже идущий ответ (первый показ, предзагрузка), второй запрос не шлёт. */
 const INFLIGHT = new Map<string, Promise<unknown>>();
+/** Поколение памяти: растёт при входе и выходе. Ответ, запрошенный до смены учётки, в память уже не пишется. */
+let generation = 0;
 export function ready<T>(url: string): T | null { return (READY.get(url) as T | undefined) ?? null; }
 /**
  * Запрос с записью ответа в память. `join` — взять ответ, который уже в пути (главная запрашивает карту заранее и тут же
@@ -63,14 +65,15 @@ export function ready<T>(url: string): T | null { return (READY.get(url) as T | 
 export function apiReady<T>(url: string, opts: { join?: boolean } = {}): Promise<T> {
   const going = INFLIGHT.get(url);
   if (going && opts.join) return going as Promise<T>;
-  const p: Promise<T> = api<T>(url).then((r) => { READY.set(url, r); return r; }).finally(() => { if (INFLIGHT.get(url) === p) INFLIGHT.delete(url); });
+  const gen = generation;
+  const p: Promise<T> = api<T>(url).then((r) => { if (gen === generation) READY.set(url, r); return r; }).finally(() => { if (INFLIGHT.get(url) === p) INFLIGHT.delete(url); });
   INFLIGHT.set(url, p);
   return p;
 }
 /** Запросить заранее то, чего ещё нет в памяти и что ещё не в пути; ошибки молча (раздел запросит сам при открытии). */
 export function prefetch(urls: string[]): void { for (const u of urls) if (!READY.has(u) && !INFLIGHT.has(u)) void apiReady(u).catch(() => {}); }
 /** При входе и выходе память очищается: ответы принадлежат учётке. */
-export function clearReady(): void { READY.clear(); INFLIGHT.clear(); }
+export function clearReady(): void { generation++; READY.clear(); INFLIGHT.clear(); }
 
 export interface User { id: string; nickname: string; displayName: string | null; email: string | null; emailVerified: boolean; locale: string; platformRole: "USER" | "SUPERADMIN"; /** К учётке привязан вход через Google. */ googleLinked?: boolean; /** Аватарка: код картинки из набора игры (решение владельца 14.11). */ avatarId?: string | null }
 /** Какие способы входа включены на сервере (GET /api/auth/providers). */
