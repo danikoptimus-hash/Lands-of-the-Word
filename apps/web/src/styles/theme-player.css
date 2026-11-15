@@ -288,8 +288,11 @@
 .home-card .chip:not(.ok):not(.warn):not(.bad):not(.info):not(.accent) { color: var(--stone-dark); }
 
 /* Кнопки карты у игрока — стекло (решение владельца 21.09) */
-.hud-left .hud-btn, .hud-right .hud-btn, .hud-left .hud-team, .map-area .map-controls button, .map-area .storm-back { background: rgba(255,250,236,.55); border: 1px solid rgba(255,250,236,.7); box-shadow: 0 2px 8px rgba(59,36,21,.10); -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px); }
+.hud-left .hud-btn, .hud-right .hud-btn, .team-timeline .tl-clock-btn, .team-timeline .tl-slide, .hud-left .hud-team, .map-area .map-controls button, .map-area .storm-back { background: rgba(255,250,236,.55); border: 1px solid rgba(255,250,236,.7); box-shadow: 0 2px 8px rgba(59,36,21,.10); -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px); }
 .hud-left .hud-btn:hover, .hud-right .hud-btn:hover, .hud-left .hud-team:hover, .map-area .map-controls button:hover, .map-area .storm-back:hover { background: rgba(255,250,236,.8); }
+/* Часики истории ходов: пока карта в прошлом или ползунок открыт — как нажатая плитка. */
+.team-timeline .tl-clock-btn { color: var(--ink); }
+.team-timeline .tl-clock.open .tl-clock-btn, .team-timeline .tl-clock.past .tl-clock-btn { background: rgba(255,250,236,.9); border-color: var(--bronze); color: var(--bronze-ink); }
 /* Колокольчик «Внимание» в шапке (решение владельца 15.11): то же стекло; открыт — как нажатая плитка панели. */
 .hud-right .hud-bell.on, .hud-right .hud-bell.on:hover { background: rgba(255,250,236,.9); border-color: var(--bronze); color: var(--bronze-ink); }
 .hud-right .hud-bell .count-chip.hot { background: var(--wax); color: var(--paper-light); }
