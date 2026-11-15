@@ -1,3 +1,4 @@
+import { cachedFormat } from "./dateFormat.js";
 import { localMinutes } from "./daytime.js";
 
 /**
@@ -21,7 +22,7 @@ const WD: Record<string, number> = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri
 export function localWeekMinutes(timeZone: string, now: Date = new Date()): number {
   let wd: number;
   try {
-    const d = new Intl.DateTimeFormat("en-US", { timeZone, weekday: "short" }).format(now);
+    const d = cachedFormat("weekday:" + timeZone, () => new Intl.DateTimeFormat("en-US", { timeZone, weekday: "short" })).format(now);
     wd = WD[d] ?? now.getUTCDay();
   } catch {
     wd = now.getUTCDay();

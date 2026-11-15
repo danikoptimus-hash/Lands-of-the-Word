@@ -1,3 +1,4 @@
+import { cachedFormat } from "@lotw/domain";
 import { prisma } from "../db.js";
 import { publish } from "./events.js";
 import { journal } from "./journal.js";
@@ -16,7 +17,7 @@ import type { Prisma } from "@prisma/client";
 /** Полночь текущих суток по поясу игры: конец того же дня. */
 export function endOfLocalDay(timeZone: string, now = new Date()): Date {
   try {
-    const parts = new Intl.DateTimeFormat("en-US", { timeZone, year: "numeric", month: "numeric", day: "numeric", hour: "numeric", minute: "numeric", second: "numeric", hour12: false }).formatToParts(now);
+    const parts = cachedFormat("ymdhms:" + timeZone, () => new Intl.DateTimeFormat("en-US", { timeZone, year: "numeric", month: "numeric", day: "numeric", hour: "numeric", minute: "numeric", second: "numeric", hour12: false })).formatToParts(now);
     const n = (type: string) => Number(parts.find((p) => p.type === type)?.value ?? 0);
     const localAsUtc = Date.UTC(n("year"), n("month") - 1, n("day"), n("hour") % 24, n("minute"), n("second"));
     const offset = localAsUtc - Math.floor(now.getTime() / 1000) * 1000;

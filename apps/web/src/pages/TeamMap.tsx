@@ -1,4 +1,4 @@
-import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type MouseEvent, type ReactElement, type PointerEvent } from "react";
+import { Fragment, memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type MouseEvent, type ReactElement, type PointerEvent } from "react";
 import { reportAction, reportPage } from "../lib/perf";
 import { BOOKS, startName, vertexHexes, parseVertexKey, hexCorners, vertexToPixel, seaRoute, routeCurve, routeArrow } from "@lotw/domain";
 import { HEX_SIZE, fieldBounds, hexCenter, nodePos } from "../lib/hexmap";
@@ -92,13 +92,13 @@ export function teamFogInputs(map: Pick<MyMapDto, "hexes" | "revealed" | "edges"
   return { fogHexes, landKeys, fogClear: { nodes, edges }, fogPoints };
 }
 
-export function TeamMap({ map, myId, teamIndex, selectedTaskId, onSelect, onSelectCity, landing, onLand, onMark, onMarkTap, onFrontierTap, onSelectQuarry, onSelectWreck, bird, focusTask, storm }: { /** Кто смотрит карту: дела, которые взял он сам, — фиолетовые (решение владельца 14.11). */ myId?: string | null; /** Нажатие на разбитый бурей корабль (решение владельца 04.11): лист срочного задания. */ onSelectWreck?: (wreckId: string) => void; /** Шторм (решение владельца 24.10): буря над картой, свитки и метки скрыты, города не нажимаются. */ storm?: Storm; /** «Посмотреть на карте» (просьба владельца 10.10): при смене nonce карта центрируется на стороне этого дела и приближается. */ focusTask?: { id: string; nonce: number } | null; /** Полёт клина, если страница запрашивает его отдельно к назначенной минуте; undefined — брать из map.dailyBird. */ bird?: DailyBirdDto | null; /** Нажатие на островок Каменоломни (решение владельца 04.10). */ onSelectQuarry?: () => void; /** Нажатие на точку края тумана, к которой нет дороги с делом (решение владельца 02.10: разведчик разведывает любой узел на краю тумана). */ onFrontierTap?: (nodeKey: string) => void; map: MyMapDto; teamIndex: number; selectedTaskId: string | null; onSelect: (taskId: string | null) => void; onSelectCity: (nodeKey: string) => void; /** Метки команды: кнопка-булавка включает режим, нажатие по карте отдаёт гекс и точное место (дробные координаты); нажатие на флажок — убрать. */ onMark?: (at: MarkPoint) => void; onMarkTap?: (mark: MapMarkDto) => void; /** Режим высадки: узлы-кандидаты другого острова подсвечены, нажатие — высадка (только капитан). */ landing?: { taskId: string; candidates: string[] } | null; onLand?: (nodeKey: string) => void }) {
+function TeamMapInner({ map, myId, teamIndex, selectedTaskId, onSelect, onSelectCity, landing, onLand, onMark, onMarkTap, onFrontierTap, onSelectQuarry, onSelectWreck, bird, focusTask, storm }: { /** Кто смотрит карту: дела, которые взял он сам, — фиолетовые (решение владельца 14.11). */ myId?: string | null; /** Нажатие на разбитый бурей корабль (решение владельца 04.11): лист срочного задания. */ onSelectWreck?: (wreckId: string) => void; /** Шторм (решение владельца 24.10): буря над картой, свитки и метки скрыты, города не нажимаются. */ storm?: Storm; /** «Посмотреть на карте» (просьба владельца 10.10): при смене nonce карта центрируется на стороне этого дела и приближается. */ focusTask?: { id: string; nonce: number } | null; /** Полёт клина, если страница запрашивает его отдельно к назначенной минуте; undefined — брать из map.dailyBird. */ bird?: DailyBirdDto | null; /** Нажатие на островок Каменоломни (решение владельца 04.10). */ onSelectQuarry?: () => void; /** Нажатие на точку края тумана, к которой нет дороги с делом (решение владельца 02.10: разведчик разведывает любой узел на краю тумана). */ onFrontierTap?: (nodeKey: string) => void; map: MyMapDto; teamIndex: number; selectedTaskId: string | null; onSelect: (taskId: string | null) => void; onSelectCity: (nodeKey: string) => void; /** Метки команды: кнопка-булавка включает режим, нажатие по карте отдаёт гекс и точное место (дробные координаты); нажатие на флажок — убрать. */ onMark?: (at: MarkPoint) => void; onMarkTap?: (mark: MapMarkDto) => void; /** Режим высадки: узлы-кандидаты другого острова подсвечены, нажатие — высадка (только капитан). */ landing?: { taskId: string; candidates: string[] } | null; onLand?: (nodeKey: string) => void }) {
   const size = HEX_SIZE;
   /** Дело, которое взял сам смотрящий (в работе или на проверке): метка фиолетовая. */
   const mineOf = (tk: EdgeTaskDto) => !!myId && tk.takenById === myId && (tk.status === "TAKEN" || tk.status === "SUBMITTED");
   /** Поручение (решение владельца 14.11): свиток дела, порученного мне, — фиолетовый; порученного другому — приглушён. */
   const assignCls = (tk: EdgeTaskDto) => { const to = deedAssignee(tk); return to ? (to === myId ? " for-me" : " assigned") : ""; };
-  const hexKey = map.hexes.map((h) => `${h.q},${h.r}`).join(";");
+  const hexKey = useMemo(() => map.hexes.map((h) => `${h.q},${h.r}`).join(";"), [map.hexes]);
   const bounds = useMemo(() => (map.hexes.length ? fieldBounds(map.hexes, size) : null), [hexKey, size]); // eslint-disable-line react-hooks/exhaustive-deps
   const start = useMemo(() => (map.team.startNodeKey ? nodePos(map.team.startNodeKey, size) : null), [map.team.startNodeKey, size]);
   const renderStart = performance.now();
@@ -131,8 +131,10 @@ export function TeamMap({ map, myId, teamIndex, selectedTaskId, onSelect, onSele
   // Время суток (решение владельца 03.10): по поясу игры и часам сервера; картинки городов — фазы, которой больше в переходе.
   const dt = useDaytime(map.daytime?.timeZone, map.now);
   // Шторм поверх времени суток: свинцовая вода и серая мгла по доле шторма (плавный вход и выход).
-  const light = storm && storm.t > 0 ? stormLight(dt.light, storm.t) : dt.light;
-  const dts = light === dt.light ? dt : { ...dt, light };
+  // Запоминается: новый объект света при каждой отрисовке заставлял слои карты пересобираться (ревизия 15.11).
+  const stormT = storm && storm.t > 0 ? storm.t : 0;
+  const light = useMemo(() => (stormT > 0 ? stormLight(dt.light, stormT) : dt.light), [dt.light, stormT]);
+  const dts = useMemo(() => (light === dt.light ? dt : { ...dt, light }), [dt, light]);
   const imgPhase = dt.t >= 0.5 ? dt.to : dt.from;
   // Полоска внизу экрана на Android (замечание владельца 24.10): браузер красит область жестовой панели в цвет фона
   // страницы (бумага). Пока открыта карта, фон страницы и theme-color — цвет воды текущего освещения, полоска сливается с морем.
@@ -174,7 +176,7 @@ export function TeamMap({ map, myId, teamIndex, selectedTaskId, onSelect, onSele
     for (const n of map.revealed) m.set(n.key, nodePos(n.key, size));
     for (const e of map.edges) { if (!m.has(e.aKey)) m.set(e.aKey, nodePos(e.aKey, size)); if (!m.has(e.bKey)) m.set(e.bKey, nodePos(e.bKey, size)); }
     return m;
-  }, [map, size]);
+  }, [map.revealed, map.edges, size]);
   const [ripple, setRipple] = useState<{ x: number; y: number; n: number } | null>(null);
   /**
    * Метка ставится долгим нажатием на карту (решение владельца 29.10: кнопка-булавка убрана, «метка будет ставиться при
@@ -246,28 +248,42 @@ export function TeamMap({ map, myId, teamIndex, selectedTaskId, onSelect, onSele
   const nodeByKey = useMemo(() => new Map(map.revealed.map((n) => [n.key, n])), [map.revealed]);
   // Морские маршруты (решение владельца 05.10): после высадки путь корабля виден команде — плавная линия строго по воде,
   // в обход островков, со стрелкой в сторону высадки; нажимается, как пройденная сторона.
+  // Найденные пути запоминаются по концам (ревизия скорости 15.11): поиск пути по воде — самое дорогое в пересчёте карты
+  // (0,2–0,3 с на быстром процессоре), а раньше все пути искались заново при любом изменении списка дел, хотя суша и
+  // островки те же. Память сбрасывается, когда меняются гексы, островки или размер; сами точки никто не изменяет.
+  const routeMemo = useRef<{ land: string; islets: unknown; size: number; byEnds: Map<string, Array<{ x: number; y: number }>> }>({ land: "", islets: null, size: 0, byEnds: new Map() });
+  const routeOf = useCallback((fromKey: string, toKey: string) => {
+    const m = routeMemo.current;
+    if (m.land !== hexKey || m.islets !== islets || m.size !== size) { m.land = hexKey; m.islets = islets; m.size = size; m.byEnds = new Map(); }
+    const ends = fromKey + ">" + toKey;
+    let pts = m.byEnds.get(ends);
+    if (!pts) {
+      const obstacles = islets.map((i) => ({ x: i.x, y: i.y, r: i.r, shape: i.shape }));
+      pts = routeCurve(seaRoute(landKeys, fromKey, toKey, size, undefined, obstacles), landKeys, size, obstacles);
+      m.byEnds.set(ends, pts);
+    }
+    return pts;
+  }, [hexKey, islets, size, landKeys]);
   const seaRoutes = useMemo(() => {
-    const obstacles = islets.map((i) => ({ x: i.x, y: i.y, r: i.r, shape: i.shape }));
     return map.tasks.filter((tk) => tk.sea && tk.status === "APPROVED" && !tk.toKey.startsWith("sea:")).map((tk) => {
-      const pts = routeCurve(seaRoute(landKeys, tk.fromKey, tk.toKey, size, undefined, obstacles), landKeys, size, obstacles);
+      const pts = routeOf(tk.fromKey, tk.toKey);
       const arrow = routeArrow(pts, size * 1.1);
       return { tk, pts, end: { x: arrow.x, y: arrow.y }, heading: arrow.heading };
     });
-  }, [map.tasks, landKeys, islets, size]);
+  }, [map.tasks, routeOf, size]);
   // Видимая линия переправы рисуется слоем живности между зверями и кораблями (решение владельца 06.10); нажатие по ней считает код (hitModel).
   // Концы линии укорочены, чтобы не заходить под знак порта и города (замечание владельца 06.10: города выше маршрута).
   // Чужая высадка (решение владельца 12.10, вместо точек команд в подписи): у города виден только хвост маршрута
   // корабля другой команды — последний отрезок длиной около гекса, в её цвете и со стрелкой к месту высадки.
   const foreignStubs = useMemo(() => {
-    const obstacles = islets.map((i) => ({ x: i.x, y: i.y, r: i.r, shape: i.shape }));
     // Порт отправления чужого корабля команде обычно неизвестен — нужен только известный узел высадки.
     return (map.foreign ?? []).filter((f) => f.sea && positions.has(f.bKey)).map((f) => {
-      const pts = routeCurve(seaRoute(landKeys, f.aKey, f.bKey, size, undefined, obstacles), landKeys, size, obstacles);
+      const pts = routeOf(f.aKey, f.bKey);
       const arrow = routeArrow(pts, size * 1.1);
       const tail = trimRoute(tailRoute(pts, size * 2.2), 0, nodeByKey.get(f.bKey)?.kind === "CITY" ? size * 0.5 : size * 0.2);
       return { pts: tail, color: routeColor(f.color), arrow: { x: arrow.x, y: arrow.y, heading: arrow.heading } };
     });
-  }, [map.foreign, positions, landKeys, islets, size, nodeByKey]);
+  }, [map.foreign, positions, routeOf, size, nodeByKey]);
   const routeSpecs = useMemo(() => [...seaRoutes.map((r) => ({ pts: trimRoute(r.pts, size * 0.5, nodeByKey.get(r.tk.toKey)?.kind === "CITY" ? size * 0.5 : size * 0.2), color: routeColor(map.team.color), selected: r.tk.id === selectedTaskId, arrow: { x: r.end.x, y: r.end.y, heading: r.heading } })), ...foreignStubs], [seaRoutes, foreignStubs, map.team.color, selectedTaskId, nodeByKey, size]);
   // Корабли: морские дела, пока команда не высадилась (после высадки дело — обычная пройденная сторона).
   const ships = useMemo(() => map.tasks.filter((tk) => tk.sea && (tk.status !== "APPROVED" || tk.landing)).map((tk) => {
@@ -698,3 +714,9 @@ export function TeamMap({ map, myId, teamIndex, selectedTaskId, onSelect, onSele
     </div>
   );
 }
+
+/**
+ * Карта команды в memo (ревизия скорости 15.11): перерисовывается только от своих данных. Страница команды держит десятки
+ * состояний (листы, поля ввода, сообщения), и раньше каждое их изменение заново выполняло всю карту.
+ */
+export const TeamMap = memo(TeamMapInner);

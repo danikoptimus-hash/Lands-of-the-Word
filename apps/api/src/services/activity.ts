@@ -1,3 +1,4 @@
+import { cachedFormat } from "@lotw/domain";
 import { prisma } from "../db.js";
 import { TEST_USER_WHERE } from "./metrics.js";
 
@@ -13,7 +14,7 @@ const DAY = 86_400_000;
 
 /** «YYYY-MM-DD» по поясу отчётности. */
 export function dayKey(d: Date, tz = REPORT_TZ): string {
-  const parts = new Intl.DateTimeFormat("en-CA", { timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(d);
+  const parts = cachedFormat("day:" + tz, () => new Intl.DateTimeFormat("en-CA", { timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit" })).formatToParts(d);
   const n = (type: string) => parts.find((p) => p.type === type)?.value ?? "00";
   return `${n("year")}-${n("month")}-${n("day")}`;
 }

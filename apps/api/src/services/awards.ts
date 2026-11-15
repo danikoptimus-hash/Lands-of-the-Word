@@ -1,5 +1,5 @@
 import { prisma } from "../db.js";
-import { AWARDS, BOOK_GROUPS, STREAK_MILESTONES, VERSE_MILESTONES, nextStreakMilestone } from "@lotw/domain";
+import { AWARDS, BOOK_GROUPS, STREAK_MILESTONES, VERSE_MILESTONES, cachedFormat, nextStreakMilestone } from "@lotw/domain";
 import { rulesOf } from "./rules.js";
 import { publish } from "./events.js";
 
@@ -22,13 +22,13 @@ const H7 = 7 * 3_600_000;
 
 /** Ключ игровых суток «YYYY-MM-DD» по поясу игры: момент минус семь часов, затем календарная дата. */
 export function gameDayKey(d: Date | number, tz: string): string {
-  const parts = new Intl.DateTimeFormat("en-CA", { timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(new Date(+d - H7));
+  const parts = cachedFormat("day:" + tz, () => new Intl.DateTimeFormat("en-CA", { timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit" })).formatToParts(new Date(+d - H7));
   const n = (type: string) => parts.find((p) => p.type === type)?.value ?? "00";
   return `${n("year")}-${n("month")}-${n("day")}`;
 }
 /** Час по поясу игры (0–23). */
 function localHour(d: Date, tz: string): number {
-  const h = new Intl.DateTimeFormat("en-GB", { timeZone: tz, hour: "2-digit", hour12: false }).format(d);
+  const h = cachedFormat("hour:" + tz, () => new Intl.DateTimeFormat("en-GB", { timeZone: tz, hour: "2-digit", hour12: false })).format(d);
   return Number(h) % 24;
 }
 const dayIndex = (key: string) => Math.round(Date.UTC(Number(key.slice(0, 4)), Number(key.slice(5, 7)) - 1, Number(key.slice(8, 10))) / DAY);

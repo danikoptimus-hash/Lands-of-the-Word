@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { Picker } from "../components/Picker";
-import { api, ApiError, type TradeDto, type TradesDto, type TradeWallDto } from "../lib/api";
+import { api, ApiError, apiReady, ready, type TradeDto, type TradesDto, type TradeWallDto } from "../lib/api";
 import { useUi } from "../lib/ui";
 import { t } from "../lib/i18n";
 import { fmtDate, plural } from "../lib/format";
@@ -40,11 +40,11 @@ function WallCheck({ id, wall, checked, onChange }: { id: string; wall: { blocks
 
 export function TradesSection({ gameId, onChanged }: { gameId: string; onChanged?: () => void; /** Открыть форму предложения этой команде (из меню «⋯» строки команды, решение владельца 24.10). */ openFor?: { teamId: string; nonce: number } | null; /** Сообщить странице, может ли посол предлагать обмен. */ onCanTrade?: (v: boolean) => void }) {
   const { notify, confirm } = useUi();
-  const [data, setData] = useState<TradesDto | null>(null);
+  const [data, setData] = useState<TradesDto | null>(() => ready<TradesDto>(`/api/games/${gameId}/my-trades`));
   const [counter, setCounter] = useState<Record<string, string>>({});
   const [counterWall, setCounterWall] = useState<Record<string, boolean>>({});
   const [busy, setBusy] = useState<string | null>(null);
-  const load = useCallback(() => api<TradesDto>(`/api/games/${gameId}/my-trades`).then(setData).catch(() => {}), [gameId]);
+  const load = useCallback(() => apiReady<TradesDto>(`/api/games/${gameId}/my-trades`).then(setData).catch(() => {}), [gameId]);
   useEffect(() => { void load(); }, [load]);
   useGameEvents(gameId, (e) => { if (e.type === "trades" || e.type === "cities" || e.type === "teams") void load(); });
   if (!data || !data.canTrade) return null;

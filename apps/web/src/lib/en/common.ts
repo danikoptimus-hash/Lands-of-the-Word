@@ -11,4 +11,8 @@ export const COMMON: Record<string, string> = {
   "Без роли": "No role", "отчёт": "report", "фото": "photo", "видео": "video", "подтверждение": "confirmation",
   "аудио": "audio", "принято": "accepted", "возвращено": "returned", "отменено": "cancelled", "отказано": "declined", "без ответа": "no answer",
   "сегодня": "today", "вчера": "yesterday", "{d} дн {h} ч": "{d} d {h} h",
+  "Ошибка запроса": "Request failed", "Обновить": "Reload",
+  "Сервер долго не отвечает. Проверьте связь и попробуйте ещё раз.": "The server is taking too long to respond. Check your connection and try again.",
+  "Нет связи с сервером. Пробуем снова…": "No connection to the server. Retrying…",
+  "Что-то пошло не так. Обновите страницу — данные игры не пропали.": "Something went wrong. Reload the page — your game data is safe.",
 };
