@@ -2,7 +2,7 @@
 // node profile.cjs СЦЕНАРИЙ  (load — первая загрузка, pan — движение карты, idle — простой, sheets — открытие разделов)
 const { chromium } = require('playwright'); const fs = require('fs'); const path = require('path');
 const { SourceMapConsumer } = require(path.join(__dirname, '../../node_modules/source-map-js'));
-const BASE = 'http://localhost:3001', GAME = 'cmucujbgq0008s301ran0fnt4', DEV = process.env.DEV_DIST || path.join(require('os').tmpdir(), 'lotw-dist-dev');
+const BASE = process.env.BASE || 'http://localhost:3001', GAME = 'cmucujbgq0008s301ran0fnt4', DEV = process.env.DEV_DIST || path.join(require('os').tmpdir(), 'lotw-dist-dev');
 const SCEN = process.argv[2] || 'load';
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 (async () => {

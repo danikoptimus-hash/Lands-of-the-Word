@@ -68,6 +68,7 @@ const pct = (a, q) => { const s = [...a].sort((x, y) => x - y); return s.length 
   res.pan = { cpu: cpuDelta(m0, m1), frames: frameStats(fr), long: longStats(await p.evaluate(() => window.__perf.long)), netN: net.length };
   console.log('движение карты', JSON.stringify(res.pan));
 
+  if (!process.env.SKIP_ZOOM) {
   // 4. Масштаб: щипок двумя пальцами.
   const pinch = async (from, to, steps = 30) => { const cx = 195, cy = 420; const pts = (d) => [{ x: cx - d, y: cy, id: 1 }, { x: cx + d, y: cy, id: 2 }]; await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: pts(from) }); for (let i = 1; i <= steps; i++) { await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: pts(from + (to - from) * i / steps) }); await sleep(16); } await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] }); };
   await p.evaluate(() => { window.__perf.long = []; });
@@ -76,6 +77,7 @@ const pct = (a, q) => { const s = [...a].sort((x, y) => x - y); return s.length 
   fr = await p.evaluate(() => window.__frames(false)); m1 = await metrics();
   res.zoom = { cpu: cpuDelta(m0, m1), frames: frameStats(fr), long: longStats(await p.evaluate(() => window.__perf.long)) };
   console.log('масштаб', JSON.stringify(res.zoom));
+  }
 
   // 5. Разделы панели: нажатие → содержимое устоялось (300 мс без изменений DOM и без запросов).
   const settle = async (max = 15000) => p.evaluate((mx) => new Promise((done) => { const t0 = performance.now(); let last = performance.now(); const mo = new MutationObserver(() => { last = performance.now(); }); mo.observe(document.body, { childList: true, subtree: true, characterData: true }); const iv = setInterval(() => { const now = performance.now(); if (now - last > 400 || now - t0 > mx) { clearInterval(iv); mo.disconnect(); done(Math.round(last - t0)); } }, 50); }), max);

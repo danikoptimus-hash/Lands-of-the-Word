@@ -1,0 +1,60 @@
+== сценарий pan: 31252 мс по часам; занято  31389 мс, простой      9 мс
+по исходным файлам (собственное время, мс):
+    29293 (браузер: отрисовка и прочее)
+     1740 (движок браузера)
+      159 apps/web/src/pages/Fauna.tsx
+       75 apps/web/src/lib/useViewport.ts
+       29 библиотека react-dom
+       26 (сборка мусора)
+       19 apps/web/src/pages/MapLayers.tsx
+       12 apps/web/src/lib/glLines.ts
+       12 apps/web/src/pages/Islets.tsx
+        7 apps/web/src/pages/WorldGL.tsx
+        3 apps/web/src/pages/RoutesGL.tsx
+        3 apps/web/src/pages/Lakes.tsx
+        2 apps/web/src/pages/TeamMap.tsx
+        2 packages/domain/dist/fireworks.js
+        2 apps/web/src/pages/SeaGL.tsx
+        1 apps/web/src/pages/TeamPage.tsx
+        1 packages/domain/dist/dateFormat.js
+        1 apps/web/src/lib/perf.ts
+        0 apps/web/src/lib/daytime.ts
+        0 apps/web/src/lib/keep.ts
+        0 библиотека scheduler
+        0 библиотека react
+        0 apps/web/src/pages/FireworksLayer.tsx
+по функциям:
+    29293 (program) — (браузер: отрисовка и прочее)
+     1663 drawImage — (движок браузера)
+       73 (безымянная) — apps/web/src/lib/useViewport.ts
+       33 keepInWater — apps/web/src/pages/Fauna.tsx
+       26 (garbage collector) — (сборка мусора)
+       20 landPen — apps/web/src/pages/Fauna.tsx
+       18 coastPen — apps/web/src/pages/Fauna.tsx
+       15 carrotPoint — apps/web/src/pages/Fauna.tsx
+       14 stepPod — apps/web/src/pages/Fauna.tsx
+       11 fill — (движок браузера)
+       11 stepShip — apps/web/src/pages/Fauna.tsx
+        8 stepGull — apps/web/src/pages/Fauna.tsx
+        8 steerCet — apps/web/src/pages/Fauna.tsx
+        8 draw — apps/web/src/pages/MapLayers.tsx
+        6 (безымянная) — библиотека react-dom
+        6 draw — apps/web/src/pages/WorldGL.tsx
+        5 vertexAttribPointer — (движок браузера)
+        5 bufferData — (движок браузера)
+        5 draw — apps/web/src/lib/glLines.ts
+        5 bindBuffer — (движок браузера)
+        5 uniform1f — (движок браузера)
+        4 stepSolo — apps/web/src/pages/Fauna.tsx
+        4 SyntheticBaseEvent — библиотека react-dom
+        4 requestAnimationFrame — (движок браузера)
+        4 apply — apps/web/src/pages/MapLayers.tsx
+        3 uniform2f — (движок браузера)
+        3 dispatchEvent — библиотека react-dom
+        3 carrotStep — apps/web/src/pages/Fauna.tsx
+        3 clear — (движок браузера)
+        3 render — apps/web/src/pages/Islets.tsx
+        3 (безымянная) — apps/web/src/pages/Islets.tsx
+        3 stepWorld — apps/web/src/pages/Fauna.tsx
+        3 disableVertexAttribArray — (движок браузера)
+        3 uniform3fv — (движок браузера)

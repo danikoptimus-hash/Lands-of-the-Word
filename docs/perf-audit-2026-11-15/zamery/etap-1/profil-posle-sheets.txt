@@ -1,0 +1,58 @@
+== сценарий sheets: 16968 мс по часам; занято  16390 мс, простой    713 мс
+по исходным файлам (собственное время, мс):
+    16168 (браузер: отрисовка и прочее)
+       61 (движок браузера)
+       49 apps/web/src/pages/Fauna.tsx
+       38 библиотека react-dom
+       34 (сборка мусора)
+        9 apps/web/src/pages/MapLayers.tsx
+        8 apps/web/src/pages/TeamPage.tsx
+        4 apps/web/src/pages/SeaGL.tsx
+        3 библиотека react-router
+        3 packages/domain/dist/fireworks.js
+        3 библиотека scheduler
+        3 apps/web/src/pages/Journal.tsx
+        2 apps/web/src/pages/Lakes.tsx
+        1 apps/web/src/lib/perf.ts
+        1 apps/web/src/lib/daytime.ts
+        1 apps/web/src/lib/format.ts
+        1 apps/web/src/components/Tabs.tsx
+        0 apps/web/src/components/Help.tsx
+        0 apps/web/src/pages/TrialFlow.tsx
+        0 apps/web/src/pages/FireworksLayer.tsx
+        0 apps/web/src/components/TeamAvatar.tsx
+по функциям:
+    16168 (program) — (браузер: отрисовка и прочее)
+       34 (garbage collector) — (сборка мусора)
+       12 keepInWater — apps/web/src/pages/Fauna.tsx
+       10 fill — (движок браузера)
+        7 drawArrays — (движок браузера)
+        5 carrotPoint — apps/web/src/pages/Fauna.tsx
+        5 addColorStop — (движок браузера)
+        5 query — (движок браузера)
+        4 drawImage — (движок браузера)
+        4 removeChild — (движок браузера)
+        4 draw — apps/web/src/pages/MapLayers.tsx
+        3 (безымянная) — библиотека react-dom
+        3 stepShip — apps/web/src/pages/Fauna.tsx
+        3 getPathContributingMatches — библиотека react-router
+        3 localDay — packages/domain/dist/fireworks.js
+        3 byTitle — apps/web/src/pages/TeamPage.tsx
+        3 batchedUpdates$1 — библиотека react-dom
+        3 createRadialGradient — (движок браузера)
+        3 updateMemo — библиотека react-dom
+        3 (безымянная) — apps/web/src/pages/Journal.tsx
+        3 TeamPage — apps/web/src/pages/TeamPage.tsx
+        3 cut — apps/web/src/pages/MapLayers.tsx
+        3 SyntheticBaseEvent — библиотека react-dom
+        3 landPen — apps/web/src/pages/Fauna.tsx
+        2 loop — apps/web/src/pages/SeaGL.tsx
+        2 coastPen — apps/web/src/pages/Fauna.tsx
+        2 dispatchEvent — библиотека react-dom
+        2 stepGull — apps/web/src/pages/Fauna.tsx
+        2 stepPod — apps/web/src/pages/Fauna.tsx
+        2 draw — apps/web/src/pages/Fauna.tsx
+        2 clearRect — (движок браузера)
+        2 getListener — библиотека react-dom
+        2 loop — apps/web/src/pages/Fauna.tsx
+        2 draw — apps/web/src/pages/SeaGL.tsx
