@@ -800,6 +800,9 @@ label > .help-pop-wrap.req-star { margin-left: 2px; vertical-align: baseline; }
 .deed-pair .link-add-btn { width: 100%; min-height: var(--control-h); justify-content: center; }
 .deed-sheet .deed-actions { display: grid; grid-template-columns: 1fr 1fr; gap: var(--sp-2); }
 .deed-sheet .deed-actions > button { width: 100%; min-height: 52px; white-space: normal; line-height: 1.2; padding-inline: var(--sp-2); }
+/* Ночью «Сдать на проверку» стоит на месте и по нажатию показывает подсказку (решение владельца 15.11). */
+.deed-sheet .deed-actions > .submit-asleep { display: flex; }
+.deed-sheet .deed-actions > .submit-asleep > button { width: 100%; min-height: 52px; white-space: normal; line-height: 1.2; padding-inline: var(--sp-2); }
 .deed-pair > * { min-width: 0; }
 .deed-pair .link-list li { min-width: 0; overflow: hidden; }
 /* Отчёт о визите к адресату (22.10). */

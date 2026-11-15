@@ -27,7 +27,6 @@ import { fmtDate, plural, setDisplayTimeZone } from "../lib/format";
 import { Icon } from "../components/Icon";
 import { LinkList, linkKind } from "../components/LinkList";
 import { AutoGrow } from "../components/AutoGrow";
-import { NightNote } from "../components/NightNote";
 import { LinksField } from "../components/LinksField";
 import { PeoplePicker } from "../components/PeoplePicker";
 import { Back } from "../components/Back";
@@ -1001,14 +1000,11 @@ export function TeamPage() {
             <TeamAvatar name={team.name} color={team.color} avatarId={team.avatarId} zoom={false} /><span className="name">{team.name}</span><Icon name="chevron" className="go" />
           </button>
           {/* Время суток (решение владельца 03.10): ночью только карта, утром отправляют вызов — подсказка у названия команды. */}
-          {/* На телефоне с колокольчиком в шапке плашке с текстом не хватает места (она вытесняла название команды): там — знак
-              месяца или солнца, текст по нажатию, как у ночных предупреждений (решение владельца 04.11). На компьютере — плашка. */}
-          {phase === "night" && (wide
-            ? <span className="hud-tod night" title={t("Ночь: города спят, дела и испытания ждут утра")}><Icon name="moon" />{t("Ночь до 7:00")}</span>
-            : <HelpPopup name={t("Ночь до 7:00")} buttonClassName="night-sign info sm" trigger={<Icon name="moon" />}><p><b>{t("Ночь до 7:00")}.</b> {t("Ночь: города спят, дела и испытания ждут утра")}</p></HelpPopup>)}
-          {phase === "morning" && (wide
-            ? <span className="hud-tod morning" title={t("Утро: вызов на город отправляют на проверку до 9:00")}><Icon name="sun" />{t("Утро до 9:00")}</span>
-            : <HelpPopup name={t("Утро до 9:00")} buttonClassName="night-sign warn sm" trigger={<Icon name="sun" />}><p><b>{t("Утро до 9:00")}.</b> {t("Утро: вызов на город отправляют на проверку до 9:00")}</p></HelpPopup>)}
+          {/* Время суток в шапке — только на компьютере, плашкой с текстом. На телефоне знака ночи и дня в шапке нет (решение
+              владельца 15.11: «убрать вообще оттуда значок ночи и дня, тем более наползают друг на друга»): ночь видна по карте,
+              а что сейчас нельзя сделать, говорит подсказка у кнопки. */}
+          {wide && phase === "night" && <span className="hud-tod night" title={t("Ночь: города спят, дела и испытания ждут утра")}><Icon name="moon" />{t("Ночь до 7:00")}</span>}
+          {wide && phase === "morning" && <span className="hud-tod morning" title={t("Утро: вызов на город отправляют на проверку до 9:00")}><Icon name="sun" />{t("Утро до 9:00")}</span>}
         </div>
         {/* Серия дней (решение владельца 29.10): плашка при заходе раз в игровые сутки; в день рубежа — праздник со значком. */}
         {streakShow && awards && !milestone && !selectedId && <StreakBanner streak={awards.streak} celebrate={streakLit} onOpen={() => { closeStreak(); openAwards(); }} onClose={closeStreak} />}
@@ -1076,8 +1072,8 @@ export function TeamPage() {
             <Sheet size="sm" container={mapEl} title={t("Край тумана")} onClose={() => setFrontierKey(null)}>
               <p className="muted">{t("Дороги с делом сюда пока нет.")}</p>
               {error && <p className="error" role="alert">{error}</p>}
-              {phase === "night" && !pk && <NightNote>{t("Ночь: разведка ждёт утра, с 7:00 по местному времени.")}</NightNote>}
-              {me?.gameRole === "SCOUT" && !pk && phase !== "night" && <div className="actions deed-acts"><SquareAction icon="telescope" disabled={busy} label={t("Разведать")} help={SCOUT_HELP()} onClick={() => void peek(frontierKey)} /></div>}
+              {/* Ночью кнопка на месте, по нажатию — подсказка о ночи; отдельной строки со знаком месяца нет (решение владельца 15.11). */}
+              {me?.gameRole === "SCOUT" && !pk && <div className="actions deed-acts"><SquareAction icon="telescope" disabled={busy} asleep={phase === "night" ? t("Ночь: разведка ждёт утра, с 7:00 по местному времени.") : undefined} label={t("Разведать")} help={SCOUT_HELP()} onClick={() => void peek(frontierKey)} /></div>}
               {me?.gameRole !== "SCOUT" && !pk && <p className="hint">{t("Разведать этот перекрёсток может разведчик команды.")}</p>}
             </Sheet>
           );
@@ -1096,7 +1092,10 @@ export function TeamPage() {
           // Взять дело можно до полуночи, как и решать задания города (решение владельца 04.10); сдача и разведка — с 7:00.
           const canTake = !night || Boolean(map?.daytime?.tasksOpen);
           // «Разведать» — такая же квадратная кнопка со значком и «?», как остальные действия дела (решение владельца 14.11).
-          const scoutBtn = canScout && !night && <SquareAction icon="telescope" disabled={busy} label={t("Разведать")} help={SCOUT_HELP()} onClick={() => void peek(task.toKey)} />;
+          // Ночью кнопки те же, что днём (решение владельца 15.11): нажатие показывает подсказку о ночи, строки со знаком месяца нет.
+          const NIGHT_ALL = t("Ночь: дела ждут утра. С 7:00 по местному времени дело можно взять, сдать или разведать.");
+          const NIGHT_EVENING = t("До 0:00 дело можно взять; сдать и разведать — с 7:00 по местному времени.");
+          const scoutBtn = canScout && <SquareAction icon="telescope" disabled={busy} asleep={night ? (canTake ? NIGHT_EVENING : NIGHT_ALL) : undefined} label={t("Разведать")} help={SCOUT_HELP()} onClick={() => void peek(task.toKey)} />;
           // Порядок листа (решение владельца 18.09): суть → как сдать → состояние → действие → правила (кодекс).
           const mine = Boolean(task.takenById) && task.takenById === user?.id;
           // Поручение (решение владельца 14.11): кому поручено свободное дело, пока держится бронь.
@@ -1140,9 +1139,6 @@ export function TeamPage() {
               {/* Плашек «На проверке у администратора» и «Разведано…» нет (решение владельца 14.11): первое повторяет значок
                   состояния в шапке, второе видно на карте — разведанное место остаётся открытым. */}
               {error && <p className="error" role="alert">{error}</p>}
-              {night && !canTake && task.status !== "APPROVED" && task.status !== "SUBMITTED" && <NightNote>{t("Ночь: дела ждут утра. С 7:00 по местному времени дело можно взять, сдать или разведать.")}</NightNote>}
-              {night && canTake && (task.status === "OPEN" || task.status === "REJECTED") && <NightNote>{t("До 0:00 дело можно взять; сдать и разведать — с 7:00 по местному времени.")}</NightNote>}
-              {night && canTake && task.status === "TAKEN" && <NightNote>{t("Ночь: сдать дело можно с 7:00 по местному времени.")}</NightNote>}
               {/* Действия дела — ряд квадратных кнопок со значками внизу справа (решение владельца 14.11): слева направо «на карте»,
                   «приоритет» (капитан и заместитель), «вымостить», «взять дело»; у каждой в правом верхнем углу маленький «?» —
                   что делает кнопка. Каменоломня (решение владельца 04.10): камень мостит свободную сухопутную сторону — капитан,
@@ -1150,7 +1146,7 @@ export function TeamPage() {
               {(() => {
                 const free = task.status === "OPEN" || task.status === "REJECTED";
                 // Порученное дело, пока держится бронь, берёт только адресат.
-                const showTake = canTake && free && (!assignee || assignedToMe);
+                const showTake = free && (!assignee || assignedToMe);
                 // Поручить свободное дело может капитан или заместитель; у порученного кнопка нажата — по ней сменить адресата или снять.
                 const showAssign = isLeader && task.status === "OPEN";
                 const showPave = showTake && !task.sea && (map?.team.stones ?? 0) > 0 && (isCaptain || me?.role === "DEPUTY" || me?.gameRole === "CHRONICLER");
@@ -1164,8 +1160,8 @@ export function TeamPage() {
                 // Взятое дело с формой сдачи (решение владельца 15.11): «кто ещё участвовал» и «вставить ссылку» — квадратные кнопки
                 // в этом же ряду, справа от карты и разведки; ряд рисует сама форма (у неё выбранные участники и ссылки).
                 // Форма только у взявшего, капитана, заместителя и летописца (замечание владельца 10.10: остальные видели чужую сдачу).
-                if (!night && task.status === "TAKEN" && (mine || isLeader || me?.gameRole === "CHRONICLER")) return (
-                  <DeedForm key={task.id} busy={busy} proofType={task.deed.proofType} lead={<>{mapBtn}{scoutBtn}{prioBtn}</>}
+                if (task.status === "TAKEN" && (mine || isLeader || me?.gameRole === "CHRONICLER")) return (
+                  <DeedForm key={task.id} busy={busy} proofType={task.deed.proofType} lead={<>{mapBtn}{scoutBtn}{prioBtn}</>} asleep={night ? t("Ночь: сдать дело можно с 7:00 по местному времени.") : undefined}
                     members={(team.members ?? []).filter((mm) => mm.user.id !== (task.takenById ?? user?.id)).map((mm) => ({ id: mm.user.id, name: mm.user.displayName ?? mm.user.nickname }))}
                     main={isLeader || me?.gameRole === "CHRONICLER" ? { options: (team.members ?? []).map((mm) => ({ id: mm.user.id, name: mm.user.displayName ?? mm.user.nickname })), initial: task.takenById ?? user?.id ?? "" } : undefined}
                     onSubmit={(body) => act(`/api/games/${id}/edge-tasks/${task.id}/submit`, body).then((ok) => { if (ok) notify(t("Сдано на проверку")); return ok; })}
@@ -1183,10 +1179,10 @@ export function TeamPage() {
                       help={t("Выберите участника: ему придёт уведомление, которое откроет именно это дело. Сутки взять его сможет только он; если он откажется или сутки пройдут, дело снова свободно. Поручает капитан или заместитель.")}
                       onClick={() => setAssignFor(task.id)} />}
                     {prioBtn}
-                    {showPave && <SquareAction icon="stone" badge={map?.team.stones} disabled={busy} label={t("Вымостить дорогу")}
+                    {showPave && <SquareAction icon="stone" badge={map?.team.stones} disabled={busy} asleep={night ? t("Ночь: вымостить дорогу можно с 7:00 по местному времени.") : undefined} label={t("Вымостить дорогу")}
                       help={t("Потратить один тёсаный камень из Каменоломни: сторона откроется как пройденная, дело делать не нужно. Камней у команды: {n}.", { n: map?.team.stones ?? 0 })}
                       onClick={() => void pave(task.id)} />}
-                    {showTake && <SquareAction icon="scroll" primary disabled={busy || limitFull(map) || Boolean(map?.deedsFrozenUntil)} label={t("Взять дело")}
+                    {showTake && <SquareAction icon="scroll" primary disabled={busy || limitFull(map) || Boolean(map?.deedsFrozenUntil)} asleep={!canTake ? NIGHT_ALL : undefined} label={t("Взять дело")}
                       help={t("Дело записывается за вами: другие его взять не смогут, пока вы его не сдадите или не отпустите.")}
                       onClick={() => void act(`/api/games/${id}/edge-tasks/${task.id}/take`)} />}
                     {showTake && limitFull(map) && <p className="hint">{t("В сутки можно взять не больше {n} дел. Следующее — через {when}.", { n: map?.deedLimit?.max ?? 0, when: untilText(map?.deedLimit?.nextAt ?? Date.now()) })}</p>}
@@ -1194,7 +1190,7 @@ export function TeamPage() {
                   </div>
                 );
               })()}
-              {!night && task.status === "TAKEN" && !mine && !isLeader && me?.gameRole !== "CHRONICLER" && (
+              {task.status === "TAKEN" && !mine && !isLeader && me?.gameRole !== "CHRONICLER" && (
                 <p className="hint"><Icon name="user" />{t("Дело у другого участника: сдать или отказаться может тот, кто взял, капитан, заместитель или летописец.")}</p>
               )}
               <details className="disclose sm codex">
@@ -1217,7 +1213,7 @@ export function TeamPage() {
 /** Подсказка кнопки «Разведать»: что она делает и как часто. */
 const SCOUT_HELP = () => t("Туман вокруг перекрёстка раздвинется, и вся команда увидит, что там: город или развилка. Место останется открытым. Разведка — раз в неделю.");
 
-function DeedForm({ busy, proofType, members, main, lead, onSubmit, onRelease }: { /** Квадратные кнопки карточки (карта, разведка, приоритет): в одном ряду с ними стоят «кто ещё участвовал» и «вставить ссылку». */ lead?: ReactNode; /** На кого записать дело (решение владельца 22.10): капитан, заместитель и летописец выбирают основного из состава; у остальных поля нет. */ main?: { options: Array<{ id: string; name: string }>; initial: string }; busy: boolean; proofType: EdgeTaskDto["deed"]["proofType"]; members: Array<{ id: string; name: string }>; onSubmit: (body: { links: string[]; note: string; participants: string[]; mainId?: string }) => Promise<boolean>; onRelease: () => void }) {
+function DeedForm({ busy, proofType, members, main, lead, asleep, onSubmit, onRelease }: { /** Ночь: форма на месте, как днём, но «Сдать на проверку» по нажатию показывает эту подсказку (решение владельца 15.11). */ asleep?: string; /** Квадратные кнопки карточки (карта, разведка, приоритет): в одном ряду с ними стоят «кто ещё участвовал» и «вставить ссылку». */ lead?: ReactNode; /** На кого записать дело (решение владельца 22.10): капитан, заместитель и летописец выбирают основного из состава; у остальных поля нет. */ main?: { options: Array<{ id: string; name: string }>; initial: string }; busy: boolean; proofType: EdgeTaskDto["deed"]["proofType"]; members: Array<{ id: string; name: string }>; onSubmit: (body: { links: string[]; note: string; participants: string[]; mainId?: string }) => Promise<boolean>; onRelease: () => void }) {
   const [links, setLinks] = useState<string[]>([]);
   const [note, setNote] = useState("");
   const [what, setWhat] = useState("");
@@ -1273,7 +1269,9 @@ function DeedForm({ busy, proofType, members, main, lead, onSubmit, onRelease }:
       {missing && <p className="hint deed-missing"><Icon name="info" />{t("Чтобы сдать дело, добавьте: {what}.", { what: missing })}</p>}
       <div className="actions deed-actions">
         <button type="button" className="secondary icon" aria-label={t("Отказаться от дела")} title={t("Отказаться от дела")} disabled={busy} onClick={onRelease}><Icon name="x" /></button>
-        <button type="button" disabled={busy || !!missing} onClick={() => void onSubmit({ links, note: noteOut, participants, mainId: main ? mainId : undefined })}><Icon name="send" />{t("Сдать на проверку")}</button>
+        {asleep
+          ? <HelpPopup name={t("Сдать на проверку")} className="submit-asleep" buttonClassName="asleep" trigger={<><Icon name="send" />{t("Сдать на проверку")}</>}><p className="night-pop"><Icon name="moon" /><span>{asleep}</span></p></HelpPopup>
+          : <button type="button" disabled={busy || !!missing} onClick={() => void onSubmit({ links, note: noteOut, participants, mainId: main ? mainId : undefined })}><Icon name="send" />{t("Сдать на проверку")}</button>}
       </div>
     </>
   );
