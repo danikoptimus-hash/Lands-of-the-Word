@@ -15,6 +15,7 @@ import { NightNote } from "../components/NightNote";
 import { Chip } from "../components/Chip";
 import { Sheet } from "../components/Sheet";
 import { Help, HelpPopup } from "../components/Help";
+import { SquareAction } from "../components/SquareAction";
 import { LoadingState } from "../components/State";
 import { kindLabel } from "./RecipientsBlock";
 import { PeoplePicker } from "../components/PeoplePicker";
@@ -226,11 +227,7 @@ export function CityPopup({ gameId, nodeKey, teamId, isCaptain, canAlly, version
           {/* Знак ночи — маленький, в шапке города (решение владельца 04.11). */}
           {city?.content && sleeping && <NightNote inline>{t("Город спит до 7:00 по местному времени. Ночью задания, знаки шифра и конверт закрыты; утром всё откроется.")}</NightNote>}
           {city?.content && night && !sleeping && <NightNote inline>{t("До 0:00 можно расставлять районы и решать задания. Знаки шифра и конверт закрыты до 7:00 по местному времени.")}</NightNote>}</div>
-        {/* Кто ещё дошёл до города (решение владельца 12.10): точки команд в подписи на карте, здесь — с названиями и датой. */}
-        {/* В своём городе чипы других команд не нужны (решение владельца 04.11: «зачем тут это? нужно убрать»). */}
-        {city?.visitors && city.visitors.length > 0 && !city.state.capturedAt && (
-          <div className="status visitors">{city.visitors.map((v) => <Chip key={v.id} tone="team" color={v.color} icon={v.sea ? "ship" : "users"} title={v.at ? t("Пришла {d}", { d: fmtDate(v.at, { time: false }) }) : undefined}>{v.name}</Chip>)}</div>
-        )}
+        {/* Плашек команд, дошедших до города, в шапке нет (решение владельца 15.11: «оставляем „Город команды…“, две чипсы этих сносим»): кто дошёл — видно по точкам в подписи города на карте. */}
       </div>
     </div>
   );
@@ -242,7 +239,8 @@ export function CityPopup({ gameId, nodeKey, teamId, isCaptain, canAlly, version
       {!city && !error && <LoadingState rows={4} />}
       {city && !city.content && <div className="note warn"><Icon name="alert" /><span>{t("Задания для книги «{book}» ещё готовятся. Город пока нельзя взять.", { book: book?.nameRu ?? "" })}</span></div>}
 
-      {!sleeping && city?.content && !task && (
+      {/* У взятого города шагов нет (решение владельца 15.11: «они не несут уже функции… когда город уже взяли»). */}
+      {!sleeping && city?.content && !task && !city.state.capturedAt && (
         <ol className="steps" aria-label={t("Шаги")}>
           {[t("Порядок"), t("Районы"), t("Конверт")].map((label, i) => {
             const n = i + 1;
@@ -347,7 +345,9 @@ export function CityPopup({ gameId, nodeKey, teamId, isCaptain, canAlly, version
           {allDone && !night && !enoughSolvers && !city.node.ruined && !city.state.capturedAt && !foreign && (
             <div className="note warn"><Icon name="users" /><span>{t("Все знаки открыты, но ключ ждёт: не меньше {c} участников должны решить каждый хотя бы {n} заданий, пока таких {a}. Задания можно решать и после того, как команда открыла знак: откройте район с полупрозрачной галочкой.", { c: needSolvers, n: needTasks, a: solvers })}</span></div>
           )}
-          {allDone && !night && (enoughSolvers || city.node.ruined || Boolean(city.state.capturedAt) || foreign) && (
+          {/* У взятого города конверта со сломанной печатью и свитка «Город ваш» нет (решение владельца 15.11: «вообще убрать»);
+              он виден только в ту минуту, когда ключ подошёл, — пока лист не закрыли. */}
+          {allDone && !night && (!city.state.capturedAt || capResult === "ok") && (enoughSolvers || city.node.ruined || Boolean(city.state.capturedAt) || foreign) && (
             <div className="capture">
               {city.node.ruined && !city.owner && !city.state.capturedAt && <div className="note warn"><Icon name="info" /><span>{t("Город опустел: его можно занять без конверта.")}</span></div>}
               <WaxEnvelope fragments={city.content.fragments} cipher={city.content.fragments.map((f) => f ?? "·").join("")}
@@ -359,9 +359,10 @@ export function CityPopup({ gameId, nodeKey, teamId, isCaptain, canAlly, version
           )}
           {city.visit && <VisitSection gameId={gameId} visit={city.visit} captured={Boolean(city.state.capturedAt)} isCaptain={isCaptain} onChanged={() => { void load(); onChanged(); }} />}
           {city.state.capturedAt && !city.state.isCapital && isCaptain && (
-            <div className="row mt-2">
-              <button type="button" className="secondary" disabled={busy || Boolean(city.team.capitalMovedAt)} onClick={() => void makeCapital()}><Icon name="crown" />{t("Перенести столицу сюда")}</button>
-              {city.team.capitalMovedAt ? <span className="hint">{t("уже использован")}</span> : <Help>{t("Один раз за игру. Пока на столицу брошен вызов или стоит очередь, перенести её нельзя.")}</Help>}
+            <div className="actions deed-acts city-acts">
+              {/* Квадратная кнопка со значком, текст — за «?» в её углу (решение владельца 15.11, по образцу кнопок карточки дела). */}
+              <SquareAction icon="crown" disabled={busy || Boolean(city.team.capitalMovedAt)} label={t("Перенести столицу сюда")}
+                help={t("Один раз за игру. Пока на столицу брошен вызов или стоит очередь, перенести её нельзя.") + (city.team.capitalMovedAt ? " " + t("Перенос уже использован.") : "")} onClick={() => void makeCapital()} />
             </div>
           )}
 
