@@ -200,6 +200,8 @@ export async function teamMapRoutes(app: FastifyInstance): Promise<void> {
     const { id, taskId } = request.params as { id: string; taskId: string };
     const m = await requireMember(request, reply, id);
     if (!m) return;
+    // Отказаться от дела можно до полуночи, как и взять (решение владельца 15.11: «до 00 часов, а не до 22»); с 0:00 до 7:00 — 409 `night`.
+    if (!(await assertTasksOpen(request, reply, id))) return;
     const task = await prisma.teamEdgeTask.findFirst({ where: { id: taskId, teamId: m.team.id } });
     if (!task || task.status !== "TAKEN") return reply.code(409).send({ error: "conflict", message: err(request, "Дело не взято: отпускать нечего") });
     if (task.takenById !== request.user!.id && !isLeader(m) && m.gameRole !== "CHRONICLER") return reply.code(403).send({ error: "forbidden", message: err(request, "Отпустить дело может тот, кто взял, капитан или летописец") });
