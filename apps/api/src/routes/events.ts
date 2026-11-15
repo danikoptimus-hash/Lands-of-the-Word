@@ -23,7 +23,9 @@ export async function eventRoutes(app: FastifyInstance): Promise<void> {
       Connection: "keep-alive",
       "X-Accel-Buffering": "no",
     });
-    reply.raw.write(`retry: 3000\nevent: hello\ndata: {}\n\n`);
+    // Пауза переподключения — случайная, от 2 до 10 секунд (ревизия 15.11): с одинаковой паузой в 3 секунды все приложения
+    // после перезапуска сервера возвращались одновременно и разом перечитывали всё на ещё «холодный» сервер.
+    reply.raw.write(`retry: ${2000 + Math.floor(Math.random() * 8000)}\nevent: hello\ndata: {}\n\n`);
     const unsubscribe = subscribe(id, reply, admin || request.user!.platformRole === "SUPERADMIN" ? null : member?.teamId ?? null);
     const heartbeat = setInterval(() => { try { reply.raw.write(`: ping\n\n`); } catch { /* закрыто */ } }, 25000);
     request.raw.on("close", () => { clearInterval(heartbeat); unsubscribe(); });

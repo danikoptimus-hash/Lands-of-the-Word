@@ -4,7 +4,9 @@
 }
 
 {$DOMAIN} {
-	encode gzip zstd
+	# Первым — zstd: при равных предпочтениях браузера берётся первый способ из списка, а zstd сжимает плотнее и быстрее gzip.
+	# Файлы программы приходят от приложения уже сжатыми (brotli) и повторно не сжимаются.
+	encode zstd gzip
 	header {
 		Strict-Transport-Security "max-age=31536000"
 		X-Content-Type-Options nosniff
@@ -30,6 +32,9 @@
 	}
 	reverse_proxy lotw-app:3000 {
 		flush_interval -1
+		# Пока приложение перезапускается при выкладке, запрос ждёт до 20 секунд, а не получает ошибку 502.
+		lb_try_duration 20s
+		lb_try_interval 250ms
 	}
 }
 
@@ -40,7 +45,9 @@ www.{$DOMAIN} {
 # Тестовый стенд (ветка staging, deploy/docker-compose.test.yml): контейнер lotw-app-test в общей сети.
 # Поисковикам не индексировать. Если стенд не запущен — 502 только на этом адресе, прод не задет.
 test.{$DOMAIN} {
-	encode gzip zstd
+	# Первым — zstd: при равных предпочтениях браузера берётся первый способ из списка, а zstd сжимает плотнее и быстрее gzip.
+	# Файлы программы приходят от приложения уже сжатыми (brotli) и повторно не сжимаются.
+	encode zstd gzip
 	header {
 		X-Robots-Tag "noindex, nofollow"
 		X-Content-Type-Options nosniff
@@ -48,5 +55,7 @@ test.{$DOMAIN} {
 	}
 	reverse_proxy lotw-app-test:3000 {
 		flush_interval -1
+		lb_try_duration 20s
+		lb_try_interval 250ms
 	}
 }

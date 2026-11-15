@@ -6,6 +6,14 @@ BRANCH="staging"
 DIR="$HOME/lotw-test"
 PROD_DIR=/opt/lotw
 
+# Одна выкладка на сервере за раз (ревизия 15.11): прод и стенд живут на одном сервере, и две выкладки, скачивающие образы
+# одновременно, падали с «lease does not exist». Вторая выкладка теперь ждёт первую (не дольше 15 минут).
+# Замок — на каталоге прода: он есть всегда и читается любым пользователем (файл в /tmp, созданный от root, закрыл бы путь deploy).
+if command -v flock >/dev/null; then
+  exec 9</opt/lotw
+  flock -w 900 9 || { echo "другая выкладка идёт дольше 15 минут — останавливаюсь"; exit 1; }
+fi
+
 if [[ ! -d "$DIR/.git" ]]; then
   echo "==> Первый запуск: клон репозитория в $DIR"
   git clone --quiet --branch "$BRANCH" "$(git -C "$PROD_DIR" remote get-url origin)" "$DIR"
@@ -31,7 +39,8 @@ C="docker compose -p lotw-test -f deploy/docker-compose.test.yml --env-file depl
 
 echo "==> Вход в реестр образов и скачивание образа :test"
 echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USER" --password-stdin >/dev/null
-$C pull --quiet
+# Только образ приложения: база стенда не обновляется сама при обычной выкладке (как и на проде).
+$C pull --quiet app-test
 
 echo "==> Убираю контейнеры стенда прежних имён (после переименования сервисов они мешают и держат псевдонимы app/db в сети)"
 $C down --remove-orphans >/dev/null 2>&1 || true
@@ -39,7 +48,7 @@ docker rm -f lotw-app-test lotw-db-test >/dev/null 2>&1 || true
 
 echo "==> База и миграции"
 $C up -d db-test
-$C run --rm --no-deps app-test npm run db:migrate || echo "миграции не применились: смотри вывод выше"
+$C run --rm --no-deps app-test npm run db:migrate || { echo "миграции не применились: смотри вывод выше; новая версия НЕ запущена"; exit 1; }
 
 echo "==> Запуск"
 $C up -d --remove-orphans
