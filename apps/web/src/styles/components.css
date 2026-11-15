@@ -352,6 +352,9 @@ h1 .ico .i, h2 .ico .i, h3 .ico .i { width: 16px; height: 16px; }
 .avatar-lightbox .letter { width: min(60vw, 220px); height: min(60vw, 220px); border-radius: 50%; display: grid; place-items: center; font-family: var(--font-display); font-size: 72px; font-weight: 700; color: var(--accent-ink); background: var(--paper-2); box-shadow: 0 0 0 4px var(--surface), 0 12px 40px rgba(0, 0, 0, 0.5); }
 .avatar-lightbox .card { width: min(92vw, 420px); padding: var(--sp-3) var(--sp-3) var(--sp-2); border-radius: var(--r-lg); background: var(--paper); color: var(--text); text-align: center; display: flex; flex-direction: column; align-items: center; gap: var(--sp-1); box-shadow: 0 16px 48px rgba(0, 0, 0, .45); }
 .avatar-lightbox .card .sub { color: var(--muted); font-size: var(--fs-sm); display: flex; align-items: center; gap: 6px; }
+/* Проходы между командами в профиле команды (решение владельца 15.11). */
+.avatar-lightbox .card .team-passes { justify-content: center; margin-top: var(--sp-2); text-align: left; }
+.avatar-lightbox .card .team-passes .i { flex: none; width: var(--icon-sm); height: var(--icon-sm); color: var(--bronze-ink, var(--accent)); }
 .avatar-lightbox .card .sub .i { width: 14px; height: 14px; }
 /* Подписи наград не рвутся посреди слова, значки ряда стоят на одной высоте (замечание владельца 14.11: «Каменщи/ки», «Гостепри/имные»).
    Причина разрыва: значок — кнопка с классом sm, и общее правило button.sm давало ей поля по 12px с боков — на подпись оставалось 52px

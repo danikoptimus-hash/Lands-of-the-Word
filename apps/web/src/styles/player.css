@@ -241,6 +241,9 @@
 .standing .meta.chips { display: flex; flex-wrap: wrap; gap: 4px 6px; margin-top: 4px; }
 .passage-card { padding: var(--sp-3); margin-top: var(--sp-2); border: 1px solid var(--border); border-radius: var(--r-sm); background: var(--surface-2); }
 .passage-card .actions { margin-top: var(--sp-3); }
+/* «Проходы» в профиле своего города (решение владельца 15.11): кто просит, ответ, история. */
+.passage-card > .row { gap: var(--sp-2); align-items: center; }
+.passage-history > li .main { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 /* Состав компактно (решение владельца 23.09): имя, роль и звезда в одну строку; ряд ролей — под строкой. */
 .roster > li { flex-wrap: wrap; align-items: center; padding: var(--sp-2) 0; }
 .roster .main, .side-menu .list .roster .main { flex: 1 1 0; min-width: 0; flex-basis: 0; }
