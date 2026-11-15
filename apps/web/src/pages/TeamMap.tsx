@@ -129,7 +129,10 @@ function TeamMapInner({ map, myId, teamIndex, selectedTaskId, onSelect, onSelect
     return () => { clearTimeout(timer); clearTimeout(flashTimer); };
   }, [focusTask?.nonce]); // eslint-disable-line react-hooks/exhaustive-deps
   // Время суток (решение владельца 03.10): по поясу игры и часам сервера; картинки городов — фазы, которой больше в переходе.
-  const dt = useDaytime(map.daytime?.timeZone, map.now);
+  // Время сервера берётся из свежей части ответа: `map.now` — момент расчёта карты, а она лежит в памяти сервера до минуты,
+  // и по нему часы света и живности отставали бы и «прыгали» между ответами.
+  const srvNow = map.daytime?.now ?? map.now;
+  const dt = useDaytime(map.daytime?.timeZone, srvNow);
   // Шторм поверх времени суток: свинцовая вода и серая мгла по доле шторма (плавный вход и выход).
   // Запоминается: новый объект света при каждой отрисовке заставлял слои карты пересобираться (ревизия 15.11).
   const stormT = storm && storm.t > 0 ? storm.t : 0;
@@ -214,7 +217,7 @@ function TeamMapInner({ map, myId, teamIndex, selectedTaskId, onSelect, onSelect
   const onClickCapture = (e: MouseEvent<HTMLDivElement>) => { if (swallowClick.current) { swallowClick.current = false; e.stopPropagation(); e.preventDefault(); } };
   // Часы сервера для живности: смещение от местных часов по времени из ответа карты.
   const clockOff = useRef(0);
-  useEffect(() => { if (map.now) clockOff.current = map.now - Date.now(); }, [map.now]);
+  useEffect(() => { if (srvNow) clockOff.current = srvNow - Date.now(); }, [srvNow]);
   const serverClock = useCallback(() => Date.now() + clockOff.current, []);
   useEffect(() => { reportPage("map"); }, []);
   const coast = useCoast(map.hexes, size);

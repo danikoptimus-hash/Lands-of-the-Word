@@ -79,14 +79,22 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
 );
 
 // Кусок программы не загрузился. Если на сервере уже другая сборка (открытая вкладка просит файл прежней, которого нет) —
-// один раз перезагружаем страницу, не чаще раза в минуту. Если сборка та же, дело в связи: страницу не трогаем, ошибку
-// обрабатывает тот, кто просил кусок (иначе на плохой связи у администратора страница перезагружалась бы сама и набранный
-// текст пропадал — находка независимого разбора 15.11).
+// страница обновляется; если сборка та же, дело в связи: страницу не трогаем, ошибку обрабатывает тот, кто просил кусок
+// (иначе на плохой связи у администратора страница перезагружалась бы сама и набранный текст пропадал — находка
+// независимого разбора 15.11).
+// Сервер спрашиваем по адресу с параметром: обычный адрес главной сервис-воркер отдаёт из своего запаса, и страница
+// сравнивала бы себя с собой же. Под сервис-воркером перезагрузка вернула бы ту же прежнюю оболочку, поэтому там просим
+// обновиться его самого — когда новая версия возьмёт страницу под управление, сработает перезагрузка ниже
+// (сразу, если вкладка видна и ничего не печатают). Без сервис-воркера — перезагрузка, не чаще раза в минуту.
 window.addEventListener("vite:preloadError", () => {
   const mine = document.querySelector('script[type="module"][src*="/assets/"]')?.getAttribute("src");
   if (!mine || navigator.onLine === false) return;
-  void fetch("/", { cache: "no-store" }).then((r) => (r.ok ? r.text() : "")).then((html) => {
-    if (!html || html.includes(mine)) return;
+  void fetch("/index.html?v=" + Date.now(), { cache: "no-store" }).then((r) => (r.ok ? r.text() : "")).then(async (html) => {
+    if (!html || !html.includes("/assets/") || html.includes(mine)) return;
+    if ("serviceWorker" in navigator && navigator.serviceWorker.controller) {
+      const reg = await navigator.serviceWorker.getRegistration().catch(() => undefined);
+      if (reg) { void reg.update().catch(() => {}); return; }
+    }
     try { const k = "lotw.reloadAt", was = Number(sessionStorage.getItem(k) ?? 0); if (Date.now() - was < 60_000) return; sessionStorage.setItem(k, String(Date.now())); } catch { return; }
     location.reload();
   }).catch(() => {});

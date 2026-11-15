@@ -1,4 +1,4 @@
-import { Fragment, createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
+import { Fragment, createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { api, ApiError, type User, clearReady } from "./api";
 import { readGuestLocale, saveGuestLocale, setLocale, type Locale } from "./i18n";
 import { syncPush } from "./push";
@@ -45,11 +45,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // «Кто я». Ответ сервера «не вошёл» (401) — это ответ: показываем вход. А вот сбой связи, перезапуск сервера при выкладке или
   // отказ ограничителя запросов — не ответ: сессия жива, и раньше игрока в такой момент зря выбрасывало на страницу входа
   // (ревизия 15.11). Теперь запрос повторяется с растущей паузой, а экран честно говорит, что нет связи.
+  // Вход, регистрация и «обновить» отвечают на тот же вопрос сами: после них повторы прекращаются, а ответ запроса, начатого
+  // раньше, не учитывается — иначе запоздалое «не вошёл» выбросило бы только что вошедшего (находка повторного разбора 15.11).
+  const answered = useRef(0);
   useEffect(() => {
     let alive = true, tries = 0, timer: ReturnType<typeof setTimeout> | undefined;
     const ask = () => {
-      api<{ user: User }>("/api/auth/me").then((r) => { if (!alive) return; setUser(r.user); setOffline(false); setLoading(false); }).catch((e) => {
-        if (!alive) return;
+      const was = answered.current;
+      api<{ user: User }>("/api/auth/me").then((r) => { if (!alive || was !== answered.current) return; setUser(r.user); setOffline(false); setLoading(false); }).catch((e) => {
+        if (!alive || was !== answered.current) return;
         if (signedOut(e)) { setUser(null); setOffline(false); setLoading(false); return; }
         tries++; setOffline(true);
         timer = setTimeout(ask, Math.min(10_000, 1000 * 2 ** Math.min(tries - 1, 4)));
@@ -62,7 +66,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const login = useCallback(async (nickname: string, password: string, add = false) => {
     const r = await api<{ user: User }>("/api/auth/login", { method: "POST", body: JSON.stringify({ nickname, password, add }) });
-    clearReady(); setUser(r.user); setOffline(false); setLoading(false);
+    answered.current++; clearReady(); setUser(r.user); setOffline(false); setLoading(false);
     void syncPush();
   }, []);
   const switchAccount = useCallback(async (userId: string) => {
@@ -77,11 +81,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Язык, выбранный гостем на странице входа, становится языком новой учётки.
   const register = useCallback(async (nickname: string, password: string, email: string) => {
     const r = await api<{ user: User }>("/api/auth/register", { method: "POST", body: JSON.stringify({ nickname, password, email, locale: guestLocale }) });
-    clearReady(); setUser(r.user); setOffline(false); setLoading(false);
+    answered.current++; clearReady(); setUser(r.user); setOffline(false); setLoading(false);
   }, [guestLocale]);
   const refresh = useCallback(async () => {
     // Сбой связи пользователя не сбрасывает: только ответ сервера «не вошёл».
-    try { const r = await api<{ user: User }>("/api/auth/me"); setUser(r.user); setOffline(false); setLoading(false); } catch (e) { if (signedOut(e)) setUser(null); }
+    try { const r = await api<{ user: User }>("/api/auth/me"); answered.current++; setUser(r.user); setOffline(false); setLoading(false); } catch (e) { if (signedOut(e)) { answered.current++; setUser(null); setOffline(false); setLoading(false); } }
   }, []);
   const logout = useCallback(async () => {
     const r = await api<{ ok: boolean; user: User | null }>("/api/auth/logout", { method: "POST" });
