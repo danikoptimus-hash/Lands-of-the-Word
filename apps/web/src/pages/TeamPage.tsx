@@ -1335,8 +1335,8 @@ function Roster({ team, isCaptain, onRole, onDeputy, embedded = false, onShowOnM
               Нажатие на строку назначает роль сразу, повторное — снимает. */}
           <div className="role-list" role="group" aria-label={t("Роль: {name}", { name: pickM.user.displayName ?? pickM.user.nickname })}>
             {[...GAME_ROLES.map((k) => ({ key: k as string, icon: ROLE[k].icon, label: ROLE[k].label(), hint: ROLE[k].hint(), on: k === pickM.gameRole, act: () => onRole(pickM.user.id, k === pickM.gameRole ? "NONE" : k) })),
-              { key: "DEPUTY", icon: "star", label: t("заместитель"), hint: t("Ведёт команду вместе с капитаном: вызовы, ставки, столица, высадка."), on: pickM.role === "DEPUTY", act: () => onDeputy(pickM.user.id, pickM.role !== "DEPUTY") }].map((o) => (
-              <div key={o.key} className={"role-row" + (o.on ? " on" : "")} role="button" tabIndex={0} aria-pressed={o.on} aria-label={o.label}
+              { key: "DEPUTY", icon: "star", label: (() => { const w = t("заместитель"); return w.charAt(0).toLocaleUpperCase() + w.slice(1); })(), hint: t("Ведёт команду вместе с капитаном: вызовы, ставки, столица, высадка."), on: pickM.role === "DEPUTY", act: () => onDeputy(pickM.user.id, pickM.role !== "DEPUTY") }].map((o) => (
+              <div key={o.key} className={"role-row" + (o.on ? " on" : "") + (o.key === "DEPUTY" ? " extra" : "")} role="button" tabIndex={0} aria-pressed={o.on} aria-label={o.label}
                 onClick={() => { setPick(null); o.act(); }} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setPick(null); o.act(); } }}>
                 <span className="role-chip"><Chip tone={o.on ? "solid" : "neutral"} icon={o.icon}>{o.label}</Chip><HelpPopup name={o.label} className="chip-help"><p><b>{o.label}.</b> {o.hint}</p></HelpPopup></span>
                 <span className="radio" aria-hidden="true" />

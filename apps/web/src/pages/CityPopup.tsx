@@ -326,8 +326,8 @@ export function CityPopup({ gameId, nodeKey, teamId, isCaptain, canAlly, version
             <p className={"meta-line solvers-line" + (allDone && !enoughSolvers ? " warn" : "")}>
               {/* Решение владельца 15.11: на виду — значок людей и процент решивших свою долю; счёт, «хватает ли для ключа» и правило — в окошке по нажатию на значок. */}
               <HelpPopup name={t("Решили свою долю: {a} из {b}", { a: solvers, b: teamSize })} className="solvers-pop"
-                trigger={<><Icon name="users" /><span className="pct">{teamSize > 0 ? Math.round((100 * solvers) / teamSize) : 0}{"\u00A0"}%</span></>}>
-                <p className="solvers-facts">{t("Решили свою долю: {a} из {b}", { a: solvers, b: teamSize })} · {enoughSolvers ? t("для ключа хватает") : t("для ключа нужно {c}", { c: needSolvers })} · {t("вы: {x} из {y}", { x: mine.length, y: total })}</p>
+                trigger={/* Значок с числом — плашка, как остальные «значки-цифры» с окошком по нажатию (решение владельца 24.10): видно, что нажимается. */ <Chip icon="users">{teamSize > 0 ? Math.round((100 * solvers) / teamSize) : 0}{"\u00A0"}%</Chip>}>
+                <p className="solvers-facts">{t("Свою долю решили: {a} из {b} в команде", { a: solvers, b: teamSize })} · {enoughSolvers ? t("для ключа хватает") : t("для ключа нужно {c}", { c: needSolvers })}<br />{t("Ваши задания: {x} из {y}", { x: mine.length, y: total })}</p>
                 <p>{t("Задания решает каждый сам: после первого верного ответа знак шифра открыт команде, но задание можно решить и после этого, для своего зачёта. Участник считается, когда решил не меньше {n} заданий города; ключ конверта можно ввести, когда таких участников не меньше половины команды.", { n: needTasks })}</p>
               </HelpPopup>
             </p>
