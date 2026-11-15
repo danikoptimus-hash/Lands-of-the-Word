@@ -91,6 +91,13 @@
 .sq-act { position: relative; display: inline-flex; flex: none; }
 .actions > .sq-act > .sq-btn, .sq-btn { position: relative; flex: none; width: 54px; height: 54px; min-height: 0; padding: 0; display: inline-grid; place-items: center; border-radius: var(--r-md); }
 .sq-btn .i { width: 26px; height: 26px; }
+/* Ночь (решение владельца 15.11): кнопки те же, что днём, но приглушены; по нажатию — подсказка о ночи. */
+.sq-act > .sq-asleep { display: inline-flex; }
+.sq-act > .sq-asleep > .sq-btn.asleep, .help-pop-wrap.submit-asleep > .asleep { opacity: .6; }
+.help-pop-wrap.submit-asleep { display: inline-flex; flex: 1 1 auto; }
+.help-pop-wrap.submit-asleep > .asleep { flex: 1 1 auto; }
+.help-pop .night-pop { display: flex; align-items: flex-start; gap: 6px; margin: 0; }
+.help-pop .night-pop .i { flex: none; width: var(--icon-sm); height: var(--icon-sm); margin-top: 2px; color: var(--bronze-ink); }
 .sq-btn .count-chip { position: absolute; right: -7px; bottom: -7px; margin: 0; }
 .sq-act.prio .sq-btn .i { color: #d9541a; }
 .sq-act.prio .sq-btn.on { border-color: #d9541a; background: #fff1dc; }
