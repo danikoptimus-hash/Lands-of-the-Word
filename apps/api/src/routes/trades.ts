@@ -10,7 +10,7 @@ import { bookWords } from "../services/bookWords.js";
 import { notifyTeam } from "../services/notify.js";
 import { err, msg } from "../services/i18n.js";
 import { journal } from "../services/journal.js";
-import { moveWallWithCity, wallOf } from "../services/wall.js";
+import { moveWallWithCity, wallOf, wallsOf } from "../services/wall.js";
 import { BOOKS } from "@lotw/domain";
 
 /**
@@ -96,9 +96,23 @@ export async function tradeRoutes(app: FastifyInstance): Promise<void> {
     const rows = await prisma.cityTrade.findMany({ where: { gameId: id, OR: [{ fromId: m.team.id }, { toId: m.team.id }] }, orderBy: { updatedAt: "desc" }, include: { from: teamSelect, to: teamSelect }, take: 30 });
     const active = rows.filter((r) => r.status === "OPEN" || r.status === "COUNTERED"), closed = rows.filter((r) => r.status === "DONE" || r.status === "CANCELLED").slice(0, 10);
     const owned = await prisma.teamCityState.findMany({ where: { teamId: m.team.id, capturedAt: { not: null } }, select: { nodeKey: true, isCapital: true, secondCapital: true } });
+    // Города команды — четырьмя запросами на все сразу (ревизия скорости 15.11). Раньше на каждый город шло семь запросов
+    // по очереди: 258 запросов и 0,2 с на команду с 37 городами. Причины «нельзя обменять» — те же и в том же порядке,
+    // что в `tradable`; стена — тот же счёт, что в `wallOf` (09.11: послу — чтобы решить, переходит ли она с городом).
+    const keys = owned.map((c) => c.nodeKey);
+    const [nodes, busy, sieges, walls] = await Promise.all([
+      prisma.mapNode.findMany({ where: { gameId: id, key: { in: keys } }, select: { key: true, bookCode: true, ruined: true } }),
+      prisma.battle.findMany({ where: { gameId: id, nodeKey: { in: keys }, status: { in: ["QUEUED", "ATTACK", "DEFENSE"] } }, select: { nodeKey: true } }),
+      prisma.siege.findMany({ where: { gameId: id, nodeKey: { in: keys }, status: "ACTIVE" }, select: { nodeKey: true } }),
+      wallsOf(m.team.id, keys),
+    ]);
+    const nodeOf = new Map(nodes.map((n) => [n.key, n])), engaged = new Set([...busy, ...sieges].map((x) => x.nodeKey));
     const myCities = [];
-    // Стена своего города (09.11): послу — чтобы решить, переходит ли она с городом.
-    for (const c of owned) myCities.push({ ...(await cityRef(id, c.nodeKey)), capital: c.isCapital || c.secondCapital, reason: await tradable(id, m.team.id, c.nodeKey), wall: await wallOf(m.team.id, c.nodeKey) });
+    for (const c of owned) {
+      const node = nodeOf.get(c.nodeKey), code = node?.bookCode ?? "";
+      const reason = c.isCapital || c.secondCapital ? "Столицу обменять нельзя" : !node ? "Город не найден" : node.ruined ? "Опустевший город обменять нельзя" : engaged.has(c.nodeKey) ? "Город под вызовом или в осаде: обмен после испытания" : null;
+      myCities.push({ nodeKey: c.nodeKey, bookCode: code, bookName: BOOK_NAME.get(code) ?? "?", words: await bookWords(code), capital: c.isCapital || c.secondCapital, reason, wall: walls.get(c.nodeKey)! });
+    }
     const teams = await prisma.team.findMany({ where: { gameId: id, NOT: { id: m.team.id }, status: { not: "defeated" } }, select: { id: true, name: true, color: true, avatarId: true }, orderBy: { index: "asc" } });
     return { canTrade: m.gameRole === "AMBASSADOR", teams, myCities, trades: await Promise.all([...active, ...closed].map((t) => tradeView(id, m.team.id, t))) };
   });
