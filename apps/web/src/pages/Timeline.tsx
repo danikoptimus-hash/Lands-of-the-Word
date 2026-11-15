@@ -103,3 +103,34 @@ export function TimelineDock({ moves, startedAt, at, onChange }: { moves: Move[]
     </div>
   );
 }
+
+/**
+ * История ходов на карте команды (решение владельца 15.11: «оставляем только часики, ставим их слева. При нажатии на них
+ * красиво вправо выдвигается ползунок и его можно двигать. кол-во ходов и текст писать не нужно, только ползунок»).
+ * Крайнее правое положение ползунка — «сейчас». Повторное нажатие на часики убирает ползунок и возвращает карту к «сейчас»:
+ * без подписи нельзя оставлять карту в прошлом незаметно. Пока карта в прошлом, часики подсвечены.
+ */
+export function TimelineClock({ moves, startedAt, at, onChange }: { moves: Move[]; startedAt: string; at: Date | null; onChange: (d: Date | null) => void }) {
+  const [open, setOpen] = useState(false);
+  const n = moves.length;
+  const pos = useMemo(() => {
+    if (!at) return n;
+    const ms = at.getTime();
+    let i = 0;
+    while (i < n && moves[i]!.at <= ms) i++;
+    return i;
+  }, [at, moves, n]);
+  const set = (i: number) => { const k = Math.max(0, Math.min(n, i)); onChange(k >= n ? null : k === 0 ? new Date(Date.parse(startedAt)) : new Date(moves[k - 1]!.at)); };
+  const label = !at ? `${t("Сейчас")} · ${plural(n, MOVE_FORMS)}` : pos === 0 ? t("Старт") : t("Ход {a} из {b}", { a: pos, b: n });
+  return (
+    <div className={"tl-clock" + (open ? " open" : "") + (at ? " past" : "")}>
+      <button type="button" className="btn secondary icon hud-btn tl-clock-btn" aria-expanded={open} aria-label={open ? t("Скрыть историю ходов") : t("История ходов")} title={open ? t("Скрыть историю ходов") : t("История ходов")}
+        onClick={() => { if (open) { setOpen(false); if (at) onChange(null); } else setOpen(true); }}>
+        <Icon name="clock" />
+      </button>
+      <div className="tl-slide" aria-hidden={!open}>
+        <input type="range" min={0} max={n} step={1} value={pos} disabled={!open} onChange={(e) => set(Number(e.target.value))} aria-label={t("Ход игры")} aria-valuetext={label} />
+      </div>
+    </div>
+  );
+}

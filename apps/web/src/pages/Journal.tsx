@@ -246,8 +246,8 @@ export function MyServiceSection({ gameId, version, awards, tab }: { gameId: str
               {[...top.rows, ...(top.me && top.me.rank > top.rows.length ? [top.me] : [])].map((r) => (
                 <li key={r.userId} className={top.me?.userId === r.userId ? "me" : ""}>
                   <span className="rank">{r.rank}</span>
-                  <TeamAvatar name={r.team} color={r.color} avatarId={r.avatarId} size="sm" title={r.team} teamId={r.teamId} />
-                  <UserAvatar name={r.name} avatarId={r.userAvatarId} size="sm" userId={r.userId} />
+                  {/* Вложенные аватарки (решение владельца 15.11): герб команды — маленьким значком на углу аватарки игрока; нажатие открывает игрока. */}
+                  <span className="av-nest"><UserAvatar name={r.name} avatarId={r.userAvatarId} userId={r.userId} /><TeamAvatar name={r.team} color={r.color} avatarId={r.avatarId} size="sm" title={r.team} zoom={false} /></span>
                   <span className="body">
                     <span className="name">{r.name}{top.me?.userId === r.userId ? ` · ${t("это вы")}` : ""}</span>
                     {/* Значки вместо слов (решение владельца 07.10): дела, районы, города, стихи; число наград — для сведения (30.10). */}

@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Picker } from "../components/Picker";
+import { nodePos } from "../lib/hexmap";
 import { Link, useParams, useSearchParams } from "react-router-dom";
 import { BOOKS } from "@lotw/domain";
 import { api, ApiError, apiReady, deedAssignee, deedPriority, prefetch, ready, type AwardsDto, type BattleDto, type DailyBirdDto, type EdgeTaskDto, type EdgeTaskStatus, type GameRole, type MapMarkDto, type MyMapDto, type PeaceTeamDto, type StandingsDto, type TeamDto } from "../lib/api";
@@ -10,14 +11,14 @@ import { TeamMap, type MarkPoint } from "./TeamMap";
 import { AwardRating, FlameIcon, MilestoneCard, StreakBanner, TeamAwardsBlock, awardsCached, preloadAllAwardImages, preloadAwardImages } from "./Awards";
 import { AWARD_BY_CODE } from "@lotw/domain";
 import { previewPhase, useStorm } from "../lib/daytime";
-import { TimelineDock } from "./Timeline";
+import { TimelineClock } from "./Timeline";
 import { mapAt, teamMoves } from "./TeamHistory";
 import { CityPopup } from "./CityPopup";
 import { QuarrySheet } from "./QuarrySheet";
 import { WreckSheet } from "./WreckSheet";
 import { BATTLE_STATUS, BattleCard, battleTone, isLaunching, isMyTurn, leftText } from "./BattlePanel";
 import { TrialFlow } from "./TrialFlow";
-import { DiplomacyMenu, type PassagesDto } from "./Diplomacy";
+import { type PassagesDto } from "./Diplomacy";
 import { TradesSection, TradeProposeSheet } from "./Trades";
 import { useUi } from "../lib/ui";
 import { useMediaQuery } from "../lib/media";
@@ -33,6 +34,7 @@ import { Back } from "../components/Back";
 import { Chip, type ChipTone } from "../components/Chip";
 import { Sheet } from "../components/Sheet";
 import { Help, HelpPopup } from "../components/Help";
+import { SquareAction } from "../components/SquareAction";
 import { ActionMenu, type MenuItem } from "../components/ActionMenu";
 import { StatChip } from "../components/StatChip";
 import { DeedBadgePopup, untilText } from "../components/DeedBadge";
@@ -214,6 +216,10 @@ export function TeamPage() {
   // Награды живут во вкладках разделов (раскладка владельца 30.10): личные — в «Моём служении», командные — в «Командах».
   const [serviceTab, setServiceTab] = useState<ServiceTab>("service");
   const [standingsTab, setStandingsTab] = useState<"rating" | "awards">("rating");
+  /** Вкладки «Дел» (решение владельца 15.11): свои, дела команды, свободные; пока не выбрано — та, где есть что показать. */
+  const [deedsTab, setDeedsTab] = useState<"mine" | "team" | "free" | null>(null);
+  const [deedQuery, setDeedQuery] = useState("");
+  const [deedOpen, setDeedOpen] = useState<Set<string>>(() => new Set());
   const [battlesTab, setBattlesTab] = useState<"defense" | "challenge">("defense");
   /** История испытаний (решение владельца 03.11: «почему бы у участников не сделать закрытые? Пусть будет история»): «Идут» / «Завершённые». */
   const [battlesPhase, setBattlesPhase] = useState<"active" | "done" | null>(null);
@@ -323,7 +329,7 @@ export function TeamPage() {
   const loadPeace = useCallback(() => api<PeaceData>(`/api/games/${id}/peace`).then(setPeace).catch(() => {}), [id]);
   /** Мир из строки команды: предложение — только после подтверждения «Да / Нет» (решение владельца 21.09). */
   /** Профиль команды из «Внимания» (решение владельца 05.11): предложение мира принимают или отклоняют в нём. */
-  const [profileTeam, setProfileTeam] = useState<PeaceTeamDto["team"] | null>(null);
+  const [profileTeam, setProfileTeam] = useState<Pick<PeaceTeamDto["team"], "id" | "name" | "color" | "avatarId"> | null>(null);
   /** Обмен городами из карточки своего города (решение владельца 04.11): ключ города, выставляемого на обмен. */
   const [tradeCity, setTradeCity] = useState<string | null>(null);
   const loadBattles = useCallback(() => api<{ battles: BattleDto[] }>(`/api/games/${id}/my-battles`).then((r) => {
@@ -629,6 +635,16 @@ export function TeamPage() {
   const forMe = (tk: EdgeTaskDto) => deedAssignee(tk) === user?.id;
   const freeTasks = map.tasks.filter((tk) => tk.status === "OPEN").sort((a, b) => Number(forMe(b)) - Number(forMe(a)) || byTitle(a, b));
   const assignedToMe = freeTasks.filter(forMe);
+  // Раздел «Дела» (решение владельца 15.11): вкладки «Мои · Команда · Свободные», внутри — группы по состоянию;
+  // свободные — одинаковые дела одной строкой «×N» и поиск по названию.
+  const mineTasks = ourTasks.filter((tk) => tk.takenById === user?.id);
+  const deedsShown = deedsTab ?? (mineTasks.length > 0 ? "mine" : ourTasks.length > 0 ? "team" : "free");
+  const DEED_GROUPS: Array<{ status: EdgeTaskStatus; label: string; icon: string }> = [{ status: "REJECTED", label: t("Возвращены"), icon: "alert" }, { status: "TAKEN", label: t("В работе"), icon: "user" }, { status: "SUBMITTED", label: t("На проверке"), icon: "clock" }];
+  const deedQ = deedQuery.trim().toLocaleLowerCase("ru");
+  const freeGroups = (() => { const m = new Map<string, EdgeTaskDto[]>(); for (const tk of freeTasks) { if (deedQ && !tk.deed.title.toLocaleLowerCase("ru").includes(deedQ)) continue; const g = m.get(tk.deed.title); if (g) g.push(tk); else m.set(tk.deed.title, [tk]); } return [...m.entries()].map(([title, items]) => ({ title, items })); })();
+  // Где стоит одно из одинаковых дел: ближайший к его стороне город, который команда уже открыла.
+  const knownCities = map.revealed.filter((n) => n.kind === "CITY" && n.bookCode).map((n) => ({ name: bookName(n.bookCode!), ...nodePos(n.key) }));
+  const deedWhere = (tk: EdgeTaskDto) => { const a = nodePos(tk.fromKey), b = nodePos(tk.toKey); const x = (a.x + b.x) / 2, y = (a.y + b.y) / 2; let best = "", bd = Infinity; for (const c of knownCities) { const d = (c.x - x) ** 2 + (c.y - y) ** 2; if (d < bd) { bd = d; best = c.name; } } return best ? t("у города {city}", { city: best }) : t("на карте"); };
   // Фаза для подписей: предпросмотр `?tod=` (снимки инструкции) перекрывает серверную, правила считает сервер.
   const phase = previewPhase() ?? map.daytime?.phase;
   const canTakeNow = phase !== "night" || Boolean(map.daytime?.tasksOpen);
@@ -669,7 +685,7 @@ export function TeamPage() {
   const battlesActive = battlesShown === "defense" ? defending : challenging, battlesDone = battlesShown === "defense" ? defendingDone : challengingDone;
   const battlesPhaseShown: "active" | "done" = battlesPhase ?? (battlesActive.length > 0 ? "active" : "done");
   const battlesList = battlesPhaseShown === "active" ? battlesActive : battlesDone;
-  const menuCounts: Partial<Record<MenuView, number>> = { attention, deeds: ourTasks.length, battles: activeBattles.length, standings: incoming.length + peaceOffers.length };
+  const menuCounts: Partial<Record<MenuView, number>> = { attention, deeds: ourTasks.length, battles: activeBattles.length, standings: peaceOffers.length };
   /** На компьютере (решение владельца 05.10, вечер): плитки разделов висят над картой, панель открыта только пока выбран раздел; «home» — панель закрыта. */
   const view: MenuView = menuView;
 
@@ -718,7 +734,8 @@ export function TeamPage() {
   const menuOpen = !storm.active && menuView !== "home";
   const closeMenu = () => { rememberScroll(); setMenuView("home"); };
   // Порядок плиток дока (решение владельца 30.10, слева направо): внимание, испытания, служение, команды, летопись, дела.
-  const DOCK_ORDER: MenuView[] = ["attention", "battles", "service", "standings", "feed", "deeds"];
+  // Колокольчик «Внимание» — в шапке карты, в панели остаются пять разделов в прежнем порядке (решение владельца 15.11).
+  const DOCK_ORDER: MenuView[] = ["battles", "service", "standings", "feed", "deeds"];
   const dockItems = DOCK_ORDER.map((k) => MENU_ITEMS.find((m) => m.key === k)!);
   /** Плашка серии и праздник рубежа открывают «Моё служение» на вкладке «Награды» (кнопки наград над картой нет — решение владельца 30.10). */
   const openAwards = () => { setMenu(true); setMenuView("service"); setServiceTab("awards"); setSelectedId(null); };
@@ -738,7 +755,7 @@ export function TeamPage() {
               прокрутки, листается только содержимое. Раньше заголовок и вкладки прилипали к одной точке, и вкладки
               ложились поверх заголовка. Подложки у вкладок нет — под ними фон панели, как раньше (владелец 14.11).
               Свайп по содержимому переключает вкладки, как и прежде (область — .side-body). */}
-          <div className={"side-top" + (view === "battles" || view === "standings" || view === "service" ? " with-tabs" : "")}>
+          <div className={"side-top" + (view === "battles" || view === "standings" || view === "service" || view === "deeds" ? " with-tabs" : "")}>
             <div className="menu-sub">
               <h2><Icon name={MENU_ITEMS.find((m) => m.key === view)?.icon ?? "map"} />{MENU_ITEMS.find((m) => m.key === view)?.label()}</h2>
               <button type="button" className="ghost icon" onClick={closeMenu} aria-label={t("Закрыть")}><Icon name="x" /></button>
@@ -756,6 +773,11 @@ export function TeamPage() {
               </div>
             )}
             {view === "service" && <div className="side-tabs"><ServiceTabs tab={serviceTab} onTab={setServiceTab} swipeArea={sideBodyRef} /></div>}
+            {view === "deeds" && (
+              <div className="side-tabs">
+                <Tabs items={[{ key: "mine", label: t("Мои"), count: mineTasks.length || undefined }, { key: "team", label: t("Команда"), count: ourTasks.length || undefined }, { key: "free", label: t("Свободные"), count: freeTasks.length || undefined }]} value={deedsShown} onChange={setDeedsTab} ariaLabel={t("Дела")} swipeArea={sideBodyRef} />
+              </div>
+            )}
           </div>
           <div className="side-body" ref={sideBodyRef} onScroll={rememberScroll}>
           {view === "attention" && (
@@ -789,7 +811,7 @@ export function TeamPage() {
                       </li>
                     ))}
                     {incoming.map((r) => (
-                      <li key={r.id} role="button" tabIndex={0} onClick={() => setMenuView("standings")} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setMenuView("standings"); } }}>
+                      <li key={r.id} role="button" tabIndex={0} onClick={() => { rememberScroll(); setMenuView("home"); openCity(r.nodeKey); }} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); rememberScroll(); setMenuView("home"); openCity(r.nodeKey); } }}>
                         <div className="main"><span className="title">{t("Запрос прохода через {book}", { book: r.bookName })}</span><span className="meta">{t("от команды «{team}»", { team: r.requester.name })}</span></div><Icon name="chevron" className="chev" />
                       </li>
                     ))}
@@ -823,39 +845,62 @@ export function TeamPage() {
                 </section>
             ) : <section className="section"><EmptyState inline icon="bell" text={t("Ничего не требует внимания.")} /></section>
           )}
-          {menuView === "deeds" && (
-            <section className="section">
-            {ourTasks.length === 0 && freeTasks.length === 0 ? <EmptyState inline icon="scroll" text={t("Возьмите дело: нажмите метку на карте.")} /> : (
-              <ul className="list interactive">
-                {ourTasks.map((tk) => { const st = deedStatus(tk.status); return (
-                  <li key={tk.id} role="button" tabIndex={0} onClick={() => showOnMap(tk.id)} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); showOnMap(tk.id); } }}>
-                    <div className="main"><span className="title">{deedPriority(tk) && <Icon name="flame" className="prio-flame" title={t("Приоритет капитана")} />}{tk.deed.title}</span><span className="meta">{[tk.person ? t("кому: {name}", { name: tk.person.name }) : "", tk.status === "REJECTED" && tk.adminComment ? tk.adminComment : ""].filter(Boolean).join(" · ")}</span></div>
-                    {/* Под состоянием — кто взял дело (просьба участников 03.10: видно, у кого дело в работе). */}
-                    <div className="side col"><Chip tone={st.tone} icon={st.icon}>{st.label}</Chip>{tk.takenById && tk.status !== "APPROVED" && <span className="muted small taker">{memberName(tk.takenById)}</span>}</div>
-                  </li>
-                ); })}
-              </ul>
-            )}
-            {freeTasks.length > 0 && (<>
-              <h3 className="list-title mt-2"><Icon name="scroll" />{t("Свободные на карте")}<span className="count">{freeTasks.length}</span></h3>
-              {error && <p className="error" role="alert">{error}</p>}
-              {limitFull(map) && <p className="hint">{t("В сутки можно взять не больше {n} дел. Следующее — через {when}.", { n: map.deedLimit?.max ?? 0, when: untilText(map.deedLimit?.nextAt ?? Date.now()) })}</p>}
-              {map.deedsFrozenUntil && <p className="hint"><Icon name="lock" />{t("Администратор закрыл вам взятие дел до {date}", { date: fmtDate(map.deedsFrozenUntil, { time: false }) })}{map.deedsFrozenReason ? ` · ${map.deedsFrozenReason}` : ""}</p>}
-              <ul className="list interactive">
-                {freeTasks.map((tk) => (
-                  <li key={tk.id} role="button" tabIndex={0} onClick={() => showOnMap(tk.id)} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); showOnMap(tk.id); } }}>
-                    <div className="main"><span className="title">{deedPriority(tk) && <Icon name="flame" className="prio-flame" title={t("Приоритет капитана")} />}{tk.deed.title}</span><span className="meta">{forMe(tk) && <b className="assign-tag">{t("поручено вам")}</b>}{[deedAssignee(tk) && !forMe(tk) ? t("поручено: {name}", { name: memberName(deedAssignee(tk)) }) : "", tk.person ? t("кому: {name}", { name: tk.person.name }) : ""].filter(Boolean).map((x, i) => <span key={i}>{(i > 0 || forMe(tk)) && " · "}{x}</span>)}</span></div>
-                    {/* Ночью «Взять» не висит с текстом над списком, а по нажатию показывает подсказку окошком (решение владельца 24.10). */}
-                    {/* Корабельное дело — маленький значок корабля на углу кнопки «Взять», как звезда заместителя на значке роли (решение владельца 24.10), без слова. */}
-                    <div className="side" onClick={(e) => e.stopPropagation()}><span className="take-slot">{tk.sea && <span className="sea-badge" title={t("корабль")} aria-label={t("корабль")}><Icon name="ship" /></span>}{!canTakeNow
-                      ? <HelpPopup name={t("Взять")} buttonClassName="sm" trigger={<><Icon name="scroll" />{t("Взять")}</>}><p><Icon name="moon" /> {t("Ночь: дела ждут утра. С 7:00 по местному времени дело можно взять, сдать или разведать.")}</p></HelpPopup>
-                      : <button type="button" className="sm" disabled={busy || limitFull(map) || Boolean(map.deedsFrozenUntil) || Boolean(deedAssignee(tk) && !forMe(tk))} title={deedAssignee(tk) && !forMe(tk) ? t("Дело поручено другому участнику") : undefined} onClick={(e) => { e.stopPropagation(); void act(`/api/games/${id}/edge-tasks/${tk.id}/take`).then((ok) => { if (ok) notify(t("Дело взято")); }); }}><Icon name="scroll" />{t("Взять")}</button>}</span></div>
-                  </li>
-                ))}
-              </ul>
-            </>)}
+          {menuView === "deeds" && (() => {
+            const open = (tk: EdgeTaskDto) => ({ role: "button" as const, tabIndex: 0, onClick: () => showOnMap(tk.id), onKeyDown: (e: React.KeyboardEvent) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); showOnMap(tk.id); } } });
+            // «Мои» и «Команда»: группы по состоянию; значка состояния в строке нет — его называет заголовок группы.
+            const byStatus = (list: EdgeTaskDto[], withTaker: boolean) => DEED_GROUPS.map((g) => { const items = list.filter((tk) => tk.status === g.status); if (items.length === 0) return null; return (
+              <Fragment key={g.status}>
+                <h3 className="list-title"><Icon name={g.icon} />{g.label}<span className="count">{items.length}</span></h3>
+                <ul className="list interactive">
+                  {items.map((tk) => (
+                    <li key={tk.id} {...open(tk)}>
+                      <div className="main"><span className="title">{deedPriority(tk) && <Icon name="flame" className="prio-flame" title={t("Приоритет капитана")} />}{tk.deed.title}</span><span className="meta">{[tk.person ? t("кому: {name}", { name: tk.person.name }) : "", tk.status === "REJECTED" && tk.adminComment ? tk.adminComment : ""].filter(Boolean).join(" · ")}</span></div>
+                      {/* Кто взял дело (просьба участников 03.10: видно, у кого дело в работе) — на вкладке команды. */}
+                      {withTaker && tk.takenById && <div className="side"><span className="muted small taker">{memberName(tk.takenById)}</span></div>}
+                    </li>
+                  ))}
+                </ul>
+              </Fragment>
+            ); });
+            // Свободное дело: строка с кнопкой «Взять»; у одного из сложенных одинаковых дел вместо названия — где оно стоит.
+            const freeRow = (tk: EdgeTaskDto, sub: boolean) => (
+              <li key={tk.id} className={sub ? "deed-sub" : undefined} {...open(tk)}>
+                <div className="main"><span className="title">{deedPriority(tk) && <Icon name="flame" className="prio-flame" title={t("Приоритет капитана")} />}{sub ? deedWhere(tk) : tk.deed.title}</span><span className="meta">{forMe(tk) && <b className="assign-tag">{t("поручено вам")}</b>}{[deedAssignee(tk) && !forMe(tk) ? t("поручено: {name}", { name: memberName(deedAssignee(tk)) }) : "", tk.person ? t("кому: {name}", { name: tk.person.name }) : ""].filter(Boolean).map((x, i) => <span key={i}>{(i > 0 || forMe(tk)) && " · "}{x}</span>)}</span></div>
+                {/* Ночью «Взять» не висит с текстом над списком, а по нажатию показывает подсказку окошком (решение владельца 24.10). */}
+                {/* Корабельное дело — маленький значок корабля на углу кнопки «Взять», как звезда заместителя на значке роли (решение владельца 24.10), без слова. */}
+                <div className="side" onClick={(e) => e.stopPropagation()}><span className="take-slot">{tk.sea && <span className="sea-badge" title={t("корабль")} aria-label={t("корабль")}><Icon name="ship" /></span>}{!canTakeNow
+                  ? <HelpPopup name={t("Взять")} buttonClassName="sm" trigger={<><Icon name="scroll" />{t("Взять")}</>}><p><Icon name="moon" /> {t("Ночь: дела ждут утра. С 7:00 по местному времени дело можно взять, сдать или разведать.")}</p></HelpPopup>
+                  : <button type="button" className="sm" disabled={busy || limitFull(map) || Boolean(map.deedsFrozenUntil) || Boolean(deedAssignee(tk) && !forMe(tk))} title={deedAssignee(tk) && !forMe(tk) ? t("Дело поручено другому участнику") : undefined} onClick={(e) => { e.stopPropagation(); void act(`/api/games/${id}/edge-tasks/${tk.id}/take`).then((ok) => { if (ok) notify(t("Дело взято")); }); }}><Icon name="scroll" />{t("Взять")}</button>}</span></div>
+              </li>
+            );
+            return (
+            <section className="section deeds-section">
+              {deedsShown === "mine" && (mineTasks.length === 0 ? <EmptyState inline icon="scroll" text={t("Своих дел нет. Возьмите дело на вкладке «Свободные» или на карте.")} /> : byStatus(mineTasks, false))}
+              {deedsShown === "team" && (ourTasks.length === 0 ? <EmptyState inline icon="scroll" text={t("У команды нет дел в работе.")} /> : byStatus(ourTasks, true))}
+              {deedsShown === "free" && (freeTasks.length === 0 ? <EmptyState inline icon="scroll" text={t("Свободных дел на карте нет.")} /> : (<>
+                {/* Крестик очистки — свой, в цвете игры: браузерный значок поля поиска синий (замечание владельца 15.11: «откуда этот цвет? сделать в стиле игры»). */}
+                <div className="deed-search"><Icon name="search" /><input type="search" value={deedQuery} onChange={(e) => setDeedQuery(e.target.value)} placeholder={t("Найти дело")} aria-label={t("Найти дело")} enterKeyHint="search" />{deedQuery && <button type="button" className="deed-search-clear" aria-label={t("Очистить поиск")} title={t("Очистить поиск")} onClick={() => setDeedQuery("")}><Icon name="x" /></button>}</div>
+                {error && <p className="error" role="alert">{error}</p>}
+                {limitFull(map) && <p className="hint">{t("В сутки можно взять не больше {n} дел. Следующее — через {when}.", { n: map.deedLimit?.max ?? 0, when: untilText(map.deedLimit?.nextAt ?? Date.now()) })}</p>}
+                {map.deedsFrozenUntil && <p className="hint"><Icon name="lock" />{t("Администратор закрыл вам взятие дел до {date}", { date: fmtDate(map.deedsFrozenUntil, { time: false }) })}{map.deedsFrozenReason ? ` · ${map.deedsFrozenReason}` : ""}</p>}
+                {freeGroups.length === 0 ? <EmptyState inline icon="search" text={t("Ничего не найдено")} /> : (
+                  <ul className="list interactive">
+                    {freeGroups.map((g) => { if (g.items.length === 1) return freeRow(g.items[0]!, false); const isOpen = deedOpen.has(g.title); const toggle = () => setDeedOpen((prev) => { const next = new Set(prev); if (next.has(g.title)) next.delete(g.title); else next.add(g.title); return next; }); return (
+                      <Fragment key={g.title}>
+                        {/* Одинаковые дела — одной строкой со счётчиком «×N»; нажатие раскрывает их по местам на карте. */}
+                        <li className={"deed-group" + (isOpen ? " open" : "")} role="button" tabIndex={0} aria-expanded={isOpen} onClick={toggle} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggle(); } }}>
+                          <div className="main"><span className="title">{g.items.some(deedPriority) && <Icon name="flame" className="prio-flame" title={t("Приоритет капитана")} />}{g.title}</span>{g.items.some(forMe) && <span className="meta"><b className="assign-tag">{t("поручено вам")}</b></span>}</div>
+                          <div className="side"><span className="count-chip">×{g.items.length}</span><Icon name={isOpen ? "chevron-up" : "chevron-down"} className="chev" /></div>
+                        </li>
+                        {isOpen && g.items.map((tk) => freeRow(tk, true))}
+                      </Fragment>
+                    ); })}
+                  </ul>
+                )}
+              </>))}
             </section>
-          )}
+            );
+          })()}
           {menuView === "battles" && (
             <section className="section">
             {battlesList.length === 0 ? <EmptyState inline icon={battlesShown === "defense" ? "shield" : "wave"} text={battlesPhaseShown === "done" ? (battlesShown === "defense" ? t("Завершённых испытаний ваших городов нет.") : t("Завершённых вызовов нет.")) : battlesShown === "defense" ? t("Вызовов нашим городам сейчас нет.") : t("Наших вызовов сейчас нет.")} /> : (
@@ -897,7 +942,8 @@ export function TeamPage() {
 
             </section>
           )}
-          {menuView === "standings" && standingsTab === "rating" && <DiplomacyMenu gameId={id} data={passages} onChanged={() => { void loadPassages(); void loadMap(); }} />}
+          {/* Проходов в «Командах» больше нет (решение владельца 15.11): запросы через наш город — в профиле этого города, раздел
+              «Проходы»; наши запросы — в чужом городе, раздел «Проход»; счёт запросов между командами — в профиле команды. */}
           {menuView === "standings" && standingsTab === "rating" && me?.gameRole === "AMBASSADOR" && <TradesSection gameId={id} onChanged={() => { void loadMap(); void loadStandings(); }} />}
           {menuView === "feed" && <FeedSection gameId={id} version={feedVersion} onOpenTask={(tid) => { if (map.tasks.some((tk) => tk.id === tid)) showOnMap(tid); else notify(t("Дело уже не на карте"), "info"); }} />}
           {menuView === "service" && <MyServiceSection gameId={id} version={feedVersion} awards={awards} tab={serviceTab} />}
@@ -908,7 +954,8 @@ export function TeamPage() {
       <div className={"map-area" + (storm.active ? " storm" : "")} ref={setMapEl} onPointerDownCapture={(e) => {
         // Нажатие по самой карте закрывает панель раздела на компьютере; нажатия внутри листа (дело, город, метка) и по его
         // фону панель не трогают (владелец 25.10: «закрываю дело на крестик — список слева тоже закрывается, так не нужно»).
-        if (wide && menuView !== "home" && !(e.target as HTMLElement).closest(".overlay-backdrop")) setMenuView("home");
+        // Панель разделов и шапка — не карта: их кнопки сами переключают раздел (решение владельца 15.11: разделы видны всегда).
+        if (wide && menuView !== "home" && !(e.target as HTMLElement).closest(".overlay-backdrop, .team-dock, .hud-left, .hud-right")) setMenuView("home");
       }}>
         {storm.active ? (
           /* Шторм: карта без действий — ни дел, ни городов, ни меток, ни высадки (решение владельца 24.10). Единственная кнопка — назад в «Мои игры». */
@@ -940,7 +987,7 @@ export function TeamPage() {
             ); })}
           </nav>
         )}
-        {map.startedAt && <div className="team-timeline"><TimelineDock moves={moves} startedAt={map.startedAt} at={historyAt} onChange={(d) => { setHistoryAt(d); setSelectedId(null); }} /></div>}
+        {map.startedAt && <div className="team-timeline"><TimelineClock moves={moves} startedAt={map.startedAt} at={historyAt} onChange={(d) => { setHistoryAt(d); setSelectedId(null); }} /></div>}
         {landingTask && (
           <div className="finish-banner landing-banner" role="status">
             <Icon name="ship" /><span>{canLand ? t("Выберите береговой узел другого острова: где там город, заранее не видно") : t("Кормчий выбирает место высадки")}</span>
@@ -949,8 +996,9 @@ export function TeamPage() {
         )}
         <div className="hud-left">
           <Link to="/" className="btn secondary icon hud-btn" aria-label={t("Мои игры")} title={t("Мои игры")}><Icon name="back" /></Link>
-          <button type="button" className="hud-team" aria-label={team.name}>
-            <TeamAvatar name={team.name} color={team.color} avatarId={team.avatarId} teamId={team.id} /><span className="name">{team.name}</span>
+          {/* Кнопка команды открывает профиль команды; маленькая стрелка показывает, что она нажимается (решение владельца 15.11). */}
+          <button type="button" className="hud-team" aria-label={team.name} onClick={() => setProfileTeam({ id: team.id, name: team.name, color: team.color, avatarId: team.avatarId })}>
+            <TeamAvatar name={team.name} color={team.color} avatarId={team.avatarId} zoom={false} /><span className="name">{team.name}</span><Icon name="chevron" className="go" />
           </button>
           {/* Время суток (решение владельца 03.10): ночью только карта, утром отправляют вызов — подсказка у названия команды. */}
           {phase === "night" && <span className="hud-tod night" title={t("Ночь: города спят, дела и испытания ждут утра")}><Icon name="moon" />{t("Ночь до 7:00")}</span>}
@@ -959,13 +1007,17 @@ export function TeamPage() {
         {/* Серия дней (решение владельца 29.10): плашка при заходе раз в игровые сутки; в день рубежа — праздник со значком. */}
         {streakShow && awards && !milestone && !selectedId && <StreakBanner streak={awards.streak} celebrate={streakLit} onOpen={() => { closeStreak(); openAwards(); }} onClose={closeStreak} />}
         {/* Огонёк серии в шапке карты (решение владельца 31.10): горит, если сегодняшний день засчитан; нажатие открывает награды. */}
-        {awards && (
-          <div className="hud-right">
+        {/* Колокольчик «Внимание» — в шапке, прозрачный, как остальные кнопки над картой (решение владельца 15.11); число — сколько ждёт действия. */}
+        <div className="hud-right">
+          <button type="button" className={"btn secondary icon hud-btn hud-bell" + (menuView === "attention" ? " on" : "")} aria-pressed={menuView === "attention"} aria-label={attention > 0 ? t("Внимание: {n}", { n: attention }) : t("Внимание")} title={t("Внимание")} onClick={() => { if (menuView === "attention") closeMenu(); else openView("attention"); }}>
+            <Icon name="bell" />{attention > 0 && <span className="count-chip hot">{attention}</span>}
+          </button>
+          {awards && (
             <button type="button" className={"hud-streak" + (awards.streak.today ? " lit" : "")} onClick={openAwards} aria-label={t("Серия: {n}", { n: plural(awards.streak.current, ["день подряд", "дня подряд", "дней подряд"]) })} title={awards.streak.today ? t("Сегодня засчитан") : t("Сегодня ещё не засчитан")}>
               <FlameIcon lit={awards.streak.today} size="sm" /><b>{awards.streak.current}</b>
             </button>
-          </div>
-        )}
+          )}
+        </div>
         {milestone && <MilestoneCard code={milestone} onOpen={() => { closeMilestone(); openAwards(); }} onClose={closeMilestone} />}
         {standings?.status === "FINISHED" && (
           <div className="finish-banner" role="status"><Icon name="trophy" /><span>{winner ? t("Игра завершена: победила «{team}»", { team: winner }) : t("Игра завершена")}</span></div>
@@ -1098,21 +1150,33 @@ export function TeamPage() {
                 const showPave = showTake && !task.sea && (map?.team.stones ?? 0) > 0 && (isCaptain || me?.role === "DEPUTY" || me?.gameRole === "CHRONICLER");
                 const showPrio = isLeader && task.status !== "APPROVED" && !task.paved;
                 const prioOn = Boolean(task.priorityAt);
+                const mapBtn = <SquareAction icon="map" label={t("Посмотреть на карте")} help={t("Карточка закроется, а карта покажет сторону, на которой стоит это дело.")}
+                  onClick={() => { /* лист закрывается, карта центрируется на стороне дела (владелец 25.10) */ setBackTo(null); setSelectedId(null); setFocusTask({ id: task.id, nonce: Date.now() }); }} />;
+                const prioBtn = showPrio && <SquareAction icon="flame" className="prio" on={prioOn} disabled={prioBusy} label={prioOn ? t("Снять приоритет") : t("Отметить приоритетным")}
+                  help={t("Приоритетное дело видит вся команда: его свиток на карте горит. Отметить и снять может капитан или заместитель. Когда дело примут, отметка снимется сама.")}
+                  onClick={() => void setPriority(task.id, !prioOn)} />;
+                // Взятое дело с формой сдачи (решение владельца 15.11): «кто ещё участвовал» и «вставить ссылку» — квадратные кнопки
+                // в этом же ряду, справа от карты и разведки; ряд рисует сама форма (у неё выбранные участники и ссылки).
+                // Форма только у взявшего, капитана, заместителя и летописца (замечание владельца 10.10: остальные видели чужую сдачу).
+                if (!night && task.status === "TAKEN" && (mine || isLeader || me?.gameRole === "CHRONICLER")) return (
+                  <DeedForm key={task.id} busy={busy} proofType={task.deed.proofType} lead={<>{mapBtn}{scoutBtn}{prioBtn}</>}
+                    members={(team.members ?? []).filter((mm) => mm.user.id !== (task.takenById ?? user?.id)).map((mm) => ({ id: mm.user.id, name: mm.user.displayName ?? mm.user.nickname }))}
+                    main={isLeader || me?.gameRole === "CHRONICLER" ? { options: (team.members ?? []).map((mm) => ({ id: mm.user.id, name: mm.user.displayName ?? mm.user.nickname })), initial: task.takenById ?? user?.id ?? "" } : undefined}
+                    onSubmit={(body) => act(`/api/games/${id}/edge-tasks/${task.id}/submit`, body).then((ok) => { if (ok) notify(t("Сдано на проверку")); return ok; })}
+                    onRelease={() => void release(task)} />
+                );
                 return (
                   <div className="actions deed-acts">
-                    {/* «Разведать» (у разведчика) — левее квадратных кнопок: крайней справа остаётся «Взять дело». */}
+                    {/* Порядок (решение владельца 15.11): карта, разведка, затем остальные; крайней справа остаётся «Взять дело». */}
+                    {mapBtn}
                     {scoutBtn}
-                    <SquareAction icon="map" label={t("Посмотреть на карте")} help={t("Карточка закроется, а карта покажет сторону, на которой стоит это дело.")}
-                      onClick={() => { /* лист закрывается, карта центрируется на стороне дела (владелец 25.10) */ setBackTo(null); setSelectedId(null); setFocusTask({ id: task.id, nonce: Date.now() }); }} />
                     {assignedToMe && <SquareAction icon="user-x" disabled={busy} label={t("Не могу взять")}
                       help={t("Поручение снимется, дело снова станет свободным для всей команды. Тот, кто поручил, узнает об отказе.")}
                       onClick={() => void declineAssign(task.id, memberName(task.assignedById ?? null))} />}
                     {showAssign && <SquareAction icon="user-plus" on={Boolean(assignee)} disabled={assignBusy} label={assignee ? t("Сменить или снять поручение") : t("Поручить дело")}
                       help={t("Выберите участника: ему придёт уведомление, которое откроет именно это дело. Сутки взять его сможет только он; если он откажется или сутки пройдут, дело снова свободно. Поручает капитан или заместитель.")}
                       onClick={() => setAssignFor(task.id)} />}
-                    {showPrio && <SquareAction icon="flame" className="prio" on={prioOn} disabled={prioBusy} label={prioOn ? t("Снять приоритет") : t("Отметить приоритетным")}
-                      help={t("Приоритетное дело видит вся команда: его свиток на карте горит. Отметить и снять может капитан или заместитель. Когда дело примут, отметка снимется сама.")}
-                      onClick={() => void setPriority(task.id, !prioOn)} />}
+                    {prioBtn}
                     {showPave && <SquareAction icon="stone" badge={map?.team.stones} disabled={busy} label={t("Вымостить дорогу")}
                       help={t("Потратить один тёсаный камень из Каменоломни: сторона откроется как пройденная, дело делать не нужно. Камней у команды: {n}.", { n: map?.team.stones ?? 0 })}
                       onClick={() => void pave(task.id)} />}
@@ -1124,16 +1188,8 @@ export function TeamPage() {
                   </div>
                 );
               })()}
-              {/* Форма сдачи только у взявшего, капитана, заместителя и летописца (замечание владельца 10.10: остальные видели чужую сдачу). */}
               {!night && task.status === "TAKEN" && !mine && !isLeader && me?.gameRole !== "CHRONICLER" && (
                 <p className="hint"><Icon name="user" />{t("Дело у другого участника: сдать или отказаться может тот, кто взял, капитан, заместитель или летописец.")}</p>
-              )}
-              {!night && task.status === "TAKEN" && (mine || isLeader || me?.gameRole === "CHRONICLER") && (
-                <DeedForm key={task.id} busy={busy} proofType={task.deed.proofType}
-                  members={(team.members ?? []).filter((mm) => mm.user.id !== (task.takenById ?? user?.id)).map((mm) => ({ id: mm.user.id, name: mm.user.displayName ?? mm.user.nickname }))}
-                  main={isLeader || me?.gameRole === "CHRONICLER" ? { options: (team.members ?? []).map((mm) => ({ id: mm.user.id, name: mm.user.displayName ?? mm.user.nickname })), initial: task.takenById ?? user?.id ?? "" } : undefined}
-                  onSubmit={(body) => act(`/api/games/${id}/edge-tasks/${task.id}/submit`, body).then((ok) => { if (ok) notify(t("Сдано на проверку")); return ok; })}
-                  onRelease={() => void release(task)} />
               )}
               <details className="disclose sm codex">
                 <summary><Icon name="info" />{t("Кодекс дела")}<Icon name="chevron-down" className="chev" /></summary>
@@ -1152,26 +1208,10 @@ export function TeamPage() {
  * (решение владельца 05.11: «объединить в одно поле… убрать „как“»; до того два вопроса, с 18.09 — три); участники дела
  * группой отмечаются галочками, каждому засчитывается в личное служение.
  */
-/**
- * Квадратная кнопка действия со значком и маленьким «?» в правом верхнем углу (решение владельца 14.11: «кнопки сделаем
- * квадратными и оставим только значки… над каждой кнопкой маленький вопросительный значок в правом верхнем углу с
- * объяснением, что за кнопка»). Название и пояснение — в окошке по нажатию на «?»; название же — подпись для чтения с экрана.
- */
 /** Подсказка кнопки «Разведать»: что она делает и как часто. */
 const SCOUT_HELP = () => t("Туман вокруг перекрёстка раздвинется, и вся команда увидит, что там: город или развилка. Место останется открытым. Разведка — раз в неделю.");
 
-function SquareAction({ icon, label, help, onClick, disabled, primary = false, on, badge, className }: { icon: string; label: string; help: string; onClick: () => void; disabled?: boolean; /** Главное действие — залитая кнопка. */ primary?: boolean; /** Нажатое состояние переключателя (приоритет отмечен). */ on?: boolean; /** Число в углу (камни Каменоломни). */ badge?: number | null; className?: string }) {
-  return (
-    <span className={"sq-act" + (className ? " " + className : "")}>
-      <button type="button" className={(primary ? "" : "secondary ") + "sq-btn" + (on ? " on" : "")} aria-label={label} title={label} aria-pressed={on} disabled={disabled} onClick={onClick}>
-        <Icon name={icon} />{badge != null && <span className="count-chip">{badge}</span>}
-      </button>
-      <HelpPopup name={label} className="sq-help"><p><b>{label}.</b> {help}</p></HelpPopup>
-    </span>
-  );
-}
-
-function DeedForm({ busy, proofType, members, main, onSubmit, onRelease }: { /** На кого записать дело (решение владельца 22.10): капитан, заместитель и летописец выбирают основного из состава; у остальных поля нет. */ main?: { options: Array<{ id: string; name: string }>; initial: string }; busy: boolean; proofType: EdgeTaskDto["deed"]["proofType"]; members: Array<{ id: string; name: string }>; onSubmit: (body: { links: string[]; note: string; participants: string[]; mainId?: string }) => Promise<boolean>; onRelease: () => void }) {
+function DeedForm({ busy, proofType, members, main, lead, onSubmit, onRelease }: { /** Квадратные кнопки карточки (карта, разведка, приоритет): в одном ряду с ними стоят «кто ещё участвовал» и «вставить ссылку». */ lead?: ReactNode; /** На кого записать дело (решение владельца 22.10): капитан, заместитель и летописец выбирают основного из состава; у остальных поля нет. */ main?: { options: Array<{ id: string; name: string }>; initial: string }; busy: boolean; proofType: EdgeTaskDto["deed"]["proofType"]; members: Array<{ id: string; name: string }>; onSubmit: (body: { links: string[]; note: string; participants: string[]; mainId?: string }) => Promise<boolean>; onRelease: () => void }) {
   const [links, setLinks] = useState<string[]>([]);
   const [note, setNote] = useState("");
   const [what, setWhat] = useState("");
@@ -1191,9 +1231,18 @@ function DeedForm({ busy, proofType, members, main, onSubmit, onRelease }: { /**
     : byWitness && !witness.trim() ? t("кто может подтвердить")
     : report && what.trim().length < 5 ? t("что сделали и кому")
     : null;
-  const must = <span className="req">{t("обязательно")}</span>;
+  // Слова «обязательно» нет (решение владельца 15.11): красная звёздочка, по нажатию на неё — объяснение.
+  const must = <HelpPopup name={t("Обязательно")} className="req-star" trigger={<span aria-hidden="true">*</span>}><p>{t("Обязательное поле: без него дело не сдать.")}</p></HelpPopup>;
   return (
     <>
+      {/* Ряд квадратных кнопок, по правому краю (решение владельца 15.11): карта, разведка, кто ещё участвовал, вставить ссылку. */}
+      <div className="actions deed-acts">
+        {lead}
+        {others.length > 0 && <PeoplePicker id="deed-people" people={others} value={participants} onChange={setParticipants} empty={t("никого: делал один")}
+          square={{ label: t("Кто ещё участвовал"), help: t("Отметьте тех, кто делал дело вместе с вами: оно засчитается каждому в личное служение. Делали один — никого не отмечайте.") }} />}
+        {!byWitness && <LinksField label={proofType === "AUDIO_LINK" ? t("Ссылка на аудиозапись чтения целиком") : t("Ссылки на фото или видео")} links={links} onChange={setLinks}
+          square={{ required: needLink, help: needLink ? t("Обязательно: без ссылки дело не сдать. Скопируйте ссылку и нажмите кнопку — она вставится из буфера обмена.") : t("Скопируйте ссылку и нажмите кнопку — она вставится из буфера обмена.") }} />}
+      </div>
       {byWitness && (
         <div className="field">
           <label htmlFor="deed-witness">{t("Кто может подтвердить")} {must} <span className="opt">{t("свидетель: кто это видел или слышал")}</span></label>
@@ -1204,20 +1253,6 @@ function DeedForm({ busy, proofType, members, main, onSubmit, onRelease }: { /**
         <div className="field">
           <label htmlFor="deed-main">{t("На кого записать дело")} <span className="opt">{t("кто делал: идёт в его лимит")}</span></label>
           <Picker id="deed-main" value={mainId} onChange={(v) => { setMainId(v); setParticipants((p) => p.filter((x) => x !== v)); }} options={main.options.map((m) => ({ value: m.id, label: m.name }))} />
-        </div>
-      )}
-      {/* Ссылки слева, участники справа — в один ряд (решение владельца 16.10: «не этажерка»). */}
-      {(!byWitness || others.length > 0) && (
-        <div className={"deed-pair" + (!byWitness && others.length > 0 ? " two" : "")}>
-          {!byWitness && (
-            <LinksField label={proofType === "AUDIO_LINK" ? t("Ссылка на аудиозапись чтения целиком") : t("Ссылки на фото или видео")} mark={needLink ? must : undefined} links={links} onChange={setLinks} />
-          )}
-          {others.length > 0 && (
-            <div className="field">
-              <label className="label" htmlFor="deed-people">{t("Кто ещё участвовал")} <span className="opt">{t("если делали группой")}</span></label>
-              <PeoplePicker id="deed-people" people={others} value={participants} onChange={setParticipants} empty={t("никого: делал один")} />
-            </div>
-          )}
         </div>
       )}
       {report ? (
@@ -1245,8 +1280,10 @@ function Roster({ team, isCaptain, onRole, onDeputy, embedded = false, onShowOnM
   const [now, setNow] = useState(Date.now());
   useEffect(() => { const i = setInterval(() => setNow(Date.now()), 30_000); return () => clearInterval(i); }, []);
   const [open, setOpen] = useState<string | null>(null);
-  /** Кому раскрыт ряд ролей (вариант 1, решение владельца 23.09): выбор пилюлей назначает роль сразу, повторное нажатие снимает. */
+  /** Кому выбирают роль. Роли — на отдельном вылетающем листе (решение владельца 15.11: «выбор роли делаем через отдельный
+   *  вылетающий экран с ролями»; до того ряд ролей раскрывался в строке участника). Нажатие назначает роль сразу, повторное — снимает. */
   const [pick, setPick] = useState<string | null>(null);
+  const pickM = isCaptain ? team.members.find((x) => x.user.id === pick && x.role !== "CAPTAIN") : undefined;
   // Лимит смены роли — на каждого участника (решение владельца 19.10): в подсказке перечислены те, кому роль пока не сменить.
   const GAME_ROLES = (Object.keys(ROLE).filter((k) => k !== "CAPTAIN" && k !== "DEPUTY" && k !== "NONE") as GameRole[]);
   // Кнопки «Пригласить участника» здесь нет: ссылка — в профиле команды по нажатию на аватарку (решение владельца 04.11).
@@ -1262,7 +1299,7 @@ function Roster({ team, isCaptain, onRole, onDeputy, embedded = false, onShowOnM
           const canEdit = m.role !== "CAPTAIN" && isCaptain;
           const picking = canEdit && pick === m.user.id;
           return (
-            <li key={m.user.id} className={picking ? "picking" : undefined}>
+            <li key={m.user.id}>
               <div className="main">
                 <div className="person"><UserAvatar name={name} avatarId={m.user.avatarId} userId={m.user.id} /><span className="name">{name}</span></div>
                 {shown && r.hint() && <p className="hint">{r.hint()}</p>}
@@ -1281,25 +1318,27 @@ function Roster({ team, isCaptain, onRole, onDeputy, embedded = false, onShowOnM
                   <button type="button" className="chip-btn icon-only" aria-label={r.label()} title={r.label()} aria-expanded={shown} onClick={() => setOpen(shown ? null : m.user.id)}><Chip tone={roleKey === "CAPTAIN" || roleKey === "DEPUTY" ? "accent" : "info"} icon={r.icon}><span className="sr-only">{r.label()}</span></Chip></button>
                 ) : null}</span>
               </div>
-              {picking && (
-                <div className="role-tray" role="group" aria-label={t("Роль: {name}", { name })}>
-                  {GAME_ROLES.map((k) => (
-                    <button key={k} type="button" className={"role-opt" + (k === m.gameRole ? " on" : "")} aria-pressed={k === m.gameRole} onClick={() => { setPick(null); onRole(m.user.id, k === m.gameRole ? "NONE" : k); }}>
-                      <Chip tone={k === m.gameRole ? "solid" : "neutral"} icon={ROLE[k].icon}>{ROLE[k].label()}</Chip>
-                      <span className="desc">{ROLE[k].hint()}</span>
-                    </button>
-                  ))}
-                  <button type="button" className={"role-opt" + (m.role === "DEPUTY" ? " on" : "")} aria-pressed={m.role === "DEPUTY"} onClick={() => { setPick(null); onDeputy(m.user.id, m.role !== "DEPUTY"); }}>
-                    <Chip tone={m.role === "DEPUTY" ? "solid" : "neutral"} icon="star">{t("заместитель")}</Chip>
-                    <span className="desc">{t("Ведёт команду вместе с капитаном: вызовы, ставки, столица, высадка.")}</span>
-                  </button>
-                  <p className="hint">{t("Нажмите роль — она назначится сразу. Повторное нажатие на выданную роль снимает её.")}</p>
-                </div>
-              )}
             </li>
           );
         })}
       </ul>
+      {pickM && (
+        <Sheet size="sm" className="role-sheet" title={t("Роль: {name}", { name: pickM.user.displayName ?? pickM.user.nickname })} onClose={() => setPick(null)}>
+          {/* Лист ролей (замечание владельца 15.11): плашка роли с «?» в правом верхнем углу — что за роль; справа кружок,
+              заполненный у выданной роли и пустой у остальных. Описаний в строке и нижней подсказки про нажатия нет.
+              Нажатие на строку назначает роль сразу, повторное — снимает. */}
+          <div className="role-list" role="group" aria-label={t("Роль: {name}", { name: pickM.user.displayName ?? pickM.user.nickname })}>
+            {[...GAME_ROLES.map((k) => ({ key: k as string, icon: ROLE[k].icon, label: ROLE[k].label(), hint: ROLE[k].hint(), on: k === pickM.gameRole, act: () => onRole(pickM.user.id, k === pickM.gameRole ? "NONE" : k) })),
+              { key: "DEPUTY", icon: "star", label: t("заместитель"), hint: t("Ведёт команду вместе с капитаном: вызовы, ставки, столица, высадка."), on: pickM.role === "DEPUTY", act: () => onDeputy(pickM.user.id, pickM.role !== "DEPUTY") }].map((o) => (
+              <div key={o.key} className={"role-row" + (o.on ? " on" : "")} role="button" tabIndex={0} aria-pressed={o.on} aria-label={o.label}
+                onClick={() => { setPick(null); o.act(); }} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setPick(null); o.act(); } }}>
+                <span className="role-chip"><Chip tone={o.on ? "solid" : "neutral"} icon={o.icon}>{o.label}</Chip><HelpPopup name={o.label} className="chip-help"><p><b>{o.label}.</b> {o.hint}</p></HelpPopup></span>
+                <span className="radio" aria-hidden="true" />
+              </div>
+            ))}
+          </div>
+        </Sheet>
+      )}
     </>
   );
 }

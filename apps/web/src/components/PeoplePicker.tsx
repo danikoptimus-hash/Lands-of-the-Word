@@ -1,12 +1,15 @@
 import { useEffect, useRef, useState } from "react";
 import { Icon } from "./Icon";
+import { HelpPopup } from "./Help";
 
 /**
  * Выбор участников раскрывающимся списком (решение владельца 16.10: ряд кнопок-чипов занимал много места).
  * Снаружи — строка как у поля ввода: выбранные имена или «никого», стрелка. По нажатию под строкой раскрывается
  * список с галочками; закрывается той же стрелкой, нажатием мимо или Esc (владелец: лишних кнопок не надо). Выбор сохраняется сразу.
+ * square — квадратная кнопка со значком людей и «?» в углу вместо строки (решение владельца 15.11 для формы сдачи дела:
+ * «кнопки… делаем квадратными и ставим на уровень с верхними кнопками»); число выбранных — в углу кнопки, список — под ней.
  */
-export function PeoplePicker({ id, people, value, onChange, empty }: { id: string; people: Array<{ id: string; name: string }>; value: string[]; onChange: (ids: string[]) => void; /** Подпись, когда никто не выбран. */ empty: string }) {
+export function PeoplePicker({ id, people, value, onChange, empty, square }: { id: string; people: Array<{ id: string; name: string }>; value: string[]; onChange: (ids: string[]) => void; /** Подпись, когда никто не выбран. */ empty: string; square?: { label: string; help: string } }) {
   const [open, setOpen] = useState(false);
   const root = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -19,12 +22,21 @@ export function PeoplePicker({ id, people, value, onChange, empty }: { id: strin
   }, [open]);
   const chosen = people.filter((p) => value.includes(p.id)).map((p) => p.name);
   return (
-    <div ref={root} className={"people-picker" + (open ? " open" : "")}>
+    <div ref={root} className={"people-picker" + (square ? " sq" : "") + (open ? " open" : "")}>
+      {square ? (
+        <span className="sq-act">
+          <button id={id} type="button" className={"secondary sq-btn" + (chosen.length ? " on" : "")} aria-haspopup="listbox" aria-expanded={open} aria-label={chosen.length ? `${square.label}: ${chosen.join(", ")}` : square.label} title={square.label} onClick={() => setOpen((v) => !v)}>
+            <Icon name="users" />{chosen.length > 0 && <span className="count-chip">{chosen.length}</span>}
+          </button>
+          <HelpPopup name={square.label} className="sq-help"><p><b>{square.label}.</b> {square.help}</p></HelpPopup>
+        </span>
+      ) : (
       <button id={id} type="button" className="pp-trigger" aria-haspopup="listbox" aria-expanded={open} onClick={() => setOpen((v) => !v)}>
         <span className={"pp-value" + (chosen.length ? "" : " muted")}>{chosen.length ? chosen.join(", ") : empty}</span>
         {chosen.length > 0 && <span className="count-chip">{chosen.length}</span>}
         <Icon name="chevron-down" className="chev" />
       </button>
+      )}
       {open && (
         <div className="pp-list" role="listbox" aria-multiselectable="true">
           {people.map((p) => {

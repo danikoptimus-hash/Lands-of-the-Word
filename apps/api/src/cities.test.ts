@@ -290,6 +290,11 @@ describe("дипломатия, роли, столица, руины, сдача
     const map1 = await app.inject({ method: "GET", url: `/api/games/${gameId}/my-map`, headers: { cookie: p2Cookie } });
     const city1 = (map1.json().cities as Array<{ nodeKey: string; blocked: boolean; passage: string | null }>).find((c) => c.nodeKey === rutKey)!;
     expect(city1).toMatchObject({ blocked: false, passage: "APPROVED" });
+    // Профиль команды (решение владельца 15.11): сколько раз она просила проход у нас и сколько мы у неё; у своей команды счёта нет.
+    const card = (cookie: string, teamId: string) => app.inject({ method: "GET", url: `/api/games/${gameId}/awards/teams/${teamId}`, headers: { cookie } }).then((r) => r.json().passages);
+    expect(await card(p1Cookie, team2)).toEqual({ fromThem: 1, fromUs: 0 });
+    expect(await card(p2Cookie, team1)).toEqual({ fromThem: 0, fromUs: 1 });
+    expect(await card(p1Cookie, team1)).toBeNull();
     const out1 = (map1.json().tasks as Array<{ fromKey: string; status: string }>).filter((t) => t.fromKey === rutKey);
     expect(out1.length).toBeGreaterThan(0);
     // Отзыва разрешения нет: дал — значит дал (решение владельца 18.09).
