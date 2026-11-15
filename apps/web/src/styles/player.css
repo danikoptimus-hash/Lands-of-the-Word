@@ -784,6 +784,22 @@ label.check.mark-drop input { margin-top: 2px; }
 .task-view .task-nav { display: flex; gap: var(--sp-1); margin-left: auto; margin-right: var(--sp-2); flex: none; }
 .task-view .task-nav .i.flip { transform: scaleX(-1); }
 /* Форма сдачи дела в два столбца (решение владельца 16.10): ссылки слева, участники справа; «Отказаться» слева, «Сдать» справа. */
+/* Форма сдачи (решение владельца 15.11): «кто ещё участвовал» и «вставить ссылку» — квадратные кнопки в ряду с картой и разведкой;
+   список участников и ссылки раскрываются окошком под своей кнопкой, по правому краю. */
+.deed-acts > .people-picker.sq, .deed-acts > .links-field.sq { position: relative; flex: none; display: inline-flex; margin: 0; }
+.people-picker.sq .pp-list { left: auto; right: 0; top: calc(100% + 8px); width: min(280px, calc(100vw - 48px)); border: 1px solid var(--border-strong); border-radius: var(--r-sm); }
+.links-field.sq .link-pop { left: auto; right: 0; top: calc(100% + 8px); margin-top: 0; min-width: 0; width: min(300px, calc(100vw - 48px)); max-width: none; box-sizing: border-box; }
+.links-field.sq .link-pop.link-err { display: flex; align-items: flex-start; gap: 6px; color: var(--danger); font-size: var(--fs-sm); line-height: 1.35; }
+.links-field.sq .link-pop.link-err .i { flex: none; width: var(--icon-sm); height: var(--icon-sm); margin-top: 2px; }
+.sq-btn.on { border-color: var(--bronze); }
+.sq-btn.on .i { color: var(--bronze-ink); }
+/* Обязательное — красная звёздочка: над правым верхним углом квадратной кнопки или сразу после подписи поля; по нажатию — объяснение. */
+.help-pop-wrap.req-star > .pop-btn { appearance: none; position: relative; display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px; min-height: 0; margin: 0; padding: 0; border: 0; border-radius: 50%; background: none; box-shadow: none; color: var(--danger); font: 800 20px/1 var(--font-ui); cursor: pointer; }
+.help-pop-wrap.req-star > .pop-btn > span { display: block; height: 12px; line-height: 20px; }
+.help-pop-wrap.req-star > .pop-btn::before { content: ""; position: absolute; inset: -10px; }
+.sq-act > .sq-help.req-star > .pop-btn { background: var(--paper-light, #fffaec); border: 1px solid var(--danger); box-shadow: 0 1px 3px rgba(59, 36, 21, .18); }
+.sq-act > .sq-help.req-star > .pop-btn::before { inset: -7px -9px -5px -5px; }
+label > .help-pop-wrap.req-star { margin-left: 2px; vertical-align: baseline; }
 .deed-pair { display: grid; grid-template-columns: 1fr; gap: 0 var(--sp-3); align-items: start; }
 .deed-pair.two { grid-template-columns: 1fr 1fr; }
 .deed-pair .field { margin-top: 0; }
@@ -966,9 +982,10 @@ label.check.mark-drop input { margin-top: 2px; }
 /* Телефон по схеме администратора (решение владельца 29.10): панель раздела — лист снизу над картой, док из шести плиток внизу. */
 @media (max-width: 1023px) {
   /* Лист разделов на телефоне всегда полной высоты, а не по длине списка (решение владельца 07.11). */
-  /* Панель разделов видна всегда (решение владельца 15.11: «чтобы из других разделов всегда легко переходить»): лист раздела
-     кончается над ней, а сама панель и шапка стоят выше затемнения. */
-  .side-menu { --dock-h: calc(52px + 2 * var(--sp-2) + var(--safe-bottom)); top: auto; left: 0; right: 0; bottom: var(--dock-h); width: auto; height: calc(100% - var(--safe-top) - 64px - var(--dock-h)); max-height: calc(100% - var(--safe-top) - 64px - var(--dock-h)); border-radius: var(--r-lg) var(--r-lg) 0 0; padding-left: 0; padding-top: 0; animation: sheetUp var(--dur-slow) var(--ease-out); }
+  /* Панель разделов видна всегда (решение владельца 15.11: «чтобы из других разделов всегда легко переходить»): содержимое
+     листа кончается над ней, а сама панель и шапка стоят выше листа и затемнения. Под панелью — фон самого листа, то же
+     стекло, что у кнопок, а не затемнённая карта (владелец 15.11: «фон здесь нужен, но прозрачный, тот же, что и у кнопок»). */
+  .side-menu { --dock-h: calc(52px + 2 * var(--sp-2) + var(--safe-bottom)); box-sizing: border-box; top: auto; left: 0; right: 0; bottom: 0; width: auto; height: calc(100% - var(--safe-top) - 64px); max-height: calc(100% - var(--safe-top) - 64px); padding-bottom: var(--dock-h); border-radius: var(--r-lg) var(--r-lg) 0 0; padding-left: 0; padding-top: 0; animation: sheetUp var(--dur-slow) var(--ease-out); }
   .map-area .team-dock, .map-area .hud-left, .map-area .hud-right { z-index: calc(var(--z-drawer) + 2); }
   .side-menu .menu-sub { padding-top: 6px; }
   /* Плитки один в один как у администратора на телефоне: те же правила, что admin.css + theme-admin.css при ≤767px

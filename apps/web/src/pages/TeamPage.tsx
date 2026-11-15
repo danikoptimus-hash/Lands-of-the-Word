@@ -1105,21 +1105,33 @@ export function TeamPage() {
                 const showPave = showTake && !task.sea && (map?.team.stones ?? 0) > 0 && (isCaptain || me?.role === "DEPUTY" || me?.gameRole === "CHRONICLER");
                 const showPrio = isLeader && task.status !== "APPROVED" && !task.paved;
                 const prioOn = Boolean(task.priorityAt);
+                const mapBtn = <SquareAction icon="map" label={t("Посмотреть на карте")} help={t("Карточка закроется, а карта покажет сторону, на которой стоит это дело.")}
+                  onClick={() => { /* лист закрывается, карта центрируется на стороне дела (владелец 25.10) */ setBackTo(null); setSelectedId(null); setFocusTask({ id: task.id, nonce: Date.now() }); }} />;
+                const prioBtn = showPrio && <SquareAction icon="flame" className="prio" on={prioOn} disabled={prioBusy} label={prioOn ? t("Снять приоритет") : t("Отметить приоритетным")}
+                  help={t("Приоритетное дело видит вся команда: его свиток на карте горит. Отметить и снять может капитан или заместитель. Когда дело примут, отметка снимется сама.")}
+                  onClick={() => void setPriority(task.id, !prioOn)} />;
+                // Взятое дело с формой сдачи (решение владельца 15.11): «кто ещё участвовал» и «вставить ссылку» — квадратные кнопки
+                // в этом же ряду, справа от карты и разведки; ряд рисует сама форма (у неё выбранные участники и ссылки).
+                // Форма только у взявшего, капитана, заместителя и летописца (замечание владельца 10.10: остальные видели чужую сдачу).
+                if (!night && task.status === "TAKEN" && (mine || isLeader || me?.gameRole === "CHRONICLER")) return (
+                  <DeedForm key={task.id} busy={busy} proofType={task.deed.proofType} lead={<>{mapBtn}{scoutBtn}{prioBtn}</>}
+                    members={(team.members ?? []).filter((mm) => mm.user.id !== (task.takenById ?? user?.id)).map((mm) => ({ id: mm.user.id, name: mm.user.displayName ?? mm.user.nickname }))}
+                    main={isLeader || me?.gameRole === "CHRONICLER" ? { options: (team.members ?? []).map((mm) => ({ id: mm.user.id, name: mm.user.displayName ?? mm.user.nickname })), initial: task.takenById ?? user?.id ?? "" } : undefined}
+                    onSubmit={(body) => act(`/api/games/${id}/edge-tasks/${task.id}/submit`, body).then((ok) => { if (ok) notify(t("Сдано на проверку")); return ok; })}
+                    onRelease={() => void release(task)} />
+                );
                 return (
                   <div className="actions deed-acts">
-                    {/* «Разведать» (у разведчика) — левее квадратных кнопок: крайней справа остаётся «Взять дело». */}
+                    {/* Порядок (решение владельца 15.11): карта, разведка, затем остальные; крайней справа остаётся «Взять дело». */}
+                    {mapBtn}
                     {scoutBtn}
-                    <SquareAction icon="map" label={t("Посмотреть на карте")} help={t("Карточка закроется, а карта покажет сторону, на которой стоит это дело.")}
-                      onClick={() => { /* лист закрывается, карта центрируется на стороне дела (владелец 25.10) */ setBackTo(null); setSelectedId(null); setFocusTask({ id: task.id, nonce: Date.now() }); }} />
                     {assignedToMe && <SquareAction icon="user-x" disabled={busy} label={t("Не могу взять")}
                       help={t("Поручение снимется, дело снова станет свободным для всей команды. Тот, кто поручил, узнает об отказе.")}
                       onClick={() => void declineAssign(task.id, memberName(task.assignedById ?? null))} />}
                     {showAssign && <SquareAction icon="user-plus" on={Boolean(assignee)} disabled={assignBusy} label={assignee ? t("Сменить или снять поручение") : t("Поручить дело")}
                       help={t("Выберите участника: ему придёт уведомление, которое откроет именно это дело. Сутки взять его сможет только он; если он откажется или сутки пройдут, дело снова свободно. Поручает капитан или заместитель.")}
                       onClick={() => setAssignFor(task.id)} />}
-                    {showPrio && <SquareAction icon="flame" className="prio" on={prioOn} disabled={prioBusy} label={prioOn ? t("Снять приоритет") : t("Отметить приоритетным")}
-                      help={t("Приоритетное дело видит вся команда: его свиток на карте горит. Отметить и снять может капитан или заместитель. Когда дело примут, отметка снимется сама.")}
-                      onClick={() => void setPriority(task.id, !prioOn)} />}
+                    {prioBtn}
                     {showPave && <SquareAction icon="stone" badge={map?.team.stones} disabled={busy} label={t("Вымостить дорогу")}
                       help={t("Потратить один тёсаный камень из Каменоломни: сторона откроется как пройденная, дело делать не нужно. Камней у команды: {n}.", { n: map?.team.stones ?? 0 })}
                       onClick={() => void pave(task.id)} />}
@@ -1131,16 +1143,8 @@ export function TeamPage() {
                   </div>
                 );
               })()}
-              {/* Форма сдачи только у взявшего, капитана, заместителя и летописца (замечание владельца 10.10: остальные видели чужую сдачу). */}
               {!night && task.status === "TAKEN" && !mine && !isLeader && me?.gameRole !== "CHRONICLER" && (
                 <p className="hint"><Icon name="user" />{t("Дело у другого участника: сдать или отказаться может тот, кто взял, капитан, заместитель или летописец.")}</p>
-              )}
-              {!night && task.status === "TAKEN" && (mine || isLeader || me?.gameRole === "CHRONICLER") && (
-                <DeedForm key={task.id} busy={busy} proofType={task.deed.proofType}
-                  members={(team.members ?? []).filter((mm) => mm.user.id !== (task.takenById ?? user?.id)).map((mm) => ({ id: mm.user.id, name: mm.user.displayName ?? mm.user.nickname }))}
-                  main={isLeader || me?.gameRole === "CHRONICLER" ? { options: (team.members ?? []).map((mm) => ({ id: mm.user.id, name: mm.user.displayName ?? mm.user.nickname })), initial: task.takenById ?? user?.id ?? "" } : undefined}
-                  onSubmit={(body) => act(`/api/games/${id}/edge-tasks/${task.id}/submit`, body).then((ok) => { if (ok) notify(t("Сдано на проверку")); return ok; })}
-                  onRelease={() => void release(task)} />
               )}
               <details className="disclose sm codex">
                 <summary><Icon name="info" />{t("Кодекс дела")}<Icon name="chevron-down" className="chev" /></summary>
@@ -1162,7 +1166,7 @@ export function TeamPage() {
 /** Подсказка кнопки «Разведать»: что она делает и как часто. */
 const SCOUT_HELP = () => t("Туман вокруг перекрёстка раздвинется, и вся команда увидит, что там: город или развилка. Место останется открытым. Разведка — раз в неделю.");
 
-function DeedForm({ busy, proofType, members, main, onSubmit, onRelease }: { /** На кого записать дело (решение владельца 22.10): капитан, заместитель и летописец выбирают основного из состава; у остальных поля нет. */ main?: { options: Array<{ id: string; name: string }>; initial: string }; busy: boolean; proofType: EdgeTaskDto["deed"]["proofType"]; members: Array<{ id: string; name: string }>; onSubmit: (body: { links: string[]; note: string; participants: string[]; mainId?: string }) => Promise<boolean>; onRelease: () => void }) {
+function DeedForm({ busy, proofType, members, main, lead, onSubmit, onRelease }: { /** Квадратные кнопки карточки (карта, разведка, приоритет): в одном ряду с ними стоят «кто ещё участвовал» и «вставить ссылку». */ lead?: ReactNode; /** На кого записать дело (решение владельца 22.10): капитан, заместитель и летописец выбирают основного из состава; у остальных поля нет. */ main?: { options: Array<{ id: string; name: string }>; initial: string }; busy: boolean; proofType: EdgeTaskDto["deed"]["proofType"]; members: Array<{ id: string; name: string }>; onSubmit: (body: { links: string[]; note: string; participants: string[]; mainId?: string }) => Promise<boolean>; onRelease: () => void }) {
   const [links, setLinks] = useState<string[]>([]);
   const [note, setNote] = useState("");
   const [what, setWhat] = useState("");
@@ -1182,9 +1186,18 @@ function DeedForm({ busy, proofType, members, main, onSubmit, onRelease }: { /**
     : byWitness && !witness.trim() ? t("кто может подтвердить")
     : report && what.trim().length < 5 ? t("что сделали и кому")
     : null;
-  const must = <span className="req">{t("обязательно")}</span>;
+  // Слова «обязательно» нет (решение владельца 15.11): красная звёздочка, по нажатию на неё — объяснение.
+  const must = <HelpPopup name={t("Обязательно")} className="req-star" trigger={<span aria-hidden="true">*</span>}><p>{t("Обязательное поле: без него дело не сдать.")}</p></HelpPopup>;
   return (
     <>
+      {/* Ряд квадратных кнопок, по правому краю (решение владельца 15.11): карта, разведка, кто ещё участвовал, вставить ссылку. */}
+      <div className="actions deed-acts">
+        {lead}
+        {others.length > 0 && <PeoplePicker id="deed-people" people={others} value={participants} onChange={setParticipants} empty={t("никого: делал один")}
+          square={{ label: t("Кто ещё участвовал"), help: t("Отметьте тех, кто делал дело вместе с вами: оно засчитается каждому в личное служение. Делали один — никого не отмечайте.") }} />}
+        {!byWitness && <LinksField label={proofType === "AUDIO_LINK" ? t("Ссылка на аудиозапись чтения целиком") : t("Ссылки на фото или видео")} links={links} onChange={setLinks}
+          square={{ required: needLink, help: needLink ? t("Обязательно: без ссылки дело не сдать. Скопируйте ссылку и нажмите кнопку — она вставится из буфера обмена.") : t("Скопируйте ссылку и нажмите кнопку — она вставится из буфера обмена.") }} />}
+      </div>
       {byWitness && (
         <div className="field">
           <label htmlFor="deed-witness">{t("Кто может подтвердить")} {must} <span className="opt">{t("свидетель: кто это видел или слышал")}</span></label>
@@ -1195,20 +1208,6 @@ function DeedForm({ busy, proofType, members, main, onSubmit, onRelease }: { /**
         <div className="field">
           <label htmlFor="deed-main">{t("На кого записать дело")} <span className="opt">{t("кто делал: идёт в его лимит")}</span></label>
           <Picker id="deed-main" value={mainId} onChange={(v) => { setMainId(v); setParticipants((p) => p.filter((x) => x !== v)); }} options={main.options.map((m) => ({ value: m.id, label: m.name }))} />
-        </div>
-      )}
-      {/* Ссылки слева, участники справа — в один ряд (решение владельца 16.10: «не этажерка»). */}
-      {(!byWitness || others.length > 0) && (
-        <div className={"deed-pair" + (!byWitness && others.length > 0 ? " two" : "")}>
-          {!byWitness && (
-            <LinksField label={proofType === "AUDIO_LINK" ? t("Ссылка на аудиозапись чтения целиком") : t("Ссылки на фото или видео")} mark={needLink ? must : undefined} links={links} onChange={setLinks} />
-          )}
-          {others.length > 0 && (
-            <div className="field">
-              <label className="label" htmlFor="deed-people">{t("Кто ещё участвовал")} <span className="opt">{t("если делали группой")}</span></label>
-              <PeoplePicker id="deed-people" people={others} value={participants} onChange={setParticipants} empty={t("никого: делал один")} />
-            </div>
-          )}
         </div>
       )}
       {report ? (

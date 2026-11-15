@@ -11,8 +11,11 @@ import { t } from "../lib/i18n";
  * Если в буфере не ссылка — рядом с кнопкой красный значок с пояснением по нажатию (как у знака вопроса).
  * Запасной путь (15.10, встроенный браузер Xiaomi без чтения буфера): строка, куда ссылку вставляет клавиатура.
  * Принимаются только адреса с http:// или https://.
+ * square — квадратная кнопка со значком ссылки вместо подписи и широкой кнопки (решение владельца 15.11 для формы сдачи
+ * дела). Обязательная ссылка помечена красной звёздочкой над правым верхним углом кнопки, по нажатию на неё — объяснение;
+ * необязательная — обычным «?». Сколько ссылок вставлено — число в углу; список, ошибка и запасная строка — окошком под кнопкой.
  */
-export function LinksField({ label, mark, links, onChange }: { label: string; /** Пометка у подписи, например «обязательно». */ mark?: ReactNode; links: string[]; onChange: (links: string[]) => void }) {
+export function LinksField({ label, mark, links, onChange, square }: { label: string; /** Пометка у подписи, например «обязательно». */ mark?: ReactNode; links: string[]; onChange: (links: string[]) => void; square?: { help: string; required?: boolean } }) {
   const [error, setError] = useState("");
   const [manual, setManual] = useState(false);
   const [draft, setDraft] = useState("");
@@ -38,7 +41,52 @@ export function LinksField({ label, mark, links, onChange }: { label: string; /*
     return () => { document.removeEventListener("pointerdown", away, true); document.removeEventListener("keydown", esc); };
   }, [open]);
   useEffect(() => { if (links.length === 0) setOpen(false); }, [links.length]);
+  // В квадратном режиме пояснение «в буфере нет ссылки» — окошко под кнопкой: гаснет нажатием мимо.
+  useEffect(() => {
+    if (!square || !error || manual) return;
+    const away = (e: Event) => { if (!root.current?.contains(e.target as Node)) setError(""); };
+    document.addEventListener("pointerdown", away, true);
+    return () => document.removeEventListener("pointerdown", away, true);
+  }, [square, error, manual]);
   const has = links.length > 0;
+  if (square) {
+    return (
+      <div ref={root} className="links-field sq">
+        <span className="sq-act">
+          <button type="button" className={"secondary sq-btn" + (has ? " on" : "")} aria-label={has ? (links.length === 1 ? t("Ссылка вставлена") : t("Ссылок: {n}", { n: links.length })) : label} title={label} aria-expanded={has ? open : undefined} onClick={() => (has ? setOpen((v) => !v) : void paste())}>
+            <Icon name={has ? "check" : "link"} />{links.length > 1 && <span className="count-chip">{links.length}</span>}
+          </button>
+          {square.required
+            ? <HelpPopup name={t("Обязательно")} className="sq-help req-star" trigger={<span aria-hidden="true">*</span>}><p><b>{label}.</b> {square.help}</p></HelpPopup>
+            : <HelpPopup name={label} className="sq-help"><p><b>{label}.</b> {square.help}</p></HelpPopup>}
+        </span>
+        {error && !has && !manual && <div className="link-pop link-err" role="alert"><Icon name="alert" /><span>{error}</span></div>}
+        {open && has && (
+          <div className="link-pop">
+            <ul className="link-list">
+              {links.map((l) => (
+                <li key={l}><Icon name="link" /><a className="link-text" href={l} target="_blank" rel="noreferrer">{l.replace(/^https?:\/\//i, "")}</a><button type="button" className="secondary sm icon" aria-label={t("Убрать ссылку")} title={t("Убрать ссылку")} onClick={() => onChange(links.filter((x) => x !== l))}><Icon name="x" /></button></li>
+              ))}
+            </ul>
+            <div className="link-pop-foot">
+              <button type="button" className="secondary sm" onClick={() => void paste()}><Icon name="link" />{t("Вставить ещё")}</button>
+              {error && <HelpPopup name={t("Почему не вставилось")} className="link-warn" trigger={<Icon name="alert" />}>{error}</HelpPopup>}
+            </div>
+          </div>
+        )}
+        {manual && (
+          <div className="link-pop link-manual">
+            <p className="hint">{t("Этот браузер не даёт прочитать буфер обмена. Вставьте ссылку сюда:")}</p>
+            <div className="link-add">
+              <input type="url" inputMode="url" autoComplete="off" placeholder="https://…" value={draft} onChange={(e) => { setDraft(e.target.value); setError(""); }} onKeyDown={key} autoFocus />
+              <button type="button" className="sm" onClick={add} disabled={!draft.trim()}><Icon name="check" />{t("Добавить")}</button>
+            </div>
+            {error && <p className="error small" role="alert">{error}</p>}
+          </div>
+        )}
+      </div>
+    );
+  }
   return (
     <div ref={root} className="field links-field">
       <span className="label">{label}{mark && <> {mark}</>}</span>
