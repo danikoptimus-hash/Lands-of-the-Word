@@ -1,0 +1,42 @@
+== сценарий minute: 66000 мс по часам; занято  66115 мс, простой     31 мс
+по исходным файлам (собственное время, мс):
+    63824 (браузер: отрисовка и прочее)
+      680 apps/web/src/lib/format.ts
+      306 packages/domain/dist/fireworks.js
+      266 packages/domain/dist/seaRoute.js
+      198 apps/web/src/pages/Fauna.tsx
+      182 (движок браузера)
+      151 библиотека react-dom
+       89 packages/domain/dist/islets.js
+       89 (сборка мусора)
+       69 apps/web/src/pages/TeamMap.tsx
+       64 packages/domain/dist/hex.js
+       47 apps/web/src/pages/TeamPage.tsx
+       44 apps/web/src/pages/MapLayers.tsx
+       23 apps/web/src/pages/SeaGL.tsx
+       12 apps/web/src/lib/i18n.tsx
+       12 библиотека react
+        9 apps/web/src/lib/api.ts
+        8 packages/domain/dist/hexgraph.js
+        7 библиотека scheduler
+        6 библиотека react-router
+        4 apps/web/src/pages/Lakes.tsx
+        4 apps/web/src/lib/daytime.ts
+        4 apps/web/src/pages/FireworksLayer.tsx
+        3 apps/web/src/pages/WorldGL.tsx
+        3 apps/web/src/lib/keep.ts
+        3 apps/web/src/lib/glLines.ts
+        2 apps/web/src/lib/perf.ts
+        1 apps/web/src/lib/useGameEvents.ts
+по функциям:
+    63824 (program) — (браузер: отрисовка и прочее)
+      490 dayKey — apps/web/src/lib/format.ts
+      305 localDay — packages/domain/dist/fireworks.js
+      187 (безымянная) — apps/web/src/lib/format.ts
+      129 (безымянная) — packages/domain/dist/seaRoute.js
+       89 isletRadiusAt — packages/domain/dist/islets.js
+       89 (garbage collector) — (сборка мусора)
+       61 landPen — apps/web/src/pages/Fauna.tsx
+       59 clearAt — packages/domain/dist/seaRoute.js
+       56 (безымянная) — apps/web/src/pages/TeamMap.tsx
+       44 hexKey — packages/domain/dist/hex.js

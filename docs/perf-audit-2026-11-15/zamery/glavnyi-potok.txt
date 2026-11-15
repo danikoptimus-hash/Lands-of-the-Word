@@ -1,0 +1,68 @@
+холсты:
+   {"cls":"fx-layer sea < map-canvas","size":"273x591","css":"390x844","kind":"webgl","filter":"none","blend":"normal","op":"1","disp":"block"}
+   {"cls":"fx-layer islets < map-canvas","size":"780x1688","css":"390x844","kind":"2d","filter":"none","blend":"normal","op":"1","disp":"block"}
+   {"cls":"fx-layer tiles < map-canvas","size":"585x1266","css":"390x844","kind":"2d","filter":"none","blend":"normal","op":"1","disp":"grid"}
+   {"cls":"fx-layer lakes < map-canvas","size":"488x1055","css":"390x844","kind":"webgl","filter":"none","blend":"normal","op":"1","disp":"block"}
+   {"cls":"fx-layer world-gl < map-canvas","size":"780x1688","css":"390x844","kind":"webgl","filter":"none","blend":"normal","op":"1","disp":"block"}
+   {"cls":"fx-layer fog < map-canvas","size":"488x1055","css":"390x844","kind":"2d","filter":"none","blend":"normal","op":"1","disp":"block"}
+   {"cls":"fx-layer fauna < map-canvas","size":"780x1688","css":"390x844","kind":"2d","filter":"none","blend":"normal","op":"1","disp":"block"}
+   {"cls":"fx-layer routes < map-canvas","size":"780x1688","css":"390x844","kind":"webgl","filter":"none","blend":"normal","op":"1","disp":"block"}
+   {"cls":"fx-layer fauna deck < map-canvas","size":"780x1688","css":"390x844","kind":"2d","filter":"none","blend":"normal","op":"1","disp":"block"}
+   {"cls":"fx-layer fauna sky < map-canvas","size":"780x1688","css":"390x844","kind":"2d","filter":"none","blend":"normal","op":"1","disp":"block"}
+   {"cls":"fx-layer fireworks < map-canvas","size":"585x1266","css":"390x844","kind":"2d","filter":"none","blend":"normal","op":"1","disp":"block"}
+анимаций: 15 {"fire-glow @ ellipse.glow ∞":1,"fire-k2 @ path.tongue ∞":5,"fire-k1 @ path.tongue ∞":5,"fire-k0 @ path.tongue ∞":1,"fire-spark @ ellipse.spark ∞":3}
+backdrop-filter: 10 BUTTON.dock-btn | BUTTON.dock-btn | BUTTON.dock-btn | BUTTON.dock-btn | BUTTON.dock-btn | BUTTON.btn secondary icon hud-btn tl-clock-btn | DIV.tl-slide | A.btn secondary icon hud-btn | BUTTON.hud-team | BUTTON.btn secondary icon hud-btn hud-bell · filter: 1 · маски: 0 · фильтров svg: 0 · узлов svg: 1436
+
+== простой: 5004 мс по часам
+  потоки (занятость, мс): CrRendererMain 4958 · CrGpuMain 3567 · VizCompositorThread 1415 · Compositor 314 · ThreadPoolForegroundWorker 132 · Chrome_ChildIOThread 64 · CrBrowserMain 5 · Chrome_IOThread 5
+  главный поток по видам работы (собственное время, мс):
+        3535 CommandBufferProxyImpl::WaitForGetOffset
+         771 LayerTreeHost::DoUpdateLayers
+         187 Canvas2DResourceProvider::ProduceCanvasResource
+         157 FunctionCall
+          76 Layerize
+          53 ThreadControllerImpl::RunTask
+          35 Paint
+          22 HitTest
+          17 GLES2::ReadPixels
+          13 Document::recalcStyle
+           5 Blink.PrePaint.UpdateTime
+           5 LocalFrameView::performLayout
+           5 Commit
+           5 AsyncTask Run
+           5 AnimationTimeline::serviceAnimations
+           4 RunTask
+           4 Layout
+           4 Blink.Paint.UpdateTime
+           4 CommandBufferProxyImpl::Flush
+           3 LocalFrameView::ScheduleAnimation
+           3 Blink.CompositingInputs.UpdateTime
+           3 LocalFrameView::RunPaintLifecyclePhase
+  кадры: {}
+
+== движение: 31244 мс по часам
+  потоки (занятость, мс): CrRendererMain 31236 · CrGpuMain 24442 · VizCompositorThread 4811 · Compositor 1714 · ThreadPoolForegroundWorker 656 · Chrome_ChildIOThread 311 · CrBrowserMain 31 · PerfettoTrace 30
+  главный поток по видам работы (собственное время, мс):
+       24553 CommandBufferProxyImpl::WaitForGetOffset
+        2938 LayerTreeHost::DoUpdateLayers
+        2078 FunctionCall
+         504 Canvas2DResourceProvider::ProduceCanvasResource
+         154 ThreadControllerImpl::RunTask
+         148 GLES2::ReadPixels
+         134 PaintArtifactCompositor::Update
+         104 Paint
+          96 Layerize
+          61 HitTest
+          51 LocalFrameView::performLayout
+          35 Document::recalcStyle
+          30 Blink.PrePaint.UpdateTime
+          22 InlineNode::ShapeTextIncludingFirstLine
+          19 LayerTreeHost::WaitForCommitCompletion
+          16 CommandBufferProxyImpl::Flush
+          15 Blink.CompositingInputs.UpdateTime
+          14 Layout
+          14 RunTask
+          13 AsyncTask Run
+          12 Commit
+          10 InlineNode::FindSvgTextChunks
+  кадры: {}

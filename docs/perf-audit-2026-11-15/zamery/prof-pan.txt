@@ -1,0 +1,50 @@
+== сценарий pan: 32084 мс по часам; занято  32183 мс, простой     10 мс
+по исходным файлам (собственное время, мс):
+    29784 (браузер: отрисовка и прочее)
+     1582 (движок браузера)
+      342 apps/web/src/lib/format.ts
+      163 packages/domain/dist/fireworks.js
+       87 библиотека react-dom
+       80 apps/web/src/pages/Fauna.tsx
+       28 apps/web/src/pages/TeamMap.tsx
+       24 (сборка мусора)
+       20 apps/web/src/pages/TeamPage.tsx
+       17 apps/web/src/pages/MapLayers.tsx
+        9 apps/web/src/lib/glLines.ts
+        7 apps/web/src/pages/Islets.tsx
+        5 apps/web/src/lib/i18n.tsx
+        5 apps/web/src/pages/WorldGL.tsx
+        4 apps/web/src/lib/useViewport.ts
+        4 библиотека react-router
+        3 библиотека react
+        3 библиотека scheduler
+        3 apps/web/src/pages/RoutesGL.tsx
+        3 packages/domain/dist/hexgraph.js
+        3 apps/web/src/pages/SeaGL.tsx
+        2 apps/web/src/pages/Lakes.tsx
+        1 apps/web/src/lib/perf.ts
+        1 apps/web/src/lib/api.ts
+        1 apps/web/src/pages/Timeline.tsx
+        0 apps/web/src/lib/keep.ts
+        0 packages/domain/dist/daytime.js
+        0 apps/web/src/lib/daytime.ts
+по функциям:
+    29784 (program) — (браузер: отрисовка и прочее)
+     1433 drawImage — (движок браузера)
+      249 dayKey — apps/web/src/lib/format.ts
+      163 localDay — packages/domain/dist/fireworks.js
+       91 (безымянная) — apps/web/src/lib/format.ts
+       72 get clientWidth — (движок браузера)
+       26 landPen — apps/web/src/pages/Fauna.tsx
+       24 (garbage collector) — (сборка мусора)
+       22 (безымянная) — apps/web/src/pages/TeamMap.tsx
+       13 fill — (движок браузера)
+        9 byTitle — apps/web/src/pages/TeamPage.tsx
+        8 vertexAttribPointer — (движок браузера)
+        7 keepInWater — apps/web/src/pages/Fauna.tsx
+        6 reconcileChildrenArray — библиотека react-dom
+        6 coastPen — apps/web/src/pages/Fauna.tsx
+        6 commitHostUpdate — библиотека react-dom
+        6 updateFromMap — библиотека react-dom
+        5 updateProperties — библиотека react-dom
+        5 TeamPage — apps/web/src/pages/TeamPage.tsx

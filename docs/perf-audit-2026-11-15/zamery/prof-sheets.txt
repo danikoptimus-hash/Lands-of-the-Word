@@ -1,0 +1,44 @@
+== сценарий sheets: 17893 мс по часам; занято  17450 мс, простой    570 мс
+по исходным файлам (собственное время, мс):
+    16634 (браузер: отрисовка и прочее)
+      335 apps/web/src/lib/format.ts
+       96 apps/web/src/pages/Fauna.tsx
+       93 библиотека react-dom
+       88 packages/domain/dist/fireworks.js
+       65 (движок браузера)
+       47 (сборка мусора)
+       26 apps/web/src/pages/TeamMap.tsx
+       17 apps/web/src/pages/TeamPage.tsx
+       10 apps/web/src/pages/MapLayers.tsx
+        4 apps/web/src/pages/SeaGL.tsx
+        4 apps/web/src/lib/api.ts
+        3 apps/web/src/components/Tabs.tsx
+        2 библиотека react
+        2 библиотека scheduler
+        2 apps/web/src/pages/Lakes.tsx
+        2 apps/web/src/lib/i18n.tsx
+        2 apps/web/src/lib/keep.ts
+        2 packages/domain/dist/hexgraph.js
+        2 apps/web/src/lib/perf.ts
+        2 apps/web/src/lib/useViewport.ts
+        2 apps/web/src/lib/daytime.ts
+        2 apps/web/src/pages/Journal.tsx
+        1 apps/web/src/pages/FireworksLayer.tsx
+        1 apps/web/src/components/Icon.tsx
+        1 apps/web/src/lib/perfHud.ts
+        1 apps/web/src/pages/Timeline.tsx
+        1 библиотека react-router
+по функциям:
+    16634 (program) — (браузер: отрисовка и прочее)
+      246 dayKey — apps/web/src/lib/format.ts
+       88 localDay — packages/domain/dist/fireworks.js
+       87 (безымянная) — apps/web/src/lib/format.ts
+       47 (garbage collector) — (сборка мусора)
+       31 landPen — apps/web/src/pages/Fauna.tsx
+       20 (безымянная) — apps/web/src/pages/TeamMap.tsx
+       11 fill — (движок браузера)
+       11 carrotPoint — apps/web/src/pages/Fauna.tsx
+        9 renderWithHooks — библиотека react-dom
+        9 keepInWater — apps/web/src/pages/Fauna.tsx
+        8 updateProperties — библиотека react-dom
+        7 reconcileChildrenArray — библиотека react-dom
