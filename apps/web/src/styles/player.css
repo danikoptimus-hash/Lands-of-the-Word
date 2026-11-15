@@ -25,7 +25,7 @@
 .map-loading .skeleton { opacity: .35; animation: none; }
 
 /* HUD: слева «Меню» и команда, справа «Вся карта», «К старту», масштаб. Отступы учитывают safe-area. */
-.hud-left { position: absolute; left: calc(var(--sp-3) + var(--safe-left)); top: calc(var(--sp-3) + var(--safe-top)); z-index: 5; display: flex; gap: var(--sp-2); align-items: center; max-width: calc(100% - 92px); }
+.hud-left { position: absolute; left: calc(var(--sp-3) + var(--safe-left)); top: calc(var(--sp-3) + var(--safe-top)); z-index: 5; display: flex; gap: var(--sp-2); align-items: center; max-width: calc(100% - 146px); }
 .hud-btn { position: relative; box-shadow: var(--shadow-1); background: rgba(250, 246, 238, .94); background: color-mix(in srgb, var(--surface) 94%, transparent); flex: none; }
 .hud-btn .count-chip { position: absolute; top: -6px; right: -6px; }
 .hud-team { display: flex; align-items: center; gap: var(--sp-2); min-height: var(--touch); min-width: 0; padding: 0 var(--sp-3) 0 var(--sp-1); border-radius: var(--r-full); background: color-mix(in srgb, var(--surface) 94%, transparent); backdrop-filter: blur(6px); border: 1px solid var(--border); color: var(--text); box-shadow: var(--shadow-1); font-weight: 600; font-size: var(--fs-sm); }
@@ -44,7 +44,8 @@
 .help-pop-wrap > .night-sign.sm .i { width: 14px; height: 14px; }
 .city-head .status .help-pop-wrap { display: inline-flex; vertical-align: middle; }
 .hud-team .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-@media (min-width: 1024px) { .hud-team { cursor: default; } }
+/* Маленькая стрелка: кнопка команды нажимается и открывает профиль команды (решение владельца 15.11). */
+.hud-team .go { flex: none; width: 14px; height: 14px; margin-left: -2px; color: var(--bronze-ink); }
 .map-area .map-controls { position: absolute; right: calc(var(--sp-3) + var(--safe-right)); top: calc(var(--sp-3) + var(--safe-top)); z-index: 5; display: flex; flex-direction: column; gap: var(--sp-2); }
 .map-area .map-controls button { box-shadow: var(--shadow-1); background: rgba(250, 246, 238, .94); background: color-mix(in srgb, var(--surface) 94%, transparent); }
 .finish-banner { position: absolute; left: 50%; top: calc(var(--sp-3) + var(--safe-top) + 56px); transform: translateX(-50%); z-index: 5; display: flex; align-items: center; gap: var(--sp-2); max-width: calc(100% - 2 * var(--sp-4)); padding: var(--sp-2) var(--sp-4); border-radius: var(--r-md); background: var(--surface); border: 1px solid var(--success); color: var(--success); font-weight: 600; font-size: var(--fs-sm); line-height: var(--lh-ui); box-shadow: var(--shadow-1); }
@@ -922,7 +923,7 @@ label.check.mark-drop input { margin-top: 2px; }
 .streak-banner b { display: block; font-family: var(--font-display); font-size: var(--fs-md); line-height: 1.2; }
 .streak-banner small { display: block; color: var(--muted); font-size: var(--fs-xs); }
 /* Огонёк в шапке карты справа сверху */
-.hud-right { position: absolute; right: calc(var(--sp-3) + var(--safe-right)); top: calc(var(--sp-3) + var(--safe-top)); z-index: 5; }
+.hud-right { position: absolute; right: calc(var(--sp-3) + var(--safe-right)); top: calc(var(--sp-3) + var(--safe-top)); z-index: 5; display: flex; align-items: center; gap: var(--sp-2); }
 .hud-streak { display: flex; align-items: center; gap: 4px; min-height: var(--touch); padding: 0 12px 0 8px; border-radius: var(--r-full); border: 1px solid var(--paper-edge); background: color-mix(in srgb, var(--surface) 94%, transparent); box-shadow: var(--shadow-1); color: var(--ink-3); }
 .hud-streak b { font: 800 16px/1 var(--font-display); }
 .hud-streak.lit { color: #D9641E; border-color: #E9BE78; }
@@ -949,7 +950,10 @@ label.check.mark-drop input { margin-top: 2px; }
 /* Телефон по схеме администратора (решение владельца 29.10): панель раздела — лист снизу над картой, док из шести плиток внизу. */
 @media (max-width: 1023px) {
   /* Лист разделов на телефоне всегда полной высоты, а не по длине списка (решение владельца 07.11). */
-  .side-menu { top: auto; left: 0; right: 0; bottom: 0; width: auto; height: calc(100% - var(--safe-top) - 64px); max-height: calc(100% - var(--safe-top) - 64px); border-radius: var(--r-lg) var(--r-lg) 0 0; padding-left: 0; padding-top: 0; animation: sheetUp var(--dur-slow) var(--ease-out); }
+  /* Панель разделов видна всегда (решение владельца 15.11: «чтобы из других разделов всегда легко переходить»): лист раздела
+     кончается над ней, а сама панель и шапка стоят выше затемнения. */
+  .side-menu { --dock-h: calc(52px + 2 * var(--sp-2) + var(--safe-bottom)); top: auto; left: 0; right: 0; bottom: var(--dock-h); width: auto; height: calc(100% - var(--safe-top) - 64px - var(--dock-h)); max-height: calc(100% - var(--safe-top) - 64px - var(--dock-h)); border-radius: var(--r-lg) var(--r-lg) 0 0; padding-left: 0; padding-top: 0; animation: sheetUp var(--dur-slow) var(--ease-out); }
+  .map-area .team-dock, .map-area .hud-left, .map-area .hud-right { z-index: calc(var(--z-drawer) + 2); }
   .side-menu .menu-sub { padding-top: 6px; }
   /* Плитки один в один как у администратора на телефоне: те же правила, что admin.css + theme-admin.css при ≤767px
      (владелец 29.10: «размер, прозрачность и т. д.»). Подписи в одну строку с обрезкой, высота 52px, ширина поровну. */
