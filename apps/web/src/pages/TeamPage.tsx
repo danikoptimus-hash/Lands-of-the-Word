@@ -878,7 +878,8 @@ export function TeamPage() {
               {deedsShown === "mine" && (mineTasks.length === 0 ? <EmptyState inline icon="scroll" text={t("Своих дел нет. Возьмите дело на вкладке «Свободные» или на карте.")} /> : byStatus(mineTasks, false))}
               {deedsShown === "team" && (ourTasks.length === 0 ? <EmptyState inline icon="scroll" text={t("У команды нет дел в работе.")} /> : byStatus(ourTasks, true))}
               {deedsShown === "free" && (freeTasks.length === 0 ? <EmptyState inline icon="scroll" text={t("Свободных дел на карте нет.")} /> : (<>
-                <label className="deed-search"><Icon name="search" /><input type="search" value={deedQuery} onChange={(e) => setDeedQuery(e.target.value)} placeholder={t("Найти дело")} aria-label={t("Найти дело")} enterKeyHint="search" /></label>
+                {/* Крестик очистки — свой, в цвете игры: браузерный значок поля поиска синий (замечание владельца 15.11: «откуда этот цвет? сделать в стиле игры»). */}
+                <div className="deed-search"><Icon name="search" /><input type="search" value={deedQuery} onChange={(e) => setDeedQuery(e.target.value)} placeholder={t("Найти дело")} aria-label={t("Найти дело")} enterKeyHint="search" />{deedQuery && <button type="button" className="deed-search-clear" aria-label={t("Очистить поиск")} title={t("Очистить поиск")} onClick={() => setDeedQuery("")}><Icon name="x" /></button>}</div>
                 {error && <p className="error" role="alert">{error}</p>}
                 {limitFull(map) && <p className="hint">{t("В сутки можно взять не больше {n} дел. Следующее — через {when}.", { n: map.deedLimit?.max ?? 0, when: untilText(map.deedLimit?.nextAt ?? Date.now()) })}</p>}
                 {map.deedsFrozenUntil && <p className="hint"><Icon name="lock" />{t("Администратор закрыл вам взятие дел до {date}", { date: fmtDate(map.deedsFrozenUntil, { time: false }) })}{map.deedsFrozenReason ? ` · ${map.deedsFrozenReason}` : ""}</p>}
