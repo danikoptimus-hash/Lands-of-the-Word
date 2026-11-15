@@ -11,16 +11,23 @@ export default defineConfig({
     VitePWA({
       registerType: "autoUpdate",
       manifest: false,
-      includeAssets: ["favicon.ico", "favicon-32.png", "apple-touch-icon.png", "icon-192.png", "icon-512.png", "manifest.webmanifest"],
+      includeAssets: ["favicon.ico", "favicon-32.png", "apple-touch-icon.png", "icon-192.png", "manifest.webmanifest"],
       workbox: {
         navigateFallback: "/index.html",
         navigateFallbackDenylist: [/^\/api\//],
         globPatterns: ["**/*.{js,css,html,ico,webmanifest}", "favicon-32.png", "icon-192.png", "apple-touch-icon.png", "img/brand/logo-64.png", "img/brand/logo-256.png"],
+        // Экраны и графики администратора платформы (ECharts, 618 КБ) игрокам не нужны: заранее они не качаются, а
+        // загружаются, когда их откроют (ревизия скорости 15.11: раньше лежали в предзагрузке у каждого телефона).
+        globIgnores: ["**/Chart-*.js", "**/AdminDashboard-*.js", "**/GameAnalytics-*.js"],
         runtimeCaching: [
           // Аватарки и гербы из готового набора (решение владельца 14.11) — в своём кэше, чтобы полтораста мелких картинок не вытесняли картинки карты.
           { urlPattern: /\/img\/(avatars|crests)\/.*\.webp(\?.*)?$/, handler: "CacheFirst", options: { cacheName: "lotw-avatars", expiration: { maxEntries: 320, maxAgeSeconds: 30 * 24 * 3600 } } },
           { urlPattern: /\/img\/.*\.(webp|png|jpg)(\?.*)?$/, handler: "CacheFirst", options: { cacheName: "lotw-img", expiration: { maxEntries: 240, maxAgeSeconds: 30 * 24 * 3600 } } },
-          { urlPattern: /^https:\/\/fonts\.(googleapis|gstatic)\.com\//, handler: "StaleWhileRevalidate", options: { cacheName: "lotw-fonts", expiration: { maxEntries: 20, maxAgeSeconds: 30 * 24 * 3600 } } },
+          // Шрифты лежат рядом с сайтом (public/fonts) и не меняются: из памяти устройства, без запроса к серверу. Раньше они
+          // перепроверялись при каждом запуске, и текст «перещёлкивался» с запасного шрифта (ревизия скорости 15.11).
+          { urlPattern: /\/fonts\/.*\.woff2$/, handler: "CacheFirst", options: { cacheName: "lotw-fonts", expiration: { maxEntries: 30, maxAgeSeconds: 90 * 24 * 3600 } } },
+          // Ленивые куски программы (их нет в предзагрузке): имя с меткой сборки, содержимое не меняется.
+          { urlPattern: /\/assets\/.*\.js$/, handler: "CacheFirst", options: { cacheName: "lotw-chunks", expiration: { maxEntries: 12, maxAgeSeconds: 30 * 24 * 3600 } } },
         ],
         // Обработчики push и клика по уведомлению — в public/push-sw.js.
         importScripts: ["push-sw.js"],

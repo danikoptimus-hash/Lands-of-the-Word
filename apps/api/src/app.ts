@@ -115,10 +115,15 @@ export async function buildApp(envOverrides: Partial<Record<keyof Env, string>> 
     const root = path.resolve(config.WEB_DIST);
     await app.register(fastifyStatic, {
       root, prefix: "/",
+      // Файлы программы сжимаются один раз при сборке (apps/web/scripts/precompress.mjs кладёт рядом .br и .gz) и отдаются
+      // готовыми: brotli на треть плотнее gzip, а прокси не сжимает один и тот же файл заново каждому телефону.
+      preCompressed: true,
       // Ассеты Vite с хешем в имени — кешировать навсегда; картинки — на месяц; оболочка (index.html, sw.js, манифест) — всегда свежая.
       setHeaders: (res, filePath) => {
         if (/[\\/]assets[\\/]/.test(filePath)) res.header("Cache-Control", "public, max-age=31536000, immutable");
         else if (/[\\/]img[\\/]/.test(filePath) || /\.(png|ico|webp|jpg)$/.test(filePath)) res.header("Cache-Control", "public, max-age=2592000, stale-while-revalidate=86400");
+        // Шрифты не меняются: как картинки, на месяц (раньше перепроверялись при каждом запуске — текст «перещёлкивался»).
+        else if (/[\\/]fonts[\\/]/.test(filePath)) res.header("Cache-Control", "public, max-age=2592000, stale-while-revalidate=86400");
         else res.header("Cache-Control", "no-cache");
       },
     });
