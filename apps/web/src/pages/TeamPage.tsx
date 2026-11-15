@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Picker } from "../components/Picker";
+import { nodePos } from "../lib/hexmap";
 import { Link, useParams, useSearchParams } from "react-router-dom";
 import { BOOKS } from "@lotw/domain";
 import { api, ApiError, apiReady, deedAssignee, deedPriority, prefetch, ready, type AwardsDto, type BattleDto, type DailyBirdDto, type EdgeTaskDto, type EdgeTaskStatus, type GameRole, type MapMarkDto, type MyMapDto, type PeaceTeamDto, type StandingsDto, type TeamDto } from "../lib/api";
@@ -215,6 +216,10 @@ export function TeamPage() {
   // Награды живут во вкладках разделов (раскладка владельца 30.10): личные — в «Моём служении», командные — в «Командах».
   const [serviceTab, setServiceTab] = useState<ServiceTab>("service");
   const [standingsTab, setStandingsTab] = useState<"rating" | "awards">("rating");
+  /** Вкладки «Дел» (решение владельца 15.11): свои, дела команды, свободные; пока не выбрано — та, где есть что показать. */
+  const [deedsTab, setDeedsTab] = useState<"mine" | "team" | "free" | null>(null);
+  const [deedQuery, setDeedQuery] = useState("");
+  const [deedOpen, setDeedOpen] = useState<Set<string>>(() => new Set());
   const [battlesTab, setBattlesTab] = useState<"defense" | "challenge">("defense");
   /** История испытаний (решение владельца 03.11: «почему бы у участников не сделать закрытые? Пусть будет история»): «Идут» / «Завершённые». */
   const [battlesPhase, setBattlesPhase] = useState<"active" | "done" | null>(null);
@@ -630,6 +635,16 @@ export function TeamPage() {
   const forMe = (tk: EdgeTaskDto) => deedAssignee(tk) === user?.id;
   const freeTasks = map.tasks.filter((tk) => tk.status === "OPEN").sort((a, b) => Number(forMe(b)) - Number(forMe(a)) || byTitle(a, b));
   const assignedToMe = freeTasks.filter(forMe);
+  // Раздел «Дела» (решение владельца 15.11): вкладки «Мои · Команда · Свободные», внутри — группы по состоянию;
+  // свободные — одинаковые дела одной строкой «×N» и поиск по названию.
+  const mineTasks = ourTasks.filter((tk) => tk.takenById === user?.id);
+  const deedsShown = deedsTab ?? (mineTasks.length > 0 ? "mine" : ourTasks.length > 0 ? "team" : "free");
+  const DEED_GROUPS: Array<{ status: EdgeTaskStatus; label: string; icon: string }> = [{ status: "REJECTED", label: t("Возвращены"), icon: "alert" }, { status: "TAKEN", label: t("В работе"), icon: "user" }, { status: "SUBMITTED", label: t("На проверке"), icon: "clock" }];
+  const deedQ = deedQuery.trim().toLocaleLowerCase("ru");
+  const freeGroups = (() => { const m = new Map<string, EdgeTaskDto[]>(); for (const tk of freeTasks) { if (deedQ && !tk.deed.title.toLocaleLowerCase("ru").includes(deedQ)) continue; const g = m.get(tk.deed.title); if (g) g.push(tk); else m.set(tk.deed.title, [tk]); } return [...m.entries()].map(([title, items]) => ({ title, items })); })();
+  // Где стоит одно из одинаковых дел: ближайший к его стороне город, который команда уже открыла.
+  const knownCities = map.revealed.filter((n) => n.kind === "CITY" && n.bookCode).map((n) => ({ name: bookName(n.bookCode!), ...nodePos(n.key) }));
+  const deedWhere = (tk: EdgeTaskDto) => { const a = nodePos(tk.fromKey), b = nodePos(tk.toKey); const x = (a.x + b.x) / 2, y = (a.y + b.y) / 2; let best = "", bd = Infinity; for (const c of knownCities) { const d = (c.x - x) ** 2 + (c.y - y) ** 2; if (d < bd) { bd = d; best = c.name; } } return best ? t("у города {city}", { city: best }) : t("на карте"); };
   // Фаза для подписей: предпросмотр `?tod=` (снимки инструкции) перекрывает серверную, правила считает сервер.
   const phase = previewPhase() ?? map.daytime?.phase;
   const canTakeNow = phase !== "night" || Boolean(map.daytime?.tasksOpen);
@@ -740,7 +755,7 @@ export function TeamPage() {
               прокрутки, листается только содержимое. Раньше заголовок и вкладки прилипали к одной точке, и вкладки
               ложились поверх заголовка. Подложки у вкладок нет — под ними фон панели, как раньше (владелец 14.11).
               Свайп по содержимому переключает вкладки, как и прежде (область — .side-body). */}
-          <div className={"side-top" + (view === "battles" || view === "standings" || view === "service" ? " with-tabs" : "")}>
+          <div className={"side-top" + (view === "battles" || view === "standings" || view === "service" || view === "deeds" ? " with-tabs" : "")}>
             <div className="menu-sub">
               <h2><Icon name={MENU_ITEMS.find((m) => m.key === view)?.icon ?? "map"} />{MENU_ITEMS.find((m) => m.key === view)?.label()}</h2>
               <button type="button" className="ghost icon" onClick={closeMenu} aria-label={t("Закрыть")}><Icon name="x" /></button>
@@ -758,6 +773,11 @@ export function TeamPage() {
               </div>
             )}
             {view === "service" && <div className="side-tabs"><ServiceTabs tab={serviceTab} onTab={setServiceTab} swipeArea={sideBodyRef} /></div>}
+            {view === "deeds" && (
+              <div className="side-tabs">
+                <Tabs items={[{ key: "mine", label: t("Мои"), count: mineTasks.length || undefined }, { key: "team", label: t("Команда"), count: ourTasks.length || undefined }, { key: "free", label: t("Свободные"), count: freeTasks.length || undefined }]} value={deedsShown} onChange={setDeedsTab} ariaLabel={t("Дела")} swipeArea={sideBodyRef} />
+              </div>
+            )}
           </div>
           <div className="side-body" ref={sideBodyRef} onScroll={rememberScroll}>
           {view === "attention" && (
@@ -825,39 +845,61 @@ export function TeamPage() {
                 </section>
             ) : <section className="section"><EmptyState inline icon="bell" text={t("Ничего не требует внимания.")} /></section>
           )}
-          {menuView === "deeds" && (
-            <section className="section">
-            {ourTasks.length === 0 && freeTasks.length === 0 ? <EmptyState inline icon="scroll" text={t("Возьмите дело: нажмите метку на карте.")} /> : (
-              <ul className="list interactive">
-                {ourTasks.map((tk) => { const st = deedStatus(tk.status); return (
-                  <li key={tk.id} role="button" tabIndex={0} onClick={() => showOnMap(tk.id)} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); showOnMap(tk.id); } }}>
-                    <div className="main"><span className="title">{deedPriority(tk) && <Icon name="flame" className="prio-flame" title={t("Приоритет капитана")} />}{tk.deed.title}</span><span className="meta">{[tk.person ? t("кому: {name}", { name: tk.person.name }) : "", tk.status === "REJECTED" && tk.adminComment ? tk.adminComment : ""].filter(Boolean).join(" · ")}</span></div>
-                    {/* Под состоянием — кто взял дело (просьба участников 03.10: видно, у кого дело в работе). */}
-                    <div className="side col"><Chip tone={st.tone} icon={st.icon}>{st.label}</Chip>{tk.takenById && tk.status !== "APPROVED" && <span className="muted small taker">{memberName(tk.takenById)}</span>}</div>
-                  </li>
-                ); })}
-              </ul>
-            )}
-            {freeTasks.length > 0 && (<>
-              <h3 className="list-title mt-2"><Icon name="scroll" />{t("Свободные на карте")}<span className="count">{freeTasks.length}</span></h3>
-              {error && <p className="error" role="alert">{error}</p>}
-              {limitFull(map) && <p className="hint">{t("В сутки можно взять не больше {n} дел. Следующее — через {when}.", { n: map.deedLimit?.max ?? 0, when: untilText(map.deedLimit?.nextAt ?? Date.now()) })}</p>}
-              {map.deedsFrozenUntil && <p className="hint"><Icon name="lock" />{t("Администратор закрыл вам взятие дел до {date}", { date: fmtDate(map.deedsFrozenUntil, { time: false }) })}{map.deedsFrozenReason ? ` · ${map.deedsFrozenReason}` : ""}</p>}
-              <ul className="list interactive">
-                {freeTasks.map((tk) => (
-                  <li key={tk.id} role="button" tabIndex={0} onClick={() => showOnMap(tk.id)} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); showOnMap(tk.id); } }}>
-                    <div className="main"><span className="title">{deedPriority(tk) && <Icon name="flame" className="prio-flame" title={t("Приоритет капитана")} />}{tk.deed.title}</span><span className="meta">{forMe(tk) && <b className="assign-tag">{t("поручено вам")}</b>}{[deedAssignee(tk) && !forMe(tk) ? t("поручено: {name}", { name: memberName(deedAssignee(tk)) }) : "", tk.person ? t("кому: {name}", { name: tk.person.name }) : ""].filter(Boolean).map((x, i) => <span key={i}>{(i > 0 || forMe(tk)) && " · "}{x}</span>)}</span></div>
-                    {/* Ночью «Взять» не висит с текстом над списком, а по нажатию показывает подсказку окошком (решение владельца 24.10). */}
-                    {/* Корабельное дело — маленький значок корабля на углу кнопки «Взять», как звезда заместителя на значке роли (решение владельца 24.10), без слова. */}
-                    <div className="side" onClick={(e) => e.stopPropagation()}><span className="take-slot">{tk.sea && <span className="sea-badge" title={t("корабль")} aria-label={t("корабль")}><Icon name="ship" /></span>}{!canTakeNow
-                      ? <HelpPopup name={t("Взять")} buttonClassName="sm" trigger={<><Icon name="scroll" />{t("Взять")}</>}><p><Icon name="moon" /> {t("Ночь: дела ждут утра. С 7:00 по местному времени дело можно взять, сдать или разведать.")}</p></HelpPopup>
-                      : <button type="button" className="sm" disabled={busy || limitFull(map) || Boolean(map.deedsFrozenUntil) || Boolean(deedAssignee(tk) && !forMe(tk))} title={deedAssignee(tk) && !forMe(tk) ? t("Дело поручено другому участнику") : undefined} onClick={(e) => { e.stopPropagation(); void act(`/api/games/${id}/edge-tasks/${tk.id}/take`).then((ok) => { if (ok) notify(t("Дело взято")); }); }}><Icon name="scroll" />{t("Взять")}</button>}</span></div>
-                  </li>
-                ))}
-              </ul>
-            </>)}
+          {menuView === "deeds" && (() => {
+            const open = (tk: EdgeTaskDto) => ({ role: "button" as const, tabIndex: 0, onClick: () => showOnMap(tk.id), onKeyDown: (e: React.KeyboardEvent) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); showOnMap(tk.id); } } });
+            // «Мои» и «Команда»: группы по состоянию; значка состояния в строке нет — его называет заголовок группы.
+            const byStatus = (list: EdgeTaskDto[], withTaker: boolean) => DEED_GROUPS.map((g) => { const items = list.filter((tk) => tk.status === g.status); if (items.length === 0) return null; return (
+              <Fragment key={g.status}>
+                <h3 className="list-title"><Icon name={g.icon} />{g.label}<span className="count">{items.length}</span></h3>
+                <ul className="list interactive">
+                  {items.map((tk) => (
+                    <li key={tk.id} {...open(tk)}>
+                      <div className="main"><span className="title">{deedPriority(tk) && <Icon name="flame" className="prio-flame" title={t("Приоритет капитана")} />}{tk.deed.title}</span><span className="meta">{[tk.person ? t("кому: {name}", { name: tk.person.name }) : "", tk.status === "REJECTED" && tk.adminComment ? tk.adminComment : ""].filter(Boolean).join(" · ")}</span></div>
+                      {/* Кто взял дело (просьба участников 03.10: видно, у кого дело в работе) — на вкладке команды. */}
+                      {withTaker && tk.takenById && <div className="side"><span className="muted small taker">{memberName(tk.takenById)}</span></div>}
+                    </li>
+                  ))}
+                </ul>
+              </Fragment>
+            ); });
+            // Свободное дело: строка с кнопкой «Взять»; у одного из сложенных одинаковых дел вместо названия — где оно стоит.
+            const freeRow = (tk: EdgeTaskDto, sub: boolean) => (
+              <li key={tk.id} className={sub ? "deed-sub" : undefined} {...open(tk)}>
+                <div className="main"><span className="title">{deedPriority(tk) && <Icon name="flame" className="prio-flame" title={t("Приоритет капитана")} />}{sub ? deedWhere(tk) : tk.deed.title}</span><span className="meta">{forMe(tk) && <b className="assign-tag">{t("поручено вам")}</b>}{[deedAssignee(tk) && !forMe(tk) ? t("поручено: {name}", { name: memberName(deedAssignee(tk)) }) : "", tk.person ? t("кому: {name}", { name: tk.person.name }) : ""].filter(Boolean).map((x, i) => <span key={i}>{(i > 0 || forMe(tk)) && " · "}{x}</span>)}</span></div>
+                {/* Ночью «Взять» не висит с текстом над списком, а по нажатию показывает подсказку окошком (решение владельца 24.10). */}
+                {/* Корабельное дело — маленький значок корабля на углу кнопки «Взять», как звезда заместителя на значке роли (решение владельца 24.10), без слова. */}
+                <div className="side" onClick={(e) => e.stopPropagation()}><span className="take-slot">{tk.sea && <span className="sea-badge" title={t("корабль")} aria-label={t("корабль")}><Icon name="ship" /></span>}{!canTakeNow
+                  ? <HelpPopup name={t("Взять")} buttonClassName="sm" trigger={<><Icon name="scroll" />{t("Взять")}</>}><p><Icon name="moon" /> {t("Ночь: дела ждут утра. С 7:00 по местному времени дело можно взять, сдать или разведать.")}</p></HelpPopup>
+                  : <button type="button" className="sm" disabled={busy || limitFull(map) || Boolean(map.deedsFrozenUntil) || Boolean(deedAssignee(tk) && !forMe(tk))} title={deedAssignee(tk) && !forMe(tk) ? t("Дело поручено другому участнику") : undefined} onClick={(e) => { e.stopPropagation(); void act(`/api/games/${id}/edge-tasks/${tk.id}/take`).then((ok) => { if (ok) notify(t("Дело взято")); }); }}><Icon name="scroll" />{t("Взять")}</button>}</span></div>
+              </li>
+            );
+            return (
+            <section className="section deeds-section">
+              {deedsShown === "mine" && (mineTasks.length === 0 ? <EmptyState inline icon="scroll" text={t("Своих дел нет. Возьмите дело на вкладке «Свободные» или на карте.")} /> : byStatus(mineTasks, false))}
+              {deedsShown === "team" && (ourTasks.length === 0 ? <EmptyState inline icon="scroll" text={t("У команды нет дел в работе.")} /> : byStatus(ourTasks, true))}
+              {deedsShown === "free" && (freeTasks.length === 0 ? <EmptyState inline icon="scroll" text={t("Свободных дел на карте нет.")} /> : (<>
+                <label className="deed-search"><Icon name="search" /><input type="search" value={deedQuery} onChange={(e) => setDeedQuery(e.target.value)} placeholder={t("Найти дело")} aria-label={t("Найти дело")} enterKeyHint="search" /></label>
+                {error && <p className="error" role="alert">{error}</p>}
+                {limitFull(map) && <p className="hint">{t("В сутки можно взять не больше {n} дел. Следующее — через {when}.", { n: map.deedLimit?.max ?? 0, when: untilText(map.deedLimit?.nextAt ?? Date.now()) })}</p>}
+                {map.deedsFrozenUntil && <p className="hint"><Icon name="lock" />{t("Администратор закрыл вам взятие дел до {date}", { date: fmtDate(map.deedsFrozenUntil, { time: false }) })}{map.deedsFrozenReason ? ` · ${map.deedsFrozenReason}` : ""}</p>}
+                {freeGroups.length === 0 ? <EmptyState inline icon="search" text={t("Ничего не найдено")} /> : (
+                  <ul className="list interactive">
+                    {freeGroups.map((g) => { if (g.items.length === 1) return freeRow(g.items[0]!, false); const isOpen = deedOpen.has(g.title); const toggle = () => setDeedOpen((prev) => { const next = new Set(prev); if (next.has(g.title)) next.delete(g.title); else next.add(g.title); return next; }); return (
+                      <Fragment key={g.title}>
+                        {/* Одинаковые дела — одной строкой со счётчиком «×N»; нажатие раскрывает их по местам на карте. */}
+                        <li className={"deed-group" + (isOpen ? " open" : "")} role="button" tabIndex={0} aria-expanded={isOpen} onClick={toggle} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggle(); } }}>
+                          <div className="main"><span className="title">{g.items.some(deedPriority) && <Icon name="flame" className="prio-flame" title={t("Приоритет капитана")} />}{g.title}</span>{g.items.some(forMe) && <span className="meta"><b className="assign-tag">{t("поручено вам")}</b></span>}</div>
+                          <div className="side"><span className="count-chip">×{g.items.length}</span><Icon name={isOpen ? "chevron-up" : "chevron-down"} className="chev" /></div>
+                        </li>
+                        {isOpen && g.items.map((tk) => freeRow(tk, true))}
+                      </Fragment>
+                    ); })}
+                  </ul>
+                )}
+              </>))}
             </section>
-          )}
+            );
+          })()}
           {menuView === "battles" && (
             <section className="section">
             {battlesList.length === 0 ? <EmptyState inline icon={battlesShown === "defense" ? "shield" : "wave"} text={battlesPhaseShown === "done" ? (battlesShown === "defense" ? t("Завершённых испытаний ваших городов нет.") : t("Завершённых вызовов нет.")) : battlesShown === "defense" ? t("Вызовов нашим городам сейчас нет.") : t("Наших вызовов сейчас нет.")} /> : (
