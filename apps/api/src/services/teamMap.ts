@@ -4,7 +4,8 @@ import { bookName, msg } from "./i18n.js";
 import { hexCorners, vertexKey, vertexHexes, parseVertexKey, BOOKS, localMinutes, PHASE_START } from "@lotw/domain";
 import { loadCityContent } from "./cities.js";
 import { notifyTeam, notifyUser } from "./notify.js";
-import { publish, onPublish, TEAM_ONLY, hasTeamSubscribers, pushToTeam } from "./events.js";
+import { createHash } from "node:crypto";
+import { publish, onPublish, TEAM_ONLY, hasTeamSubscribers, pushToTeam, type GameEventType } from "./events.js";
 import jsonPatch from "fast-json-patch";
 const { compare } = jsonPatch;
 import { days, rulesOf, type Rules } from "./rules.js";
@@ -575,7 +576,19 @@ export async function revealNode(gameId: string, teamId: string, nodeKey: string
  */
 type TeamMap = Awaited<ReturnType<typeof computeTeamMap>> & { rev: number };
 const MAP_TTL_MS = 60_000;
-let mapRev = 0;
+// Номер версии начинается от времени запуска: после перезапуска сервера он не совпадёт с номером, который держит клиент.
+let mapRev = Date.now();
+/**
+ * Номер версии меняется только вместе с содержимым карты (ревизия скорости 15.11). Раньше он рос при каждом пересчёте —
+ * не реже раза в минуту и после любого события партии, — хотя карта команды оставалась прежней: клиенты одной команды
+ * держали разные номера, «разница» подходила не всем, и остальные качали карту целиком; каждое чужое событие давало
+ * рассылку из одного поля `now`. Отпечаток считается без часов сервера и переживает сброс карты из памяти.
+ */
+const lastRev = new Map<string, { gameId: string; sig: string; rev: number }>();
+function mapSignature(m: Record<string, unknown>): string {
+  const { now: _now, rev: _rev, ...rest } = m;
+  return createHash("sha1").update(JSON.stringify(rest)).digest("base64");
+}
 const mapCache = new Map<string, { gameId: string; at: number; value: Promise<TeamMap>; last: TeamMap | null }>();
 /**
  * Сброс карт по событию и рассылка изменений (решение владельца 24.10: «пункт 2 тоже делай»): после события карта
@@ -611,12 +624,20 @@ function publicMap(m: TeamMap): Record<string, unknown> {
   const { rev: _rev, ...rest } = m;
   return JSON.parse(JSON.stringify({ ...rest, tasks: m.tasks.map((t) => (t.deed.secret ? { ...t, links: [], note: "" } : t)) }));
 }
-onPublish((gameId, ev) => invalidateTeamMaps(gameId, ev.teamId && TEAM_ONLY.has(ev.type) ? ev.teamId : undefined));
+// Награды и мир в карту команды не входят: их события карты не сбрасывают (раньше каждая выданная награда заставляла
+// пересчитать карты всех команд партии).
+const NOT_ON_MAP: ReadonlySet<GameEventType> = new Set(["awards", "peace"]);
+onPublish((gameId, ev) => { if (!NOT_ON_MAP.has(ev.type)) invalidateTeamMaps(gameId, ev.teamId && TEAM_ONLY.has(ev.type) ? ev.teamId : undefined); });
 export function getTeamMap(gameId: string, teamId: string): Promise<TeamMap> {
   const hit = mapCache.get(teamId);
   if (hit && hit.gameId === gameId && Date.now() - hit.at < MAP_TTL_MS) return hit.value;
   const entry = { gameId, at: Date.now(), last: hit?.last ?? null, value: undefined as unknown as Promise<TeamMap> };
-  entry.value = computeTeamMap(gameId, teamId).then((m) => { const full = { ...m, rev: ++mapRev }; entry.last = full; return full; });
+  entry.value = computeTeamMap(gameId, teamId).then((m) => {
+    const sig = mapSignature(m), was = lastRev.get(teamId);
+    const rev = was && was.gameId === gameId && was.sig === sig ? was.rev : ++mapRev;
+    lastRev.set(teamId, { gameId, sig, rev });
+    const full = { ...m, rev }; entry.last = full; return full;
+  });
   mapCache.set(teamId, entry);
   entry.value.catch(() => { if (mapCache.get(teamId) === entry) mapCache.delete(teamId); });
   return entry.value;

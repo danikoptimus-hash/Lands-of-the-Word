@@ -1,6 +1,6 @@
 import { t } from "./i18n";
 import { Icon } from "../components/Icon";
-import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
 interface ConfirmOptions { title?: string; okLabel?: string; cancelLabel?: string; danger?: boolean }
 export type ToastKind = "ok" | "bad" | "info";
@@ -38,8 +38,10 @@ export function UiProvider({ children }: { children: ReactNode }) {
     return () => { window.removeEventListener("keydown", onKey); document.body.classList.remove("no-scroll"); prev?.focus?.(); };
   }, [dialog]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Постоянное значение: иначе каждое появление сообщения перерисовывало всех, кто пользуется confirm и notify (страницу команды с картой).
+  const value = useMemo(() => ({ confirm, notify }), [confirm, notify]);
   return (
-    <Ctx.Provider value={{ confirm, notify }}>
+    <Ctx.Provider value={value}>
       {children}
       {dialog && (
         <div className="modal-backdrop" onClick={() => close(false)}>

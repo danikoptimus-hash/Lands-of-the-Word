@@ -89,6 +89,9 @@ export async function destroyAllSessions(request: FastifyRequest, reply: Fastify
 /** Подставляет request.user по cookie сессии (или null). */
 export async function attachUser(request: FastifyRequest): Promise<void> {
   request.user = null;
+  // Только для маршрутов игры (ревизия скорости 15.11): тот же сервер отдаёт файлы сайта, и раньше перед каждой картинкой,
+  // шрифтом и страницей шёл запрос в базу «чья сессия» — сотни лишних запросов при первом открытии игры.
+  if (!request.url.startsWith("/api/")) return;
   const raw = request.cookies[SESSION_COOKIE];
   if (!raw) return;
   const unsigned = request.unsignCookie(raw);

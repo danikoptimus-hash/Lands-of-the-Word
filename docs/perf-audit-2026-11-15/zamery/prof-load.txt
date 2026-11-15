@@ -1,0 +1,65 @@
+== сценарий load: 7436 мс по часам; занято   6952 мс, простой    529 мс
+по исходным файлам (собственное время, мс):
+     4277 (браузер: отрисовка и прочее)
+      825 apps/web/src/pages/WorldGL.tsx
+      454 apps/web/src/pages/Fauna.tsx
+      278 apps/web/src/pages/Seabed.ts
+      219 packages/domain/dist/seaRoute.js
+      116 apps/web/src/pages/MapLayers.tsx
+       96 apps/web/src/lib/noise.ts
+       91 packages/domain/dist/islets.js
+       84 apps/web/src/lib/format.ts
+       84 (сборка мусора)
+       76 библиотека react-dom
+       56 apps/web/src/pages/Islets.tsx
+       55 packages/domain/dist/hex.js
+       40 apps/web/src/pages/SeaGL.tsx
+       33 packages/domain/dist/fireworks.js
+       30 apps/web/src/lib/glLines.ts
+       24 (движок браузера)
+       18 apps/web/src/pages/TeamMap.tsx
+       17 apps/web/src/pages/Lakes.tsx
+       16 apps/web/src/pages/RoutesGL.tsx
+       13 apps/web/src/pages/TeamPage.tsx
+        9 (сборка, без исходника)
+        7 packages/domain/dist/daytime.js
+        7 библиотека react-router
+        5 apps/web/src/lib/api.ts
+        3 packages/domain/dist/hexgraph.js
+        3 apps/web/src/lib/hexmap.ts
+        3 apps/web/src/pages/Awards.tsx
+по функциям:
+     4277 (program) — (браузер: отрисовка и прочее)
+      796 el.onload — apps/web/src/pages/WorldGL.tsx
+      265 buildSeabed — apps/web/src/pages/Seabed.ts
+      152 landPen — apps/web/src/pages/Fauna.tsx
+      107 (безымянная) — packages/domain/dist/seaRoute.js
+       90 isletRadiusAt — packages/domain/dist/islets.js
+       84 (garbage collector) — (сборка мусора)
+       68 draw — apps/web/src/pages/MapLayers.tsx
+       61 dayKey — apps/web/src/lib/format.ts
+       47 octave — apps/web/src/lib/noise.ts
+       45 coastPen — apps/web/src/pages/Fauna.tsx
+       41 clearAt — packages/domain/dist/seaRoute.js
+       39 keepInWater — apps/web/src/pages/Fauna.tsx
+       35 render — apps/web/src/pages/Islets.tsx
+       33 hexKey — packages/domain/dist/hex.js
+       33 buildFogMask — apps/web/src/pages/MapLayers.tsx
+       33 localDay — packages/domain/dist/fireworks.js
+       29 (безымянная) — apps/web/src/pages/SeaGL.tsx
+       28 noise1 — apps/web/src/pages/Fauna.tsx
+       24 carrotPoint — apps/web/src/pages/Fauna.tsx
+       22 radiusAt — apps/web/src/pages/Fauna.tsx
+       22 (безымянная) — apps/web/src/lib/format.ts
+       19 draw — apps/web/src/pages/Islets.tsx
+       18 tileFrom — apps/web/src/lib/noise.ts
+       17 (безымянная) — apps/web/src/lib/noise.ts
+       16 (безымянная) — apps/web/src/pages/TeamMap.tsx
+       16 avoidHeading — apps/web/src/pages/Fauna.tsx
+       14 okAt — packages/domain/dist/seaRoute.js
+       12 renderWithHooks — библиотека react-dom
+       12 stepSolo — apps/web/src/pages/Fauna.tsx
+       12 coastal — packages/domain/dist/seaRoute.js
+       12 stepShip — apps/web/src/pages/Fauna.tsx
+       11 sh — apps/web/src/lib/glLines.ts
+       11 stepPod — apps/web/src/pages/Fauna.tsx

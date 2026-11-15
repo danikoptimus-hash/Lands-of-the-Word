@@ -1,5 +1,5 @@
-import { Fragment, createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
-import { api, type User, clearReady } from "./api";
+import { Fragment, createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
+import { api, ApiError, type User, clearReady } from "./api";
 import { readGuestLocale, saveGuestLocale, setLocale, type Locale } from "./i18n";
 import { syncPush } from "./push";
 
@@ -9,6 +9,8 @@ export interface DeviceAccount { id: string; nickname: string; displayName: stri
 interface AuthState {
   user: User | null;
   loading: boolean;
+  /** Сервер не отвечает на «кто я»: это не выход из аккаунта, запрос повторяется сам. */
+  offline: boolean;
   /** add — добавить аккаунт: текущий остаётся на устройстве, новый становится активным. */
   login: (nickname: string, password: string, add?: boolean) => Promise<void>;
   register: (nickname: string, password: string, email: string) => Promise<void>;
@@ -25,10 +27,13 @@ interface AuthState {
 }
 
 const Ctx = createContext<AuthState | null>(null);
+/** Сервер ответил, что входа нет (а не просто не ответил). */
+const signedOut = (e: unknown) => e instanceof ApiError && (e.status === 401 || e.status === 403);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const [offline, setOffline] = useState(false);
   const [guestLocale, setGuest] = useState<Locale>(readGuestLocale());
   const locale: Locale = user ? (user.locale === "en" ? "en" : "ru") : guestLocale;
   // Синхронно перед отрисовкой детей: t() читает текущий язык при рендере.
@@ -37,14 +42,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const [accounts, setAccounts] = useState<DeviceAccount[]>([]);
   const loadAccounts = useCallback(() => api<{ accounts: DeviceAccount[] }>("/api/auth/accounts").then((r) => setAccounts(r.accounts)).catch(() => setAccounts([])), []);
+  // «Кто я». Ответ сервера «не вошёл» (401) — это ответ: показываем вход. А вот сбой связи, перезапуск сервера при выкладке или
+  // отказ ограничителя запросов — не ответ: сессия жива, и раньше игрока в такой момент зря выбрасывало на страницу входа
+  // (ревизия 15.11). Теперь запрос повторяется с растущей паузой, а экран честно говорит, что нет связи.
   useEffect(() => {
-    api<{ user: User }>("/api/auth/me").then((r) => setUser(r.user)).catch(() => setUser(null)).finally(() => setLoading(false));
+    let alive = true, tries = 0, timer: ReturnType<typeof setTimeout> | undefined;
+    const ask = () => {
+      api<{ user: User }>("/api/auth/me").then((r) => { if (!alive) return; setUser(r.user); setOffline(false); setLoading(false); }).catch((e) => {
+        if (!alive) return;
+        if (signedOut(e)) { setUser(null); setOffline(false); setLoading(false); return; }
+        tries++; setOffline(true);
+        timer = setTimeout(ask, Math.min(10_000, 1000 * 2 ** Math.min(tries - 1, 4)));
+      });
+    };
+    ask();
+    return () => { alive = false; if (timer) clearTimeout(timer); };
   }, []);
   useEffect(() => { if (user) void loadAccounts(); else setAccounts([]); }, [user, loadAccounts]);
 
   const login = useCallback(async (nickname: string, password: string, add = false) => {
     const r = await api<{ user: User }>("/api/auth/login", { method: "POST", body: JSON.stringify({ nickname, password, add }) });
-    clearReady(); setUser(r.user);
+    clearReady(); setUser(r.user); setOffline(false); setLoading(false);
     void syncPush();
   }, []);
   const switchAccount = useCallback(async (userId: string) => {
@@ -59,10 +77,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Язык, выбранный гостем на странице входа, становится языком новой учётки.
   const register = useCallback(async (nickname: string, password: string, email: string) => {
     const r = await api<{ user: User }>("/api/auth/register", { method: "POST", body: JSON.stringify({ nickname, password, email, locale: guestLocale }) });
-    setUser(r.user);
+    clearReady(); setUser(r.user); setOffline(false); setLoading(false);
   }, [guestLocale]);
   const refresh = useCallback(async () => {
-    try { const r = await api<{ user: User }>("/api/auth/me"); setUser(r.user); } catch { setUser(null); }
+    // Сбой связи пользователя не сбрасывает: только ответ сервера «не вошёл».
+    try { const r = await api<{ user: User }>("/api/auth/me"); setUser(r.user); setOffline(false); setLoading(false); } catch (e) { if (signedOut(e)) setUser(null); }
   }, []);
   const logout = useCallback(async () => {
     const r = await api<{ ok: boolean; user: User | null }>("/api/auth/logout", { method: "POST" });
@@ -71,7 +90,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(null);
   }, []);
 
-  return <Ctx.Provider value={{ user, loading, login, register, logout, logoutAll, refresh, accounts, switchAccount, locale, setGuestLocale }}><Fragment key={locale}>{children}</Fragment></Ctx.Provider>;
+  const value = useMemo(() => ({ user, loading, offline, login, register, logout, logoutAll, refresh, accounts, switchAccount, locale, setGuestLocale }), [user, loading, offline, login, register, logout, logoutAll, refresh, accounts, switchAccount, locale, setGuestLocale]);
+  return <Ctx.Provider value={value}><Fragment key={locale}>{children}</Fragment></Ctx.Provider>;
 }
 
 export function useAuth(): AuthState {

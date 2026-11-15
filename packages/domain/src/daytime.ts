@@ -4,6 +4,8 @@
  * вызов отправляют на проверку только утром); карта перекрашивается плавно — вокруг каждой границы BLEND_MIN минут
  * в обе стороны цвета двух соседних фаз смешиваются по доле t.
  */
+import { cachedFormat } from "./dateFormat.js";
+
 export type DayPhase = "morning" | "day" | "evening" | "night";
 
 export const PHASES: readonly DayPhase[] = ["morning", "day", "evening", "night"];
@@ -15,7 +17,7 @@ export const BLEND_MIN = 15;
 /** Минуты от полуночи по поясу; при неизвестном поясе — по UTC, без падения. */
 export function localMinutes(timeZone: string, now: Date = new Date()): number {
   try {
-    const parts = new Intl.DateTimeFormat("en-US", { timeZone, hour: "numeric", minute: "numeric", hour12: false }).formatToParts(now);
+    const parts = cachedFormat("hm:" + timeZone, () => new Intl.DateTimeFormat("en-US", { timeZone, hour: "numeric", minute: "numeric", hour12: false })).formatToParts(now);
     const h = Number(parts.find((p) => p.type === "hour")?.value ?? 0) % 24;
     const m = Number(parts.find((p) => p.type === "minute")?.value ?? 0);
     return h * 60 + m;

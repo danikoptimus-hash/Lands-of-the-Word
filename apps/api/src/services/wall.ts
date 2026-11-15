@@ -45,12 +45,10 @@ async function memberIds(teamId: string): Promise<Set<string>> {
   return new Set((await prisma.membership.findMany({ where: { teamId }, select: { userId: true } })).map((m) => m.userId));
 }
 
-/** Толщина стены команды в городе: стихи принятых и не сгоревших блоков нынешних участников и число блоков; блок воина — два (02.11). */
-export async function wallOf(teamId: string, nodeKey: string): Promise<{ verses: number; blocks: number; pending: number }> {
-  const [rows, members] = await Promise.all([
-    prisma.wallBlock.findMany({ where: { ...heldBy(teamId), nodeKey, status: { in: ["APPROVED", "SUBMITTED"] }, usedAt: null }, select: { userId: true, startIdx: true, endIdx: true, weight: true, status: true, missing: true, repairOfId: true, cargo: true, holderId: true } }),
-    memberIds(teamId),
-  ]);
+type WallRow = { userId: string; startIdx: number; endIdx: number; weight: number; status: string; missing: number; repairOfId: string | null; cargo: boolean; holderId: string | null };
+const WALL_ROW = { userId: true, startIdx: true, endIdx: true, weight: true, status: true, missing: true, repairOfId: true, cargo: true, holderId: true } as const;
+/** Толщина по блокам одного города: общий счёт для `wallOf` и `wallsOf`. */
+function wallSum(rows: readonly WallRow[], members: ReadonlySet<string>): { verses: number; blocks: number; pending: number } {
   let verses = 0, blocks = 0, pending = 0;
   for (const r of rows) {
     // Блок из груза корабля (04.11) и блок, перешедший с городом (09.11), — командные: не зависят от того, кто их положил.
@@ -61,6 +59,32 @@ export async function wallOf(teamId: string, nodeKey: string): Promise<{ verses:
     verses += (r.endIdx - r.startIdx + 1 - r.missing) * r.weight;
   }
   return { verses, blocks, pending };
+}
+
+/** Толщина стены команды в городе: стихи принятых и не сгоревших блоков нынешних участников и число блоков; блок воина — два (02.11). */
+export async function wallOf(teamId: string, nodeKey: string): Promise<{ verses: number; blocks: number; pending: number }> {
+  const [rows, members] = await Promise.all([
+    prisma.wallBlock.findMany({ where: { ...heldBy(teamId), nodeKey, status: { in: ["APPROVED", "SUBMITTED"] }, usedAt: null }, select: WALL_ROW }),
+    memberIds(teamId),
+  ]);
+  return wallSum(rows, members);
+}
+
+/**
+ * Толщина стен команды сразу в нескольких городах — двумя запросами вместо двух на каждый город (ревизия скорости 15.11:
+ * список обменов делал по семь запросов на каждый город команды). Счёт тот же, что в `wallOf`.
+ */
+export async function wallsOf(teamId: string, nodeKeys: readonly string[]): Promise<Map<string, { verses: number; blocks: number; pending: number }>> {
+  const out = new Map<string, { verses: number; blocks: number; pending: number }>();
+  if (nodeKeys.length === 0) return out;
+  const [rows, members] = await Promise.all([
+    prisma.wallBlock.findMany({ where: { ...heldBy(teamId), nodeKey: { in: [...nodeKeys] }, status: { in: ["APPROVED", "SUBMITTED"] }, usedAt: null }, select: { ...WALL_ROW, nodeKey: true } }),
+    memberIds(teamId),
+  ]);
+  const byNode = new Map<string, WallRow[]>();
+  for (const r of rows) { const list = byNode.get(r.nodeKey); if (list) list.push(r); else byNode.set(r.nodeKey, [r]); }
+  for (const key of nodeKeys) out.set(key, wallSum(byNode.get(key) ?? [], members));
+  return out;
 }
 
 /** Есть ли стена у хранителей каждого из городов (для карты: без толщины). */

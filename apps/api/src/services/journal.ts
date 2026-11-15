@@ -261,11 +261,65 @@ export async function serviceStats(gameId: string, userId: string, teamIds: stri
   return { deeds: deeds + quarryDone, deedsPending: deedsPending + quarryPending, tasks: count("task_solved"), orders: count("order_solved"), cities: count("city_captured") + count("ruins_taken"), verses, trips: count("sea_landed"), lastActiveAt: last };
 }
 
+/**
+ * Сводки сразу для многих участников — пятью запросами на всю партию (ревизия скорости 15.11). Раньше доска активности и
+ * рейтинг игроков вызывали `serviceStats` для каждого участника: семь запросов на человека, 192 запроса на 27 игроков,
+ * и так при каждом входе в игру; десять одновременных входов занимали все соединения с базой. Правила подсчёта те же,
+ * что в `serviceStats` (тест сверяет числа по каждому участнику). `key` — под каким ключом вернуть сводку: один человек
+ * может запрашиваться несколько раз с разными наборами команд.
+ */
+export async function serviceStatsAll(gameId: string, people: ReadonlyArray<{ key: string; userId: string; teamIds: readonly string[] }>): Promise<Map<string, ServiceStats>> {
+  const out = new Map<string, ServiceStats>();
+  const byUser = new Map<string, Array<{ teams: ReadonlySet<string>; st: ServiceStats }>>();
+  for (const p of people) {
+    const st: ServiceStats = { deeds: 0, deedsPending: 0, tasks: 0, orders: 0, cities: 0, verses: 0, trips: 0, lastActiveAt: null };
+    out.set(p.key, st);
+    const list = byUser.get(p.userId); const item = { teams: new Set(p.teamIds), st };
+    if (list) list.push(item); else byUser.set(p.userId, [item]);
+  }
+  if (people.length === 0) return out;
+  const [tasks, works, entries, wall, journal] = await Promise.all([
+    prisma.teamEdgeTask.findMany({ where: { gameId, status: { in: ["APPROVED", "TAKEN", "SUBMITTED"] } }, select: { teamId: true, status: true, paved: true, takenById: true, participants: true } }),
+    prisma.quarryWork.findMany({ where: { gameId, status: { in: ["APPROVED", "SUBMITTED"] } }, select: { teamId: true, status: true, participants: true } }),
+    prisma.battleEntry.findMany({ where: { status: "APPROVED", carried: false, battle: { gameId } }, select: { userId: true, teamId: true, startIdx: true, endIdx: true } }),
+    prisma.wallBlock.findMany({ where: { gameId, status: "APPROVED", cargo: false }, select: { userId: true, teamId: true, startIdx: true, endIdx: true } }),
+    prisma.journal.groupBy({ by: ["userId", "teamId", "kind"], where: { gameId, userId: { not: null } }, _count: { _all: true }, _max: { createdAt: true } }),
+  ]);
+  /** Сводки человека, в набор команд которых входит эта команда (null — запись без команды: идёт всем его сводкам). */
+  const each = (userId: string | null, teamId: string | null, fn: (st: ServiceStats) => void) => {
+    if (!userId) return;
+    for (const it of byUser.get(userId) ?? []) if (teamId === null || it.teams.has(teamId)) fn(it.st);
+  };
+  for (const t of tasks) {
+    // Дело идёт в зачёт взявшему и отмеченным при сдаче — каждому один раз.
+    for (const u of new Set([...(t.takenById ? [t.takenById] : []), ...t.participants])) {
+      if (t.status === "APPROVED") { if (!t.paved) each(u, t.teamId, (st) => { st.deeds++; }); }
+      else each(u, t.teamId, (st) => { st.deedsPending++; });
+    }
+  }
+  for (const w of works) for (const u of new Set(w.participants)) each(u, w.teamId, (st) => { if (w.status === "APPROVED") st.deeds++; else st.deedsPending++; });
+  for (const e of [...entries, ...wall]) each(e.userId, e.teamId, (st) => { st.verses += e.endIdx - e.startIdx + 1; });
+  for (const r of journal) {
+    const n = r._count._all, at = r._max.createdAt?.getTime() ?? null;
+    each(r.userId, r.teamId, (st) => {
+      if (r.kind === "task_solved") st.tasks += n;
+      else if (r.kind === "order_solved") st.orders += n;
+      else if (r.kind === "city_captured" || r.kind === "ruins_taken") st.cities += n;
+      else if (r.kind === "sea_landed") st.trips += n;
+      // Записи о действиях администратора над участником — не его активность.
+      if (at !== null && !PASSIVE_KINDS.has(r.kind) && (st.lastActiveAt === null || at > st.lastActiveAt)) st.lastActiveAt = at;
+    });
+  }
+  return out;
+}
+
 /** Доска активности для администратора: все участники игры с той же сводкой, самые активные сверху. */
 export async function activityBoard(gameId: string) {
   const all = await prisma.membership.findMany({ where: { team: { gameId } }, select: { userId: true, teamId: true, role: true, gameRole: true, joinedAt: true, user: { select: { nickname: true, displayName: true, avatarId: true } }, team: { select: { name: true, color: true, avatarId: true, status: true } } } });
   // Один человек — одна строка (решение владельца 10.11): команда — та, что в строю, числа — за все его команды в игре.
-  const rows = await Promise.all(byPerson(all).map(async ({ main: m, teamIds }) => ({ userId: m.userId, teamId: m.teamId, nickname: m.user.nickname, displayName: m.user.displayName, team: m.team.name, color: m.team.color, avatarId: m.team.avatarId, userAvatarId: m.user.avatarId, role: m.role, gameRole: m.gameRole, ...(await serviceStats(gameId, m.userId, teamIds)) })));
+  const people = byPerson(all);
+  const stats = await serviceStatsAll(gameId, people.map(({ main: m, teamIds }) => ({ key: m.userId, userId: m.userId, teamIds })));
+  const rows = people.map(({ main: m }) => ({ userId: m.userId, teamId: m.teamId, nickname: m.user.nickname, displayName: m.user.displayName, team: m.team.name, color: m.team.color, avatarId: m.team.avatarId, userAvatarId: m.user.avatarId, role: m.role, gameRole: m.gameRole, ...stats.get(m.userId)! }));
   const score = (r: ServiceStats) => r.deeds * 3 + r.tasks + r.orders + r.cities * 2 + Math.ceil(r.verses / 5) + r.trips;
   return rows.sort((a, b) => score(b) - score(a) || (b.lastActiveAt ?? 0) - (a.lastActiveAt ?? 0));
 }
@@ -330,15 +384,17 @@ export async function seasonBook(gameId: string) {
   const nodes = await prisma.mapNode.findMany({ where: { gameId, bookCode: { not: null } }, select: { key: true, bookCode: true } });
   const bookOf = new Map(nodes.map((n) => [n.key, n.bookCode!]));
   const users = new Map(teams.flatMap((t) => t.members.map((m) => [m.user.id, m.user.displayName || m.user.nickname] as const)));
+  // Сводки участников — одним набором запросов на партию (раньше семь запросов на каждого: 199 на «Книгу сезона»).
+  const stats = await serviceStatsAll(gameId, teams.flatMap((t) => t.members.map((m) => ({ key: `${t.id}:${m.userId}`, userId: m.userId, teamIds: [t.id] }))));
   return {
     game: { name: game.name, startedAt: game.startedAt, finishedAt: game.finishedAt, winnerTeamId: game.winnerTeamId, status: game.status },
     standings: table,
-    teams: await Promise.all(teams.map(async (t) => ({
+    teams: teams.map((t) => ({
       id: t.id, name: t.name, color: t.color, status: t.status,
-      members: await Promise.all(t.members.map(async (m) => ({ userId: m.userId, name: m.user.displayName || m.user.nickname, role: m.role, gameRole: m.gameRole, ...(await serviceStats(gameId, m.userId, t.id)) }))),
+      members: t.members.map((m) => ({ userId: m.userId, name: m.user.displayName || m.user.nickname, role: m.role, gameRole: m.gameRole, ...stats.get(`${t.id}:${m.userId}`)! })),
       cities: t.cityStates.map((c) => ({ nodeKey: c.nodeKey, book: bookOf.get(c.nodeKey) ?? "", capturedAt: c.capturedAt, firstCapturedAt: c.firstCapturedAt, isCapital: c.isCapital })),
       deeds: deeds.filter((d) => d.teamId === t.id).map((d) => ({ title: d.deed.title, direction: d.deed.direction, decidedAt: d.decidedAt, by: [...new Set([d.takenById, ...d.participants])].filter((x): x is string => !!x).map((u) => users.get(u) ?? "") })),
-    }))),
+    })),
     events: rows.map((r) => ({ id: r.id, kind: r.kind as JournalKind, vars: r.vars as JournalVars, text: r.text, at: r.createdAt })),
   };
 }

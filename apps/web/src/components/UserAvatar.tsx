@@ -12,7 +12,8 @@ function warm(userId?: string): void {
   const url = `/api/games/${gameId}/members/${userId}/card`;
   const got = ready<MemberCardDto>(url);
   if (got) preloadAwardImages(got.awards.map((g) => g.code));
-  else void apiReady<MemberCardDto>(url).then((d) => preloadAwardImages(d.awards.map((g) => g.code))).catch(() => {});
+  // join: наведение, нажатие и фокус приходят подряд — карточка запрашивается один раз.
+  else void apiReady<MemberCardDto>(url, { join: true }).then((d) => preloadAwardImages(d.awards.map((g) => g.code))).catch(() => {});
 }
 
 /**

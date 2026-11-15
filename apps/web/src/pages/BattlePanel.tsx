@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Picker } from "../components/Picker";
 import { api, ApiError, type BattleDto, type BattleStatus, type BookTextDto, type DaytimeDto, type PassageDto, type WarDto } from "../lib/api";
 import { useUi } from "../lib/ui";
@@ -49,8 +49,12 @@ export function WarSection({ gameId, nodeKey, teamId, isCaptain, canAlly = isCap
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [now, setNow] = useState(Date.now());
-  useEffect(() => { const tm = setInterval(() => void load(), 60_000); return () => clearInterval(tm); }); // eslint-disable-line react-hooks/exhaustive-deps
+  // Раз в минуту — страховка к событиям. Раньше у эффекта не было списка зависимостей: часы ниже перерисовывают блок каждую
+  // секунду, таймер каждую секунду заводился заново и не срабатывал никогда (ревизия 15.11).
+  const loadRef = useRef<() => unknown>(() => undefined);
+  useEffect(() => { const tm = setInterval(() => void loadRef.current(), 60_000); return () => clearInterval(tm); }, []);
   const load = () => api<WarDto>(`/api/games/${gameId}/my-city/${encodeURIComponent(nodeKey)}/war`).then((w) => { setWar(w); setError(null); if (bid === "") setBid(w.minBid); }).catch((e) => setError(e instanceof ApiError ? e.message : t("Ошибка сети")));
+  loadRef.current = load;
   useEffect(() => { void load(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [gameId, nodeKey, version]);
   useEffect(() => { const tm = setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(tm); }, []);
   if (!war) return error ? <p className="error" role="alert">{error}</p> : null;

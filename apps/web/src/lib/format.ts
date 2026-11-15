@@ -1,3 +1,4 @@
+import { cachedFormat } from "@lotw/domain";
 import { getLocale, t } from "./i18n";
 
 /** Склонение по числу: plural(3, ["команда", "команды", "команд"]) → «3 команды». Английский — по словарю форм [one, other]. */
@@ -17,12 +18,18 @@ export function plural(n: number, forms: [string, string, string] | [string, str
 let displayZone: string | undefined;
 export function setDisplayTimeZone(tz: string | undefined): void { displayZone = tz || undefined; }
 export function displayTimeZone(): string | undefined { return displayZone; }
+/**
+ * Форматтер по поясу игры (при неизвестном поясе — устройства). Готовые форматтеры держит `cachedFormat`: создавать их
+ * на каждый вызов в 13–15 раз дороже, а дат в списках сотни (ревизия скорости 15.11 — первая строка профиля).
+ */
+function zonedFormat(kind: string, loc: string, options: Intl.DateTimeFormatOptions): Intl.DateTimeFormat {
+  try { return cachedFormat(`${kind}:${loc}:${displayZone ?? ""}`, () => new Intl.DateTimeFormat(loc, { ...options, timeZone: displayZone })); }
+  catch { return cachedFormat(`${kind}:${loc}:`, () => new Intl.DateTimeFormat(loc, options)); }
+}
 /** Календарный день «ГГГГ-ММ-ДД» по поясу игры (при неизвестном поясе — устройства). */
 function dayKey(d: Date): string {
-  try { return d.toLocaleDateString("en-CA", { timeZone: displayZone, year: "numeric", month: "2-digit", day: "2-digit" }); }
-  catch { return d.toLocaleDateString("en-CA", { year: "numeric", month: "2-digit", day: "2-digit" }); }
+  return zonedFormat("day", "en-CA", { year: "numeric", month: "2-digit", day: "2-digit" }).format(d);
 }
-function zoned<T>(f: (tz: string | undefined) => T): T { try { return f(displayZone); } catch { return f(undefined); } }
 
 /** Дата и время по языку интерфейса и поясу игры: «сегодня 14:05», «вчера 18:30», «5 сент., 14:05». */
 export function fmtDate(iso: string | number | Date | null | undefined, opts: { time?: boolean } = { time: true }): string {
@@ -30,13 +37,14 @@ export function fmtDate(iso: string | number | Date | null | undefined, opts: { 
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return "";
   const loc = getLocale() === "en" ? "en-GB" : "ru-RU";
-  const time = zoned((tz) => d.toLocaleTimeString(loc, { hour: "2-digit", minute: "2-digit", timeZone: tz }));
+  const time = zonedFormat("time", loc, { hour: "2-digit", minute: "2-digit" }).format(d);
   const now = new Date();
-  const yesterday = new Date(now.getTime() - 86_400_000);
-  if (dayKey(d) === dayKey(now)) return opts.time ? `${t("сегодня")} ${time}` : t("сегодня");
-  if (dayKey(d) === dayKey(yesterday)) return opts.time ? `${t("вчера")} ${time}` : t("вчера");
-  const sameYear = dayKey(d).slice(0, 4) === dayKey(now).slice(0, 4);
-  const date = zoned((tz) => d.toLocaleDateString(loc, { day: "numeric", month: "short", timeZone: tz, ...(sameYear ? {} : { year: "numeric" }) }));
+  const day = dayKey(d), today = dayKey(now);
+  if (day === today) return opts.time ? `${t("сегодня")} ${time}` : t("сегодня");
+  if (day === dayKey(new Date(now.getTime() - 86_400_000))) return opts.time ? `${t("вчера")} ${time}` : t("вчера");
+  const date = (day.slice(0, 4) === today.slice(0, 4)
+    ? zonedFormat("date", loc, { day: "numeric", month: "short" })
+    : zonedFormat("date-year", loc, { day: "numeric", month: "short", year: "numeric" })).format(d);
   return opts.time ? `${date}, ${time}` : date;
 }
 

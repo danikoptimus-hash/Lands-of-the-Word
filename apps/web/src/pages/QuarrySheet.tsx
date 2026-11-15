@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { api, ApiError, type QuarryDto, type QuarryWorkDto } from "../lib/api";
+import { api, ApiError, apiReady, ready, type QuarryDto, type QuarryWorkDto } from "../lib/api";
 import { useUi } from "../lib/ui";
 import { t } from "../lib/i18n";
 import { fmtDate } from "../lib/format";
@@ -21,14 +21,14 @@ import { DeedsBlock } from "./DeedsBlock";
  */
 export function QuarrySheet({ gameId, container, onClose }: { gameId: string; container: HTMLElement | null; onClose: () => void }) {
   const { notify } = useUi();
-  const [data, setData] = useState<QuarryDto | null>(null);
+  const [data, setData] = useState<QuarryDto | null>(() => ready<QuarryDto>(`/api/games/${gameId}/quarry`));
   const [loadError, setLoadError] = useState(false);
   const [open, setOpen] = useState<string | null>(null);
   const [links, setLinks] = useState<string[]>([]);
   const [note, setNote] = useState("");
   const [present, setPresent] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
-  const load = useCallback(() => api<QuarryDto>(`/api/games/${gameId}/quarry`).then((d) => { setData(d); setLoadError(false); }).catch(() => setLoadError(true)), [gameId]);
+  const load = useCallback(() => apiReady<QuarryDto>(`/api/games/${gameId}/quarry`).then((d) => { setData(d); setLoadError(false); }).catch(() => setLoadError(true)), [gameId]);
   useEffect(() => { void load(); }, [load]);
   useGameEvents(gameId, (e) => { if (e.type === "quarry" || e.type === "teams" || e.type === "deeds") void load(); });
 

@@ -4,7 +4,7 @@ import { buildApp } from "./app.js";
 import { prisma } from "./db.js";
 import { closeTrialsForAllPeaces } from "./services/peace.js";
 import { cleanupFixtures, readyForStart, registerVerified, setGamePhase } from "./testAuth.js";
-import { chronicleLines, sendChronicle } from "./services/journal.js";
+import { chronicleLines, sendChronicle, serviceStats, serviceStatsAll } from "./services/journal.js";
 import { invalidateViews } from "./services/views.js";
 
 /**
@@ -105,6 +105,11 @@ describe("журнал событий: лента, новости, служен�
     expect(top.rows[0]).toMatchObject({ rank: 1, userId: p1Id, deeds: 1 });
     expect(top.me?.userId).toBe((await prisma.user.findUniqueOrThrow({ where: { nickname: p2Nick } })).id);
     expect(top.total).toBeGreaterThanOrEqual(2);
+    // Сводки одним набором запросов на партию (ревизия 15.11) — те же числа, что считает serviceStats по каждому участнику.
+    const members = await prisma.membership.findMany({ where: { team: { gameId } }, select: { userId: true, teamId: true } });
+    const all = await serviceStatsAll(gameId, members.map((m) => ({ key: m.userId, userId: m.userId, teamIds: [m.teamId] })));
+    expect(members.length).toBeGreaterThanOrEqual(2);
+    for (const m of members) expect(all.get(m.userId)).toEqual(await serviceStats(gameId, m.userId, m.teamId));
   });
 
   it("вызов городу — новость только претендентам, без ставки; мир закрывает идущие вызовы, расторжение — сразу", async () => {

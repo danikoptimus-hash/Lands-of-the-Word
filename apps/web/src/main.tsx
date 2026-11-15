@@ -4,6 +4,7 @@ import ReactDOM from "react-dom/client";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "./lib/auth";
 import { UiProvider } from "./lib/ui";
+import { ErrorBoundary } from "./components/ErrorBoundary";
 import { Layout } from "./pages/Layout";
 import { LoginPage } from "./pages/LoginPage";
 import { GamesPage } from "./pages/GamesPage";
@@ -32,14 +33,15 @@ import { t } from "./lib/i18n";
 
 /** Только для вошедших. Пока почта не подтверждена, вместо любой страницы — «Подтвердите почту». */
 function Private({ children }: { children: React.ReactElement }) {
-  const { user, loading } = useAuth();
-  if (loading) return <p className="container muted">{t("Загрузка…")}</p>;
+  const { user, loading, offline } = useAuth();
+  if (loading) return <p className="container muted" role={offline ? "status" : undefined}>{offline ? t("Нет связи с сервером. Пробуем снова…") : t("Загрузка…")}</p>;
   if (!user) return <Navigate to="/login" replace />;
   return user.emailVerified ? children : <VerifyPendingPage />;
 }
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
+    <ErrorBoundary>
     <BrowserRouter>
       <AuthProvider>
         <UiProvider>
@@ -72,8 +74,23 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
         </UiProvider>
       </AuthProvider>
     </BrowserRouter>
+    </ErrorBoundary>
   </React.StrictMode>,
 );
+
+// Кусок программы не загрузился. Если на сервере уже другая сборка (открытая вкладка просит файл прежней, которого нет) —
+// один раз перезагружаем страницу, не чаще раза в минуту. Если сборка та же, дело в связи: страницу не трогаем, ошибку
+// обрабатывает тот, кто просил кусок (иначе на плохой связи у администратора страница перезагружалась бы сама и набранный
+// текст пропадал — находка независимого разбора 15.11).
+window.addEventListener("vite:preloadError", () => {
+  const mine = document.querySelector('script[type="module"][src*="/assets/"]')?.getAttribute("src");
+  if (!mine || navigator.onLine === false) return;
+  void fetch("/", { cache: "no-store" }).then((r) => (r.ok ? r.text() : "")).then((html) => {
+    if (!html || html.includes(mine)) return;
+    try { const k = "lotw.reloadAt", was = Number(sessionStorage.getItem(k) ?? 0); if (Date.now() - was < 60_000) return; sessionStorage.setItem(k, String(Date.now())); } catch { return; }
+    location.reload();
+  }).catch(() => {});
+});
 
 // Сервис-воркер PWA: обновляется сам при новом деплое, картинки карты и сборка берутся из кеша устройства.
 // Когда новая версия взяла страницу под управление, открытая вкладка всё ещё выполняет старую сборку (владелец

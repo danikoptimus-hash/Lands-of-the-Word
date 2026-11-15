@@ -1,0 +1,487 @@
+{
+ "profile": "pc",
+ "cpu": 1,
+ "nick": "p4",
+ "cold": {
+  "dockMs": 3217,
+  "mapMs": 3686,
+  "netIdleMs": 3687,
+  "ttfb": 4,
+  "dcl": 125,
+  "load": 125,
+  "fcp": 92,
+  "lcp": 228,
+  "cls": 0,
+  "long": {
+   "n": 28,
+   "total": 4466,
+   "max": 1045,
+   "tbt": 3066
+  },
+  "dom": 1545,
+  "svg": 1438,
+  "canvases": [
+   "273x591",
+   "780x1688",
+   "585x1266",
+   "488x1055",
+   "780x1688",
+   "488x1055",
+   "780x1688",
+   "780x1688",
+   "780x1688",
+   "780x1688",
+   "585x1266"
+  ],
+  "heap": 12,
+  "imgs": 3,
+  "net": {
+   "n": 102,
+   "bytes": 7216298,
+   "by": {
+    "document": {
+     "n": 1,
+     "bytes": 778
+    },
+    "stylesheet": {
+     "n": 1,
+     "bytes": 37691
+    },
+    "image": {
+     "n": 80,
+     "bytes": 6044104
+    },
+    "font": {
+     "n": 6,
+     "bytes": 206713
+    },
+    "script": {
+     "n": 2,
+     "bytes": 388140
+    },
+    "api": {
+     "n": 12,
+     "bytes": 538872
+    }
+   },
+   "api": [
+    {
+     "url": "GET /api/auth/me",
+     "ms": 6,
+     "bytes": 388
+    },
+    {
+     "url": "GET /api/auth/accounts",
+     "ms": 8,
+     "bytes": 294
+    },
+    {
+     "url": "GET /api/games/:id/teams",
+     "ms": 34,
+     "bytes": 7665
+    },
+    {
+     "url": "GET /api/games/:id/awards",
+     "ms": 59,
+     "bytes": 28710
+    },
+    {
+     "url": "GET /api/games/:id/my-service",
+     "ms": 40,
+     "bytes": 283
+    },
+    {
+     "url": "GET /api/games/:id/feed",
+     "ms": 44,
+     "bytes": 12418
+    },
+    {
+     "url": "GET /api/games/:id/top",
+     "ms": 60,
+     "bytes": 7364
+    },
+    {
+     "url": "GET /api/games/:id/standings",
+     "ms": 70,
+     "bytes": 1235
+    },
+    {
+     "url": "GET /api/games/:id/my-passages",
+     "ms": 81,
+     "bytes": 3226
+    },
+    {
+     "url": "GET /api/games/:id/peace",
+     "ms": 84,
+     "bytes": 681
+    },
+    {
+     "url": "GET /api/games/:id/my-battles",
+     "ms": 95,
+     "bytes": 36766
+    },
+    {
+     "url": "GET /api/games/:id/my-map",
+     "ms": 203,
+     "bytes": 439842
+    }
+   ]
+  }
+ },
+ "idle": {
+  "cpu": {
+   "task": 10.239,
+   "script": 0.071,
+   "layout": 0.013,
+   "style": 0.026,
+   "layouts": 115,
+   "styles": 115
+  },
+  "frames": {
+   "n": 111,
+   "med": 83.4,
+   "p95": 116.6,
+   "max": 116.7,
+   "over33": 111,
+   "over50": 111,
+   "over100": 11
+  },
+  "long": {
+   "n": 115,
+   "total": 10248,
+   "max": 122,
+   "tbt": 4498
+  },
+  "net": {
+   "n": 1,
+   "bytes": 185,
+   "by": {
+    "api": {
+     "n": 1,
+     "bytes": 185
+    }
+   },
+   "api": [
+    {
+     "url": "POST /api/metrics/ui",
+     "ms": 8,
+     "bytes": 185
+    }
+   ]
+  }
+ },
+ "pan": {
+  "cpu": {
+   "task": 41.811,
+   "script": 1.308,
+   "layout": 0.075,
+   "style": 0.077,
+   "layouts": 321,
+   "styles": 321
+  },
+  "frames": {
+   "n": 274,
+   "med": 100,
+   "p95": 499.8,
+   "max": 583.2,
+   "over33": 274,
+   "over50": 274,
+   "over100": 99
+  },
+  "long": {
+   "n": 279,
+   "total": 41760,
+   "max": 586,
+   "tbt": 27810
+  },
+  "netN": 3
+ },
+ "sections": [
+  {
+   "name": "Испытания",
+   "sheetMs": -1,
+   "settledMs": 0,
+   "totalMs": 8983,
+   "cpu": {
+    "task": 9.422,
+    "script": 0.075,
+    "layout": 0.011,
+    "style": 0.024,
+    "layouts": 103,
+    "styles": 104
+   },
+   "long": {
+    "n": 104,
+    "total": 9390,
+    "max": 137,
+    "tbt": 4190
+   },
+   "net": {
+    "n": 1,
+    "bytes": 439842,
+    "by": {
+     "api": {
+      "n": 1,
+      "bytes": 439842
+     }
+    },
+    "api": [
+     {
+      "url": "GET /api/games/:id/my-map",
+      "ms": 90,
+      "bytes": 439842
+     }
+    ]
+   },
+   "dom": 0,
+   "again": {
+    "settledMs": 0,
+    "totalMs": 8900,
+    "netN": 0,
+    "bytes": 0
+   }
+  },
+  {
+   "name": "Служение",
+   "sheetMs": -1,
+   "settledMs": 0,
+   "totalMs": 8840,
+   "cpu": {
+    "task": 9.441,
+    "script": 0.071,
+    "layout": 0.012,
+    "style": 0.025,
+    "layouts": 105,
+    "styles": 105
+   },
+   "long": {
+    "n": 106,
+    "total": 9420,
+    "max": 111,
+    "tbt": 4120
+   },
+   "net": {
+    "n": 0,
+    "bytes": 0,
+    "by": {},
+    "api": []
+   },
+   "dom": 0,
+   "again": {
+    "settledMs": 0,
+    "totalMs": 8875,
+    "netN": 0,
+    "bytes": 0
+   }
+  },
+  {
+   "name": "Команды",
+   "sheetMs": -1,
+   "settledMs": 0,
+   "totalMs": 8836,
+   "cpu": {
+    "task": 9.336,
+    "script": 0.07,
+    "layout": 0.011,
+    "style": 0.025,
+    "layouts": 116,
+    "styles": 118
+   },
+   "long": {
+    "n": 116,
+    "total": 9385,
+    "max": 102,
+    "tbt": 3585
+   },
+   "net": {
+    "n": 0,
+    "bytes": 0,
+    "by": {},
+    "api": []
+   },
+   "dom": 0
+  },
+  {
+   "name": "Летопись",
+   "sheetMs": 736,
+   "settledMs": 0,
+   "totalMs": 1143,
+   "cpu": {
+    "task": 1.031,
+    "script": 0.013,
+    "layout": 0.002,
+    "style": 0.004,
+    "layouts": 11,
+    "styles": 15
+   },
+   "long": {
+    "n": 9,
+    "total": 987,
+    "max": 119,
+    "tbt": 537
+   },
+   "net": {
+    "n": 1,
+    "bytes": 12418,
+    "by": {
+     "api": {
+      "n": 1,
+      "bytes": 12418
+     }
+    },
+    "api": [
+     {
+      "url": "GET /api/games/:id/feed",
+      "ms": 16,
+      "bytes": 12418
+     }
+    ]
+   },
+   "dom": 65,
+   "again": {
+    "settledMs": 0,
+    "totalMs": 988,
+    "netN": 1,
+    "bytes": 12418
+   }
+  },
+  {
+   "name": "Дела 14",
+   "sheetMs": 602,
+   "settledMs": 0,
+   "totalMs": 1055,
+   "cpu": {
+    "task": 1.574,
+    "script": 0.017,
+    "layout": 0.003,
+    "style": 0.006,
+    "layouts": 18,
+    "styles": 22
+   },
+   "long": {
+    "n": 17,
+    "total": 1644,
+    "max": 108,
+    "tbt": 794
+   },
+   "net": {
+    "n": 0,
+    "bytes": 0,
+    "by": {},
+    "api": []
+   },
+   "dom": 57,
+   "again": {
+    "settledMs": 0,
+    "totalMs": 993,
+    "netN": 0,
+    "bytes": 0
+   }
+  }
+ ],
+ "warm": {
+  "dockMs": 3096,
+  "mapMs": 3575,
+  "netIdleMs": 3575,
+  "fcp": 240,
+  "lcp": 300,
+  "long": {
+   "n": 21,
+   "total": 3796,
+   "max": 892,
+   "tbt": 2746
+  },
+  "net": {
+   "n": 104,
+   "bytes": 539191,
+   "by": {
+    "script": {
+     "n": 2,
+     "bytes": 0
+    },
+    "stylesheet": {
+     "n": 1,
+     "bytes": 0
+    },
+    "image": {
+     "n": 80,
+     "bytes": 0
+    },
+    "document": {
+     "n": 1,
+     "bytes": 319
+    },
+    "font": {
+     "n": 8,
+     "bytes": 0
+    },
+    "api": {
+     "n": 12,
+     "bytes": 538872
+    }
+   },
+   "api": [
+    {
+     "url": "GET /api/auth/me",
+     "ms": 5,
+     "bytes": 388
+    },
+    {
+     "url": "GET /api/auth/accounts",
+     "ms": 17,
+     "bytes": 294
+    },
+    {
+     "url": "GET /api/games/:id/awards",
+     "ms": 32,
+     "bytes": 28710
+    },
+    {
+     "url": "GET /api/games/:id/teams",
+     "ms": 36,
+     "bytes": 7665
+    },
+    {
+     "url": "GET /api/games/:id/feed",
+     "ms": 30,
+     "bytes": 12418
+    },
+    {
+     "url": "GET /api/games/:id/my-service",
+     "ms": 39,
+     "bytes": 283
+    },
+    {
+     "url": "GET /api/games/:id/top",
+     "ms": 43,
+     "bytes": 7364
+    },
+    {
+     "url": "GET /api/games/:id/standings",
+     "ms": 59,
+     "bytes": 1235
+    },
+    {
+     "url": "GET /api/games/:id/peace",
+     "ms": 64,
+     "bytes": 681
+    },
+    {
+     "url": "GET /api/games/:id/my-passages",
+     "ms": 66,
+     "bytes": 3226
+    },
+    {
+     "url": "GET /api/games/:id/my-battles",
+     "ms": 90,
+     "bytes": 36766
+    },
+    {
+     "url": "GET /api/games/:id/my-map",
+     "ms": 163,
+     "bytes": 439842
+    }
+   ]
+  }
+ }
+}

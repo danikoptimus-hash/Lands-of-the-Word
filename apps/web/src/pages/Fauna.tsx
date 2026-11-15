@@ -25,7 +25,7 @@ interface Isle { x: number; y: number; r: number }
 /** Профиль одного острова: центр и радиус берега по секторам угла. */
 interface Part { cx: number; cy: number; r: number[]; maxR: number }
 /** Мир живности: общий центр и охват (для маршрутов из-за края) плюс профили островов (их несколько: Ветхий и Новый Завет). */
-interface Profile extends Part { parts: Part[]; isles: Isle[]; /** Разбитые корабли как круглые препятствия (замечание владельца 05.11: корабль живности прошёл под разбитым); список обновляется каждый шаг мира из WRECKS. */ wrecks: Isle[]; /** Гексы суши «q,r»: точная проверка берега вдобавок к радиальному профилю (08.10). */ land: Set<string>; hex: number }
+interface Profile extends Part { parts: Part[]; isles: Isle[]; /** Разбитые корабли как круглые препятствия (замечание владельца 05.11: корабль живности прошёл под разбитым); список обновляется каждый шаг мира из WRECKS. */ wrecks: Isle[]; /** Гексы суши «q,r»: точная проверка берега вдобавок к радиальному профилю (08.10). */ land: Set<string>; /** Те же гексы числовыми ключами (landKey) — для частой проверки суши без сборки строк. */ landN: Set<number>; hex: number }
 
 function partProfile(cs: Array<{ x: number; y: number }>, size: number): Part {
   const cx = cs.reduce((a, c) => a + c.x, 0) / cs.length, cy = cs.reduce((a, c) => a + c.y, 0) / cs.length;
@@ -48,7 +48,7 @@ function islandProfile(hexes: MapHexDto[], size: number, islets: Islet[]): Profi
   const parts = [...groups.values()].map((cs) => partProfile(cs, size));
   const all = partProfile(hexes.map((h) => hexCenter(h, size)), size);
   const isles = islets.map((i) => ({ x: i.x, y: i.y, r: i.cover }));
-  return { ...all, parts, isles, wrecks: [], land: new Set(hexes.map((h) => `${h.q},${h.r}`)), hex: size };
+  return { ...all, parts, isles, wrecks: [], land: new Set(hexes.map((h) => `${h.q},${h.r}`)), landN: new Set(hexes.map((h) => landKey(h.q, h.r))), hex: size };
 }
 /**
  * Точная проверка суши (замечание владельца 08.10: корабль прошёл по мысу у города). Радиальный профиль — это максимум
@@ -57,18 +57,24 @@ function islandProfile(hexes: MapHexDto[], size: number, islets: Islet[]): Profi
  * Возвращает глубину захода и нормаль наружу в LNX/LNY; 0 — точка в воде.
  */
 let LNX = 0, LNY = 0;
+// Ключ гекса числом и соседи — постоянными массивами (ревизия скорости 15.11): проверка суши вызывается до четырёх раз на
+// каждого зверя и корабль на каждом шаге мира, а при открытии карты мир проматывается тысячами шагов. Раньше каждый вызов
+// собирал семь строк-ключей и новый список соседей; результат проверки тот же.
+const LAND_SPAN = 512;
+const landKey = (q: number, r: number) => (q + LAND_SPAN) * (2 * LAND_SPAN) + (r + LAND_SPAN);
+const NEAR_Q = [0, 1, -1, 0, 0, 1, -1], NEAR_R = [0, 0, 0, 1, -1, -1, 1];
 function landPen(p: Profile, x: number, y: number, clearance: number): number {
   const size = p.hex;
-  if (!p.land.size || !size) return 0;
+  if (!p.landN.size || !size) return 0;
   // Осевые координаты гекса под точкой (обратно hexToPixel: pointy-top), округление через кубические.
   const qf = (Math.sqrt(3) / 3 * x - y / 3) / size, rf = (2 / 3 * y) / size;
   let q = Math.round(qf), r = Math.round(rf); const sf = -qf - rf, sr = Math.round(sf);
   const dq = Math.abs(q - qf), dr = Math.abs(r - rf), ds = Math.abs(sr - sf);
   if (dq > dr && dq > ds) q = -r - sr; else if (dr > ds) r = -q - sr;
   let best = 0;
-  for (const [a, b] of [[0, 0], [1, 0], [-1, 0], [0, 1], [0, -1], [1, -1], [-1, 1]] as const) {
-    const hq = q + a, hr = r + b;
-    if (!p.land.has(`${hq},${hr}`)) continue;
+  for (let n = 0; n < 7; n++) {
+    const hq = q + NEAR_Q[n]!, hr = r + NEAR_R[n]!;
+    if (hq < -LAND_SPAN || hq >= LAND_SPAN || hr < -LAND_SPAN || hr >= LAND_SPAN || !p.landN.has(landKey(hq, hr))) continue;
     const cx = size * (Math.sqrt(3) * hq + (Math.sqrt(3) / 2) * hr), cy = size * 1.5 * hr;
     const dx = x - cx, dy = y - cy, d = Math.hypot(dx, dy) || 1e-6, pen = size + clearance - d;
     if (pen > best) { best = pen; LNX = dx / d; LNY = dy / d; }
@@ -2126,12 +2132,13 @@ export function FaunaLayer({ vp, hexes, between = null, islets = NO_ISLETS, size
       drawWorld(sctx, cur.w, k, vis, a, "sky");
       drawRockets(sctx, size, now, 1 / k, vis);
     };
-    // Догон (открыли карту, вернулись во вкладку): кусками по 30 мс через setTimeout, не завися от частоты кадров;
-    // до конца догона слой пуст — звери «всплывают», когда мир дошёл до текущей секунды.
+    // Догон (открыли карту, вернулись во вкладку): кусками по 12 мс через setTimeout, не завися от частоты кадров;
+    // до конца догона слой пуст — звери «всплывают», когда мир дошёл до текущей секунды. Куски были по 30 мс: между ними
+    // успевало не больше 30 кадров в секунду, и палец в первые секунды на карте отзывался с задержкой (ревизия 15.11).
     let catching = false, timer = 0;
     const catchUp = () => {
       timer = 0;
-      WRECKS = wrecksRef.current; if (document.hidden || sync(30)) { catching = false; dirty = true; return; }
+      WRECKS = wrecksRef.current; if (document.hidden || sync(12)) { catching = false; dirty = true; return; }
       timer = window.setTimeout(catchUp, 0);
     };
     const loop = (t: number) => {

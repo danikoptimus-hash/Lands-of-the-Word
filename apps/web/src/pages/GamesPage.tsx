@@ -41,8 +41,10 @@ function HomeSkeleton() {
  * только если есть свои игры, «Мои игры»; создание игры — отдельная страница.
  */
 export function GamesPage() {
-  const [games, setGames] = useState<GameSummary[] | null>(null);
-  const [teams, setTeams] = useState<MyTeamDto[] | null>(null);
+  // Списки берутся из памяти ответов сразу, свежие приходят следом (ревизия 15.11): при возврате с карты главная больше не
+  // начинает с серых полосок.
+  const [games, setGames] = useState<GameSummary[] | null>(() => ready<{ games: GameSummary[] }>("/api/games")?.games ?? null);
+  const [teams, setTeams] = useState<MyTeamDto[] | null>(() => ready<{ teams: MyTeamDto[] }>("/api/me/teams")?.teams ?? null);
   const [failed, setFailed] = useState(false);
   useEffect(() => { reportPage("other"); }, []);
   const [attempt, setAttempt] = useState(0);
@@ -58,29 +60,30 @@ export function GamesPage() {
   async function removeGame(g: GameSummary) {
     const what = g.status === "DRAFT" ? t("Черновик «{name}» будет удалён вместе с командами и картой.", { name: g.name }) : t("Игра «{name}» исчезнет из ваших игр. У участников она останется: карта, команды, летопись, награды.", { name: g.name });
     if (!(await confirm(what, { title: t("Удалить игру?"), okLabel: t("Удалить"), danger: true }))) return;
-    try { await api(`/api/games/${g.id}`, { method: "DELETE" }); notify(t("Игра удалена")); setGames((list) => list?.filter((x) => x.id !== g.id) ?? list); }
+    try { await api(`/api/games/${g.id}`, { method: "DELETE" }); notify(t("Игра удалена")); setGames((list) => list?.filter((x) => x.id !== g.id) ?? list); void apiReady("/api/games").catch(() => {}); }
     catch (e) { notify(e instanceof ApiError ? e.message : t("Ошибка сети"), "bad"); }
   }
 
   useEffect(() => { warmMapImages(); }, []);
   useEffect(() => {
     let alive = true;
-    setFailed(false); setGames(null); setTeams(null);
+    setFailed(false);
     Promise.all([
-      api<{ games: GameSummary[] }>("/api/games").then((r) => r.games),
-      api<{ teams: MyTeamDto[] }>("/api/me/teams").then((r) => r.teams),
+      apiReady<{ games: GameSummary[] }>("/api/games").then((r) => r.games),
+      apiReady<{ teams: MyTeamDto[] }>("/api/me/teams").then((r) => r.teams),
     ]).then(([g, tm]) => {
       if (!alive) return;
       setGames(g); setTeams(tm);
       // Страница игры и карта команды открываются сразу (решение владельца 24.10): их данные запрашиваются заранее, пока человек на главной.
       prefetch([...g.flatMap((x) => [`/api/games/${x.id}`, `/api/games/${x.id}/progress`]), ...tm.map((x) => `/api/games/${x.game.id}/teams`)]);
       // Карта команды: ответ заранее и заготовка геометрии в простое (решение владельца 24.10, уровень 1).
-      for (const x of tm) { const u = `/api/games/${x.game.id}/my-map`; const have = ready<MyMapDto>(u); if (have) warmTeamMap(have); else void apiReady<MyMapDto>(u).then(warmTeamMap).catch(() => {}); }
+      for (const x of tm) { const u = `/api/games/${x.game.id}/my-map`; const have = ready<MyMapDto>(u); if (have) warmTeamMap(have); else void apiReady<MyMapDto>(u, { join: true }).then(warmTeamMap).catch(() => {}); }
     }).catch(() => { if (alive) setFailed(true); });
     return () => { alive = false; };
   }, [attempt]);
 
-  if (failed) return <ErrorState onRetry={() => setAttempt((n) => n + 1)} />;
+  // Ошибка обновления не прячет прежние списки, если они есть.
+  if (failed && (!games || !teams)) return <ErrorState onRetry={() => setAttempt((n) => n + 1)} />;
   if (!games || !teams) return <HomeSkeleton />;
   if (entry && teams.length === 1 && games.length === 0) return <Navigate to={`/games/${teams[0]!.game.id}/team`} replace />;
 

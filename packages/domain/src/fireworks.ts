@@ -1,3 +1,4 @@
+import { cachedFormat } from "./dateFormat.js";
 import { localMinutes } from "./daytime.js";
 
 /**
@@ -8,7 +9,7 @@ import { localMinutes } from "./daytime.js";
 
 /** Местная дата «ГГГГ-ММ-ДД» по поясу; при неизвестном поясе — по UTC. */
 export function localDay(timeZone: string, at: Date): string {
-  try { return new Intl.DateTimeFormat("en-CA", { timeZone, year: "numeric", month: "2-digit", day: "2-digit" }).format(at); }
+  try { return cachedFormat("day:" + timeZone, () => new Intl.DateTimeFormat("en-CA", { timeZone, year: "numeric", month: "2-digit", day: "2-digit" })).format(at); }
   catch { return at.toISOString().slice(0, 10); }
 }
 

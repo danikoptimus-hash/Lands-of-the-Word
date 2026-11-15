@@ -6,6 +6,7 @@ import { BOOKS } from "@lotw/domain";
 import { api, ApiError, apiReady, deedAssignee, deedPriority, prefetch, ready, type AwardsDto, type BattleDto, type DailyBirdDto, type EdgeTaskDto, type EdgeTaskStatus, type GameRole, type MapMarkDto, type MyMapDto, type PeaceTeamDto, type StandingsDto, type TeamDto } from "../lib/api";
 import { useAuth } from "../lib/auth";
 import { useCoalesced, useGameEvents, type MapPush } from "../lib/useGameEvents";
+import { keepSame, useNow } from "../lib/stable";
 import { applyPatch } from "fast-json-patch";
 import { TeamMap, type MarkPoint } from "./TeamMap";
 import { AwardRating, FlameIcon, MilestoneCard, StreakBanner, TeamAwardsBlock, awardsCached, preloadAllAwardImages, preloadAwardImages } from "./Awards";
@@ -105,6 +106,11 @@ export function finishReasonLabel(reason: string | null): string {
 
 /** Разделы меню команды (решение владельца 21.09): на главном экране меню — только то, что требует внимания, и значки разделов. Состав, проходы и мир — внутри «Команд»; лента событий называется «Летопись». */
 type MenuView = "home" | "attention" | "deeds" | "battles" | "standings" | "feed" | "service";
+/** Поля ответа карты, которые меняются сами по себе и в сравнении «изменилась ли карта» не участвуют: часы сервера и номер версии. */
+const MAP_VOLATILE = ["now", "rev"] as const;
+const NOOP = () => {};
+/** Секундные часы для одного блока: перерисовывается только он, а не вся страница с картой (ревизия 15.11). */
+function WithNow({ children }: { children: (now: number) => ReactNode }) { return <>{children(useNow())}</>; }
 /** Колокольчик — такая же плитка, как остальные (просьба участника 05.10): внутри всё, что требует внимания. */
 const MENU_ITEMS: Array<{ key: Exclude<MenuView, "home">; icon: string; label: () => string; /** Короткая подпись для плитки дока на телефоне (ширина плитки как у администратора). */ short?: () => string; hot?: boolean }> = [
   { key: "attention", icon: "bell", label: () => t("Внимание"), hot: true },
@@ -181,8 +187,24 @@ export function TeamPage() {
   const shownMap = useMemo(() => (map && historyAt ? mapAt(map, historyAt) : map), [map, historyAt]);
   // Шторм (решение владельца 24.10): по расписанию из ответа сервера; в шторм — только карта с бурей, без кнопок и действий.
   const stormReload = useRef<() => void>(() => {});
-  const storm = useStorm(map?.daytime, map?.now, () => stormReload.current());
+  // Часы сервера для шторма — время самого ответа (daytime.now): map.now — момент расчёта карты, а она лежит в памяти
+  // сервера до минуты, и шторм начинался бы у части игроков с таким же опозданием.
+  const storm = useStorm(map?.daytime, map?.daytime?.now ?? map?.now, () => stormReload.current());
   const stormWas = useRef(storm.active);
+  // Карта обёрнута в memo и получает обработчики с постоянной «личностью»: сами функции объявлены ниже и создаются заново при
+  // каждой отрисовке страницы, а обёртки вызывают их последнюю версию. Так карта перерисовывается только от своих данных,
+  // а не от каждой буквы в поле поиска или всплывающего сообщения (ревизия 15.11).
+  const mapActs = useRef<{ openTask: (tid: string | null) => void; openCity: (key: string) => void; land: (key: string) => void; mark: (at: MarkPoint) => void; tapMark: (mk: MapMarkDto) => void; frontier: (key: string) => void; quarry: () => void; wreck: (wid: string) => void } | null>(null);
+  const mapOn = useMemo(() => ({
+    select: (tid: string | null) => mapActs.current?.openTask(tid),
+    city: (key: string) => mapActs.current?.openCity(key),
+    land: (key: string) => mapActs.current?.land(key),
+    mark: (at: MarkPoint) => mapActs.current?.mark(at),
+    markTap: (mk: MapMarkDto) => mapActs.current?.tapMark(mk),
+    frontier: (key: string) => mapActs.current?.frontier(key),
+    quarry: () => mapActs.current?.quarry(),
+    wreck: (wid: string) => mapActs.current?.wreck(wid),
+  }), []);
   const [error, setError] = useState<string | null>(null);
   const [mapError, setMapError] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -190,6 +212,8 @@ export function TeamPage() {
   const [focusTask, setFocusTask] = useState<{ id: string; nonce: number } | null>(null);
   /** Режим высадки: id одобренного морского дела, для которого капитан выбирает узел на другом острове. */
   const [landingId, setLandingId] = useState<string | null>(null);
+  const landingTasks = map?.tasks;
+  const landing = useMemo(() => { const tk = landingId ? landingTasks?.find((x) => x.id === landingId && x.landing) : undefined; return tk ? { taskId: tk.id, candidates: tk.candidates ?? [] } : null; }, [landingId, landingTasks]);
   const [menu, setMenu] = useState(false);
   const [cityKey, setCityKey] = useState<string | null>(null);
   /** Каменоломня (решение владельца 04.10): лист общих дел и камней. */
@@ -236,10 +260,11 @@ export function TeamPage() {
   }, [awards?.streak.todayKey, awards?.mine.length]); // eslint-disable-line react-hooks/exhaustive-deps
   const closeStreak = useCallback(() => { setStreakShow(false); setStreakLit(false); try { if (awards) localStorage.setItem(`lotw.streak.${id}`, awards.streak.todayKey); } catch { /* ничего */ } }, [awards, id]);
   const closeMilestone = useCallback(() => { if (milestone) { try { const k = `lotw.milestone.${id}`; localStorage.setItem(k, [...(localStorage.getItem(k) ?? "").split(",").filter(Boolean), milestone].join(",")); } catch { /* ничего */ } } setMilestone(null); }, [milestone, id]);
-  const [battles, setBattles] = useState<BattleDto[]>([]);
-  const [standings, setStandings] = useState<StandingsDto | null>(null);
-  const [passages, setPassages] = useState<PassagesDto | null>(null);
-  const [now, setNow] = useState(Date.now());
+  // Испытания, положение, проходы и мир берутся из памяти ответов сразу, свежие приходят следом (ревизия 15.11): при возврате
+  // на страницу счётчики на плитках и колокольчике больше не показывают ноль, пока идёт запрос.
+  const [battles, setBattles] = useState<BattleDto[]>(() => ready<{ battles: BattleDto[] }>(`/api/games/${id}/my-battles`)?.battles ?? []);
+  const [standings, setStandings] = useState<StandingsDto | null>(() => ready<StandingsDto>(`/api/games/${id}/standings`));
+  const [passages, setPassages] = useState<PassagesDto | null>(() => ready<PassagesDto>(`/api/games/${id}/my-passages`));
   const [gameName, setGameName] = useState(firstMap?.gameName ?? "");
   const [busy, setBusy] = useState(false);
   /** Идёт запрос «отметить / снять приоритет»: блокируется только сама кнопка приоритета (замечание владельца 14.11: от неё мигали «Взять дело» и «Вымостить дорогу» — общий флаг busy блокировал все кнопки карточки). */
@@ -322,16 +347,16 @@ export function TeamPage() {
   }, [menuView]);
   const openView = (key: MenuView) => { setSelectedId(null); setMenuView(key); const m = scrollMemo.current[key]; if (m) setRestore(m); };
 
-  const loadStandings = useCallback(() => api<StandingsDto>(`/api/games/${id}/standings`).then(setStandings).catch(() => {}), [id]);
-  const loadPassages = useCallback(() => api<PassagesDto>(`/api/games/${id}/my-passages`).then(setPassages).catch(() => {}), [id]);
-  const [peace, setPeace] = useState<PeaceData | null>(null);
-  const loadPeace = useCallback(() => api<PeaceData>(`/api/games/${id}/peace`).then(setPeace).catch(() => {}), [id]);
+  const loadStandings = useCallback(() => apiReady<StandingsDto>(`/api/games/${id}/standings`).then(setStandings).catch(() => {}), [id]);
+  const loadPassages = useCallback(() => apiReady<PassagesDto>(`/api/games/${id}/my-passages`).then(setPassages).catch(() => {}), [id]);
+  const [peace, setPeace] = useState<PeaceData | null>(() => ready<PeaceData>(`/api/games/${id}/peace`));
+  const loadPeace = useCallback(() => apiReady<PeaceData>(`/api/games/${id}/peace`).then(setPeace).catch(() => {}), [id]);
   /** Мир из строки команды: предложение — только после подтверждения «Да / Нет» (решение владельца 21.09). */
   /** Профиль команды из «Внимания» (решение владельца 05.11): предложение мира принимают или отклоняют в нём. */
   const [profileTeam, setProfileTeam] = useState<Pick<PeaceTeamDto["team"], "id" | "name" | "color" | "avatarId"> | null>(null);
   /** Обмен городами из карточки своего города (решение владельца 04.11): ключ города, выставляемого на обмен. */
   const [tradeCity, setTradeCity] = useState<string | null>(null);
-  const loadBattles = useCallback(() => api<{ battles: BattleDto[] }>(`/api/games/${id}/my-battles`).then((r) => {
+  const loadBattles = useCallback(() => apiReady<{ battles: BattleDto[] }>(`/api/games/${id}/my-battles`).then((r) => {
     // Живые оповещения: новый вызов нашему городу, старт ответа, итог испытания.
     const prev = seenBattles.current;
     if (prev) for (const b of r.battles) {
@@ -345,27 +370,29 @@ export function TeamPage() {
     seenBattles.current = new Map(r.battles.map((b) => [b.id, b.status]));
     setBattles(r.battles);
   }).catch(() => {}), [id, team, notify]);
-  useEffect(() => { const tm = setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(tm); }, []);
+  // Часы раз в секунду нужны только строкам испытаний — они тикают там (WithNow), а не в корне страницы (ревизия 15.11).
+  // Здесь же стоял обработчик touchmove на весь экран «для свайпа от края»: условие в нём не выполнялось никогда, а браузер
+  // из-за него ждал скрипт перед каждой прокруткой листа — убран.
+  const swipe = useRef<{ x: number; y: number } | null>(null);
 
-  // Свайп от левого края открывает меню (дополнение к кнопке «Меню»); браузерный «назад» по этому жесту гасим.
-  const swipe = useRef<{ x: number; y: number; edge: boolean } | null>(null);
-  const screenRef = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    const el = screenRef.current;
-    if (!el) return;
-    const onMove = (e: TouchEvent) => {
-      const st = swipe.current;
-      if (!st) return;
-      const tp = e.touches[0]!;
-      if (st.edge && Math.abs(tp.clientX - st.x) > Math.abs(tp.clientY - st.y) && e.cancelable) e.preventDefault();
-    };
-    el.addEventListener("touchmove", onMove, { passive: false });
-    return () => el.removeEventListener("touchmove", onMove);
-  }, [team?.id]);
-
-  const loadTeam = useCallback(() => apiReady<TeamsResp>(`/api/games/${id}/teams`).then((r) => { setError(null); setIsAdmin(r.isAdmin); setTeam(r.teams.find((tm) => tm.members.some((mm) => mm.user.id === user?.id)) ?? r.teams[0] ?? null); }).catch((e) => setError(e instanceof ApiError ? e.message : t("Ошибка сети"))), [id, user?.id]);
-  const loadMap = useCallback(() => apiReady<MapResp>(`/api/games/${id}/my-map`).then((m) => { setMap(m); setMapError(null); setDisplayTimeZone(m.daytime?.timeZone); if (m.gameName) setGameName(m.gameName); }).catch((e) => setMapError(e instanceof ApiError ? e.message : t("Ошибка сети"))), [id]);
-  useEffect(() => { void loadTeam(); void loadMap(); }, [loadTeam, loadMap]);
+  const fetchTeam = useCallback((join: boolean) => apiReady<TeamsResp>(`/api/games/${id}/teams`, { join }).then((r) => { setError(null); setIsAdmin(r.isAdmin); const mine = r.teams.find((tm) => tm.members.some((mm) => mm.user.id === user?.id)) ?? r.teams[0] ?? null; setTeam((prev) => (mine ? keepSame(prev, mine) : null)); }).catch((e) => setError(e instanceof ApiError ? e.message : t("Ошибка сети"))), [id, user?.id]);
+  const loadTeam = useCallback(() => fetchTeam(false), [fetchTeam]);
+  // Карта принимается через acceptMap: части, содержимое которых не изменилось, остаются прежними объектами, и то, что от них
+  // зависит (морские пути, сцена, списки), не считается заново. Раньше каждый ответ — раз в минуту и после каждого события —
+  // пересобирал карту целиком, даже когда в игре ничего не происходило (ревизия 15.11). Номер версии хранится отдельно:
+  // он нужен только для сверки «разниц» и не должен перерисовывать экран.
+  // Последняя принятая карта и её номер версии хранятся рядом и обновляются одновременно, сразу — не дожидаясь перерисовки:
+  // две «разницы», пришедшие подряд (телефон вернулся из фона), накладываются по очереди на свежую карту. Если бы карта
+  // бралась из состояния React, вторая «разница» легла бы на устаревший объект при уже новом номере, и изменение
+  // потерялось бы молча (находка независимого разбора 15.11).
+  const mapRev = useRef<number | undefined>(firstMap?.rev);
+  const mapRef = useRef<MyMapDto | null>(firstMap);
+  const putMap = useCallback((next: MyMapDto | null) => { mapRef.current = next; setMap(next); }, []);
+  const acceptMap = useCallback((m: MyMapDto) => { mapRev.current = m.rev; putMap(keepSame(mapRef.current, m, MAP_VOLATILE)); }, [putMap]);
+  const fetchMap = useCallback((join: boolean) => apiReady<MapResp>(`/api/games/${id}/my-map`, { join }).then((m) => { acceptMap(m); setMapError(null); setDisplayTimeZone(m.daytime?.timeZone); if (m.gameName) setGameName(m.gameName); }).catch((e) => setMapError(e instanceof ApiError ? e.message : t("Ошибка сети"))), [id, acceptMap]);
+  const loadMap = useCallback(() => fetchMap(false), [fetchMap]);
+  // Первый показ берёт ответы, которые главная уже запросила заранее и которые ещё в пути.
+  useEffect(() => { void fetchTeam(true); void fetchMap(true); }, [fetchTeam, fetchMap]);
   stormReload.current = () => { void loadMap(); };
   // Разделы меню («Моё служение», «Лента») открываются сразу (решение владельца 24.10): их ответы запрашиваются заранее.
   useEffect(() => { if (team && !isAdmin) prefetch([`/api/games/${id}/my-service`, `/api/games/${id}/top`, `/api/games/${id}/feed`]); }, [id, team?.id, isAdmin]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -376,21 +403,27 @@ export function TeamPage() {
     if (storm.active) { setMenu(false); setMenuView("home"); setSelectedId(null); setCityKey(null); setQuarryOpen(false); setFrontierKey(null); setMarkAt(null); setEditMark(null); setLandingId(null); setHistoryAt(null); }
     void loadMap();
   }, [storm.active, loadMap]);
-  useEffect(() => { if (team) { void loadBattles(); void loadStandings(); void loadPassages(); void loadPeace(); } }, [team, loadBattles, loadStandings, loadPassages, loadPeace]);
+  // По номеру команды, а не по объекту (ревизия 15.11): состав перечитывается при каждом деле в команде, и раньше каждый такой
+  // ответ тянул за собой ещё четыре запроса у каждого игрока. Сами эти данные обновляются по своим событиям ниже.
+  const loadBattlesRef = useRef(loadBattles); loadBattlesRef.current = loadBattles;
+  useEffect(() => { if (team?.id) { void loadBattlesRef.current(); void loadStandings(); void loadPassages(); void loadPeace(); } }, [team?.id, loadStandings, loadPassages, loadPeace]);
   // Перечитывания по событиям склеиваются (решение владельца 23.10): несколько событий за 2,5 с — одно перечитывание.
   const teamLater = useCoalesced(loadTeam), mapLater = useCoalesced(loadMap), passagesLater = useCoalesced(loadPassages), battlesLater = useCoalesced(loadBattles), standingsLater = useCoalesced(loadStandings), peaceLater = useCoalesced(loadPeace);
   const cityLater = useCoalesced(() => setCityVersion((v) => v + 1)), feedLater = useCoalesced(() => setFeedVersion((v) => v + 1));
   const awardsLater = useCoalesced(() => setAwardsVersion((v) => v + 1));
   // Карта приходит разницей от сервера (решение владельца 24.10): применяем к своей версии; если версии разошлись — перечитываем.
-  const mapRef = useRef(map); mapRef.current = map;
   const onMapPush = (m: MapPush) => {
     const cur = mapRef.current;
-    if (m.kind === "stale" || !cur || cur.rev !== m.base) { mapLater(); return; }
+    // Эта версия уже есть: после своего действия карта перечитывается сразу, а «разница» к ней приходит следом. Раньше она
+    // считалась расхождением, и карта качалась ещё раз (ревизия 15.11).
+    if (m.kind !== "stale" && cur && mapRev.current === m.rev) return;
+    if (m.kind === "stale" || !cur || mapRev.current !== m.base) { mapLater(); return; }
     try {
-      const next = applyPatch(structuredClone(cur), m.patch as Parameters<typeof applyPatch>[1], true, false).newDocument as MyMapDto;
+      // Копия нужна одна: applyPatch с последним параметром false сам копирует документ.
+      const next = applyPatch(cur, m.patch as Parameters<typeof applyPatch>[1], true, false).newDocument as MyMapDto;
       // Тайные дела: сервер не шлёт ссылки и текст сдачи, свои оставляем как были.
       next.tasks = next.tasks.map((t) => { const old = cur.tasks.find((o) => o.id === t.id); return t.deed.secret && old && !t.links.length && !t.note ? { ...t, links: old.links, note: old.note } : t; });
-      setMap({ ...next, rev: m.rev });
+      acceptMap({ ...next, rev: m.rev });
     } catch { mapLater(); }
   };
   useGameEvents(id, (e) => {
@@ -401,6 +434,11 @@ export function TeamPage() {
     // статус игры, камни Каменоломни в шапке, визиты, заморозку дел.
     if (e.type === "game" || e.type === "quarry" || e.type === "cities" || e.type === "teams" || e.type === "wrecks") mapLater();
     if (e.type === "cities" || e.type === "game" || e.type === "battles") { cityLater(); passagesLater(); }
+    // Запрос прохода и ответ на него приходят событием карты своей команды; положение меняется с каждым принятым делом.
+    // Раньше то и другое обновлялось «заодно» с каждым перечитыванием состава (находка независимого разбора 15.11).
+    if (e.type === "map" && (!e.teamId || e.teamId === team?.id)) passagesLater();
+    if (e.type === "tasks" || e.type === "submissions") standingsLater();
+    if (e.type === "deeds") mapLater();
     if (e.type === "battles" || e.type === "game" || e.type === "submissions") battlesLater();
     if (e.type === "game" || e.type === "cities" || e.type === "battles" || e.type === "teams") standingsLater();
     if (e.type === "peace" || e.type === "teams" || e.type === "game") peaceLater();
@@ -668,7 +706,8 @@ export function TeamPage() {
   const arrivals = map.arrivals ?? [];
   /** Пункт прочитан (решение владельца 07.11): исчезает сразу и только у меня; отметка хранится на сервере. */
   const markSeen = (kind: "quarry" | "wreck" | "arrival", refId: string) => {
-    setMap((m) => (m ? { ...m, quarryNew: kind === "quarry" ? (m.quarryNew ?? []).filter((d) => d.id !== refId) : m.quarryNew, seenWrecks: kind === "wreck" ? [...(m.seenWrecks ?? []), refId] : m.seenWrecks, arrivals: kind === "arrival" ? (m.arrivals ?? []).filter((a) => a.id !== refId) : m.arrivals } : m));
+    const m = mapRef.current;
+    if (m) putMap({ ...m, quarryNew: kind === "quarry" ? (m.quarryNew ?? []).filter((d) => d.id !== refId) : m.quarryNew, seenWrecks: kind === "wreck" ? [...(m.seenWrecks ?? []), refId] : m.seenWrecks, arrivals: kind === "arrival" ? (m.arrivals ?? []).filter((a) => a.id !== refId) : m.arrivals });
     void api(`/api/games/${id}/attention/seen`, { method: "POST", body: JSON.stringify({ kind, refId }) }).catch(() => {});
   };
   const attention = ourTasks.filter((tk) => tk.status === "REJECTED").length + incoming.length + peaceOffers.length + activeBattles.filter((b) => isMyTurn(b, team.id)).length + allyAsks + (isLeader ? visitsDue.length : 0) + returnedEntries.length + returnedBlocks.length + newWrecks.length + newQuarry.length + arrivals.length + assignedToMe.length;
@@ -696,7 +735,7 @@ export function TeamPage() {
       if (el.scrollWidth > el.clientWidth + 1 && /auto|scroll/.test(getComputedStyle(el).overflowX)) { swipe.current = null; return; }
     }
     const tp = e.touches[0]!;
-    swipe.current = { x: tp.clientX, y: tp.clientY, edge: false };
+    swipe.current = { x: tp.clientX, y: tp.clientY };
   };
   const onTouchEnd = (e: React.TouchEvent) => {
     const st = swipe.current; swipe.current = null;
@@ -715,6 +754,14 @@ export function TeamPage() {
   // На телефоне открытие дела прячет панель раздела: карта и лист дела должны быть видны (владелец 30.10: «нажимаю на
   // «посмотреть на карте» и ничего не происходит!!! нужно, чтобы все менюшки прятались и на карте показалось дело»).
   const openTask = (tid: string | null) => { setSelectedId(tid); setBackTo(null); if (tid) { rememberScroll(); setMenuView("home"); setFrontierKey(null); } };
+  mapActs.current = {
+    openTask, openCity, tapMark,
+    land: (key) => void land(key),
+    mark: (at) => { setMarkAt(at); setMarkNote(""); setMarkDrop(false); },
+    frontier: (key) => { setFrontierKey(key); setSelectedId(null); setMenu(false); },
+    quarry: () => { setQuarryOpen(true); setSelectedId(null); setCityKey(null); setFrontierKey(null); setMenu(false); },
+    wreck: (wid) => { setWreckId(wid); setQuarryOpen(false); setSelectedId(null); setCityKey(null); setFrontierKey(null); setMenu(false); },
+  };
   const showOnMap = (tid: string) => {
     const from = menuView !== "home" ? { view: menuView, top: sideRef.current?.scrollTop ?? 0, bodyTop: sideBodyRef.current?.scrollTop ?? 0 } : null;
     openTask(tid);
@@ -740,7 +787,7 @@ export function TeamPage() {
   const openAwards = () => { setMenu(true); setMenuView("service"); setServiceTab("awards"); setSelectedId(null); };
 
   return (
-    <div className="map-screen" ref={screenRef} onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>
+    <div className="map-screen" onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>
       {menuOpen && <div className="side-backdrop" onClick={closeMenu} />}
       {profileTeam && <AvatarLightbox avatarId={profileTeam.avatarId ?? null} name={profileTeam.name} teamId={profileTeam.id} color={profileTeam.color} onClose={() => setProfileTeam(null)} />}
       {/* На компьютере (решение владельца 05.10, вечер): колонка плиток висит полупрозрачно над картой; нажатие открывает панель
@@ -903,6 +950,7 @@ export function TeamPage() {
           {menuView === "battles" && (
             <section className="section">
             {battlesList.length === 0 ? <EmptyState inline icon={battlesShown === "defense" ? "shield" : "wave"} text={battlesPhaseShown === "done" ? (battlesShown === "defense" ? t("Завершённых испытаний ваших городов нет.") : t("Завершённых вызовов нет.")) : battlesShown === "defense" ? t("Вызовов нашим городам сейчас нет.") : t("Наших вызовов сейчас нет.")} /> : (
+              <WithNow>{(now) => (
               <ul className="list interactive">
                 {battlesList.map((b) => {
                   const attacker = b.attacker.id === team.id;
@@ -923,6 +971,7 @@ export function TeamPage() {
                   );
                 })}
               </ul>
+              )}</WithNow>
             )}
           
             </section>
@@ -959,16 +1008,16 @@ export function TeamPage() {
         {storm.active ? (
           /* Шторм: карта без действий — ни дел, ни городов, ни меток, ни высадки (решение владельца 24.10). Единственная кнопка — назад в «Мои игры». */
           <>
-            <TeamMap map={map} bird={bird} teamIndex={team.index} selectedTaskId={null} onSelect={() => {}} onSelectCity={() => {}} storm={storm} />
+            <TeamMap map={map} bird={bird} teamIndex={team.index} selectedTaskId={null} onSelect={NOOP} onSelectCity={NOOP} storm={storm} />
             <Link to="/" className="secondary icon hud-btn storm-back" aria-label={t("Мои игры")} title={t("Мои игры")}><Icon name="back" /></Link>
           </>
         ) : (
-        <TeamMap myId={user?.id} map={shownMap ?? map} bird={historyAt ? null : bird} teamIndex={team.index} selectedTaskId={selectedId} onSelect={openTask} onSelectCity={openCity} focusTask={focusTask} storm={storm}
-          landing={landingTask ? { taskId: landingTask.id, candidates: landingTask.candidates ?? [] } : null} onLand={(key) => void land(key)}
-          onMark={(at) => { setMarkAt(at); setMarkNote(""); setMarkDrop(false); }} onMarkTap={tapMark}
-          onFrontierTap={/* серые точки края тумана видит только разведчик (решение владельца 05.10): остальным они не нужны и мешают */ me?.gameRole === "SCOUT" ? (key) => { setFrontierKey(key); setSelectedId(null); setMenu(false); } : undefined}
-          onSelectQuarry={() => { setQuarryOpen(true); setSelectedId(null); setCityKey(null); setFrontierKey(null); setMenu(false); }}
-          onSelectWreck={(wid) => { setWreckId(wid); setQuarryOpen(false); setSelectedId(null); setCityKey(null); setFrontierKey(null); setMenu(false); }} />
+        <TeamMap myId={user?.id} map={shownMap ?? map} bird={historyAt ? null : bird} teamIndex={team.index} selectedTaskId={selectedId} onSelect={mapOn.select} onSelectCity={mapOn.city} focusTask={focusTask} storm={storm}
+          landing={landing} onLand={mapOn.land}
+          onMark={mapOn.mark} onMarkTap={mapOn.markTap}
+          onFrontierTap={/* серые точки края тумана видит только разведчик (решение владельца 05.10): остальным они не нужны и мешают */ me?.gameRole === "SCOUT" ? mapOn.frontier : undefined}
+          onSelectQuarry={mapOn.quarry}
+          onSelectWreck={mapOn.wreck} />
         )}
         {quarryOpen && <QuarrySheet gameId={id} container={mapEl} onClose={() => setQuarryOpen(false)} />}
         {wreckId && !storm.active && (() => {

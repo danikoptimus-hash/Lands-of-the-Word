@@ -1,0 +1,65 @@
+== сценарий pan: 31574 мс по часам; занято  31686 мс, простой      9 мс
+по исходным файлам (собственное время, мс):
+    29272 (браузер: отрисовка и прочее)
+     1562 (движок браузера)
+      344 base/apps/web/src/lib/format.ts
+      168 base/packages/domain/dist/fireworks.js
+       97 библиотека react-dom
+       66 base/apps/web/src/pages/Fauna.tsx
+       35 (сборка мусора)
+       30 base/apps/web/src/pages/TeamMap.tsx
+       24 base/apps/web/src/pages/TeamPage.tsx
+       17 base/apps/web/src/pages/MapLayers.tsx
+       11 base/apps/web/src/lib/glLines.ts
+        9 библиотека scheduler
+        9 base/apps/web/src/pages/Islets.tsx
+        6 base/apps/web/src/pages/WorldGL.tsx
+        5 base/packages/domain/dist/hexgraph.js
+        4 библиотека react
+        4 base/apps/web/src/lib/useViewport.ts
+        4 base/apps/web/src/lib/i18n.tsx
+        4 base/apps/web/src/lib/api.ts
+        3 base/apps/web/src/pages/SeaGL.tsx
+        3 base/apps/web/src/lib/daytime.ts
+        2 base/apps/web/src/pages/Lakes.tsx
+        2 base/apps/web/src/pages/RoutesGL.tsx
+        2 base/apps/web/src/lib/perf.ts
+        1 библиотека react-router
+        1 base/apps/web/src/lib/keep.ts
+        1 base/apps/web/src/pages/FireworksLayer.tsx
+        1 base/packages/domain/dist/daytime.js
+по функциям:
+    29272 (program) — (браузер: отрисовка и прочее)
+     1410 drawImage — (движок браузера)
+      252 dayKey — base/apps/web/src/lib/format.ts
+      167 localDay — base/packages/domain/dist/fireworks.js
+       89 (безымянная) — base/apps/web/src/lib/format.ts
+       69 get clientWidth — (движок браузера)
+       35 (garbage collector) — (сборка мусора)
+       24 (безымянная) — base/apps/web/src/pages/TeamMap.tsx
+       17 landPen — base/apps/web/src/pages/Fauna.tsx
+       11 TeamPage — base/apps/web/src/pages/TeamPage.tsx
+       10 byTitle — base/apps/web/src/pages/TeamPage.tsx
+       10 fill — (движок браузера)
+        9 performWorkUntilDeadline — библиотека scheduler
+        7 vertexAttribPointer — (движок браузера)
+        7 enableVertexAttribArray — (движок браузера)
+        7 steerCet — base/apps/web/src/pages/Fauna.tsx
+        6 draw — base/apps/web/src/lib/glLines.ts
+        6 updateProperties — библиотека react-dom
+        6 keepInWater — base/apps/web/src/pages/Fauna.tsx
+        6 dispatchEvent — библиотека react-dom
+        6 (безымянная) — библиотека react-dom
+        6 setValueForStyles — библиотека react-dom
+        5 beginWork — библиотека react-dom
+        5 draw — base/apps/web/src/pages/MapLayers.tsx
+        5 parseVertexKey — base/packages/domain/dist/hexgraph.js
+        5 reconcileChildrenArray — библиотека react-dom
+        5 flushPassiveEffects — библиотека react-dom
+        4 addColorStop — (движок браузера)
+        4 bufferData — (движок браузера)
+        4 disableVertexAttribArray — (движок браузера)
+        4 carrotPoint — base/apps/web/src/pages/Fauna.tsx
+        4 drawArrays — (движок браузера)
+        4 uniform2f — (движок браузера)
+        4 commitHostUpdate — библиотека react-dom

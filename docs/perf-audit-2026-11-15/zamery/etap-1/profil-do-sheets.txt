@@ -1,0 +1,65 @@
+== сценарий sheets: 17280 мс по часам; занято  16785 мс, простой    648 мс
+по исходным файлам (собственное время, мс):
+    16058 (браузер: отрисовка и прочее)
+      299 base/apps/web/src/lib/format.ts
+       98 base/packages/domain/dist/fireworks.js
+       91 библиотека react-dom
+       50 (сборка мусора)
+       50 (движок браузера)
+       49 base/apps/web/src/pages/Fauna.tsx
+       23 base/apps/web/src/pages/TeamMap.tsx
+       17 base/apps/web/src/pages/TeamPage.tsx
+       13 base/apps/web/src/pages/MapLayers.tsx
+        7 base/apps/web/src/pages/SeaGL.tsx
+        4 библиотека scheduler
+        3 библиотека react
+        3 base/apps/web/src/lib/api.ts
+        3 base/packages/domain/dist/hexgraph.js
+        3 библиотека react-router
+        2 base/apps/web/src/lib/perf.ts
+        2 base/apps/web/src/lib/i18n.tsx
+        2 base/apps/web/src/pages/Journal.tsx
+        1 base/apps/web/src/lib/daytime.ts
+        1 base/apps/web/src/pages/Lakes.tsx
+        1 base/apps/web/src/components/UserAvatar.tsx
+        1 base/apps/web/src/pages/Islets.tsx
+        1 base/apps/web/src/lib/keep.ts
+        1 base/apps/web/src/pages/FireworksLayer.tsx
+        1 base/apps/web/src/components/Tabs.tsx
+        1 base/apps/web/src/pages/Timeline.tsx
+        0 base/apps/web/src/pages/Awards.tsx
+по функциям:
+    16058 (program) — (браузер: отрисовка и прочее)
+      216 dayKey — base/apps/web/src/lib/format.ts
+       98 localDay — base/packages/domain/dist/fireworks.js
+       78 (безымянная) — base/apps/web/src/lib/format.ts
+       50 (garbage collector) — (сборка мусора)
+       17 (безымянная) — base/apps/web/src/pages/TeamMap.tsx
+       16 landPen — base/apps/web/src/pages/Fauna.tsx
+       12 commitHostUpdate — библиотека react-dom
+        6 byTitle — base/apps/web/src/pages/TeamPage.tsx
+        6 (безымянная) — base/apps/web/src/pages/TeamPage.tsx
+        6 loop — base/apps/web/src/pages/SeaGL.tsx
+        6 updateProperties — библиотека react-dom
+        5 setProp — библиотека react-dom
+        5 drawImage — (движок браузера)
+        5 draw — base/apps/web/src/pages/MapLayers.tsx
+        5 updateFromMap — библиотека react-dom
+        5 (безымянная) — библиотека react-dom
+        4 drawWorld — base/apps/web/src/pages/Fauna.tsx
+        4 createWorkInProgress — библиотека react-dom
+        4 reconcileChildrenArray — библиотека react-dom
+        4 setValueForStyles — библиотека react-dom
+        4 drawArrays — (движок браузера)
+        4 createRadialGradient — (движок браузера)
+        4 renderWithHooks — библиотека react-dom
+        4 fmtDate — base/apps/web/src/lib/format.ts
+        4 beginWork — библиотека react-dom
+        3 shouldSetTextContent — библиотека react-dom
+        3 requestAnimationFrame — (движок браузера)
+        3 coastPen — base/apps/web/src/pages/Fauna.tsx
+        3 keepInWater — base/apps/web/src/pages/Fauna.tsx
+        3 addColorStop — (движок браузера)
+        3 performWorkUntilDeadline — библиотека scheduler
+        3 SyntheticBaseEvent — библиотека react-dom
+        3 carrotPoint — base/apps/web/src/pages/Fauna.tsx

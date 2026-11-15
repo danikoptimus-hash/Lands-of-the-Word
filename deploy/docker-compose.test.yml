@@ -24,6 +24,12 @@ services:
     image: ghcr.io/danikoptimus-hash/lotw-app:${APP_TAG:-test}
     container_name: lotw-app-test
     restart: unless-stopped
+    # Журнал контейнера ограничен по размеру (ревизия 15.11): раньше он рос без предела, пока контейнер не пересоздан.
+    logging:
+      driver: json-file
+      options:
+        max-size: "20m"
+        max-file: "5"
     depends_on:
       db-test:
         condition: service_healthy

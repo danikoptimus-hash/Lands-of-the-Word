@@ -120,9 +120,22 @@ export function previewPhase(): DayPhase | null {
  * Время суток игры на клиенте: по поясу игры и часам сервера (`serverNow` — отметка сервера на момент ответа).
  * Пересчитывается раз в 30 секунд и ровно на границе фазы; `phase` — фаза правил, `light` — смешанное освещение.
  */
+/**
+ * Разница часов сервера и устройства. Считается, когда приходит новое время сервера; расхождение меньше двух секунд
+ * (разброс сети) прежнее значение не меняет — иначе каждый ответ карты давал «новый» свет и слои пересобирались.
+ */
+function useClockOffset(serverNow: number | undefined): number {
+  const last = useRef(0);
+  return useMemo(() => {
+    const o = serverNow ? serverNow - Date.now() : 0;
+    if (Math.abs(o - last.current) >= 2000) last.current = o;
+    return last.current;
+  }, [serverNow]);
+}
+
 export function useDaytime(timeZone: string | undefined, serverNow?: number): Daytime {
   const [tick, setTick] = useState(0);
-  const offset = useMemo(() => (serverNow ? serverNow - Date.now() : 0), [serverNow]);
+  const offset = useClockOffset(serverNow);
   const preview = useMemo(previewMinutes, []);
   const dl = useMemo<DayLight>(() => {
     if (preview !== null) return { ...dayLightAt(preview), nextChangeMs: 3_600_000 };
@@ -192,15 +205,24 @@ export function useStorm(daytime: { storm?: { active: boolean; changesAt: number
   const preview = useMemo(previewStorm, []);
   const active = preview || Boolean(daytime?.storm?.active);
   const changesAt = daytime?.storm?.changesAt ?? null;
-  const offset = serverNow ? serverNow - Date.now() : 0;
+  // Разница часов сервера и устройства считается в момент прихода ответа (а не при каждой отрисовке: тогда она «уплывала»
+  // вместе с возрастом ответа) и меняется только при заметном расхождении.
+  const offset = useClockOffset(serverNow);
   const cb = useRef(onBoundary); cb.current = onBoundary;
   useEffect(() => {
     if (preview || changesAt === null) return;
-    // Через полсекунды после границы, но не раньше чем через секунду; дальше — не чаще раза в минуту, пока сервер не назовёт новую границу.
-    const wait = Math.max(1000, changesAt - (Date.now() + offset) + 500);
-    const tm = setTimeout(() => cb.current(), Math.min(wait, 60_000));
+    // До границы — один раз, через полсекунды после неё. Раньше таймер срабатывал ещё и каждую минуту до границы и перечитывал
+    // карту целиком (ревизия 15.11). После границы, пока сервер не назвал новую (ответ мог прийти на мгновение раньше неё),
+    // повтор через 1, 3 и 3 секунды, дальше — раз в минуту. Новая граница в ответе заводит таймер заново.
+    let tm: ReturnType<typeof setTimeout>, tries = 0;
+    const arm = () => {
+      const left = changesAt - (Date.now() + offset) + 500;
+      const wait = left > 0 ? Math.min(Math.max(1000, left), 2_147_000_000) : tries === 0 ? 1000 : tries < 3 ? 3000 : 60_000;
+      tm = setTimeout(() => { if (left <= 0) tries++; cb.current(); arm(); }, wait);
+    };
+    arm();
     return () => clearTimeout(tm);
-  }, [changesAt, offset, preview, serverNow]);
+  }, [changesAt, offset, preview]);
   const t = useRamp(active);
   return useMemo(() => ({ active, t }), [active, t]);
 }

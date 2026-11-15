@@ -115,15 +115,27 @@ export async function buildApp(envOverrides: Partial<Record<keyof Env, string>> 
     const root = path.resolve(config.WEB_DIST);
     await app.register(fastifyStatic, {
       root, prefix: "/",
+      // Файлы программы сжимаются один раз при сборке (apps/web/scripts/precompress.mjs кладёт рядом .br и .gz) и отдаются
+      // готовыми: brotli на треть плотнее gzip, а прокси не сжимает один и тот же файл заново каждому телефону.
+      preCompressed: true,
       // Ассеты Vite с хешем в имени — кешировать навсегда; картинки — на месяц; оболочка (index.html, sw.js, манифест) — всегда свежая.
       setHeaders: (res, filePath) => {
         if (/[\\/]assets[\\/]/.test(filePath)) res.header("Cache-Control", "public, max-age=31536000, immutable");
         else if (/[\\/]img[\\/]/.test(filePath) || /\.(png|ico|webp|jpg)$/.test(filePath)) res.header("Cache-Control", "public, max-age=2592000, stale-while-revalidate=86400");
+        // Шрифты не меняются: как картинки, на месяц (раньше перепроверялись при каждом запуске — текст «перещёлкивался»).
+        else if (/[\\/]fonts[\\/]/.test(filePath)) res.header("Cache-Control", "public, max-age=2592000, stale-while-revalidate=86400");
         else res.header("Cache-Control", "no-cache");
       },
     });
     app.setNotFoundHandler(async (request, reply) => {
       if (request.url.startsWith("/api/")) return reply.code(404).send({ error: "not_found" });
+      // Несуществующий файл — честное «нет файла», а не главная страница с кодом «успех» (ревизия 15.11): иначе старая
+      // вкладка после выкладки получала HTML вместо куска программы, а сервис-воркер мог запомнить страницу «как картинку».
+      const pathOnly = request.url.split("?")[0] ?? "";
+      if (/^\/(assets|img|fonts)\//.test(pathOnly) || /\.(js|mjs|css|map|png|jpe?g|webp|gif|svg|ico|woff2?|ttf|mp4|webm|mp3|m4a|json|webmanifest|txt|xml)$/i.test(pathOnly)) {
+        reply.header("Cache-Control", "no-store");
+        return reply.code(404).type("text/plain; charset=utf-8").send("Not found");
+      }
       reply.header("Cache-Control", "no-cache");
       return reply.sendFile("index.html");
     });

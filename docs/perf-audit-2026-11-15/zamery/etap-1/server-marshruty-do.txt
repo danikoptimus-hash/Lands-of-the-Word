@@ -1,0 +1,47 @@
+== участник (p4) ==
+p4     200 первый:    89.8 мс /    1 запр. | повтор (медиана из 5):     3.2 мс /    1 запр. |     216 Б | auth/me | Session.findUnique×1
+p4     200 первый:     8.6 мс /    2 запр. | повтор (медиана из 5):     4.4 мс /    2 запр. |     236 Б | me/teams | Session.findUnique×1, Membership.findMany×1
+p4     200 первый:   207.3 мс /   47 запр. | повтор (медиана из 5):    27.4 мс /   13 запр. |  439655 Б | games/:id/my-map | Game.findUnique×2, Session.findUnique×1, Membership.findMany×1, Game.findUniqueOrThrow×1
+p4     200 первый:    10.5 мс /    6 запр. | повтор (медиана из 5):    10.3 мс /    6 запр. |      29 Б | games/:id/my-map/bird | Session.findUnique×1, Membership.findMany×1, Team.findUnique×1, TeamNodeState.findMany×1
+p4     200 первый:    11.5 мс /    6 запр. | повтор (медиана из 5):     7.5 мс /    3 запр. |    7492 Б | games/:id/teams | Session.findUnique×1, Game.findUnique×1, Membership.findMany×1
+p4     200 первый:     9.3 мс /    5 запр. | повтор (медиана из 5):     7.8 мс /    4 запр. |   12244 Б | games/:id/feed | Journal.findMany×2, Session.findUnique×1, Membership.findMany×1
+p4     200 первый:    21.2 мс /    8 запр. | повтор (медиана из 5):     4.7 мс /    2 запр. |    1062 Б | games/:id/standings | Session.findUnique×1, Game.findUnique×1
+p4     200 первый:    48.2 мс /   15 запр. | повтор (медиана из 5):    12.0 мс /    4 запр. |   36592 Б | games/:id/my-battles | Game.findUnique×2, Session.findUnique×1, Membership.findMany×1
+p4     200 первый:    26.8 мс /    9 запр. | повтор (медиана из 5):    20.6 мс /    9 запр. |   28536 Б | games/:id/awards | Membership.findMany×2, Session.findUnique×1, Game.findUnique×1, AwardGrant.findMany×1
+p4     200 первый:   135.6 мс /  192 запр. | повтор (медиана из 5):    87.5 мс /  192 запр. |    7191 Б | games/:id/top | TeamEdgeTask.count×54, QuarryWork.count×54, BattleEntry.findMany×27, Journal.findMany×27
+p4     200 первый:    12.3 мс /   10 запр. | повтор (медиана из 5):     9.7 мс /   10 запр. |     111 Б | games/:id/my-service | Membership.findMany×2, TeamEdgeTask.count×2, QuarryWork.count×2, Session.findUnique×1
+p4     200 первый:     6.9 мс /    5 запр. | повтор (медиана из 5):     3.8 мс /    2 запр. |     509 Б | games/:id/peace | Session.findUnique×1, Membership.findMany×1
+p4     200 первый:    10.4 мс /    6 запр. | повтор (медиана из 5):     6.1 мс /    3 запр. |    3053 Б | games/:id/my-passages | Membership.findMany×2, Session.findUnique×1
+p4     200 первый:   232.0 мс /  258 запр. | повтор (медиана из 5):   208.7 мс /  258 запр. |    5888 Б | games/:id/my-trades | MapNode.findUnique×72, Membership.findMany×38, TeamCityState.findUnique×37, WallBlock.findMany×37
+p4     200 первый:    15.8 мс /    9 запр. | повтор (медиана из 5):     8.9 мс /    9 запр. |    5652 Б | games/:id/quarry | Membership.findMany×2, Session.findUnique×1, MapNode.findMany×1, Deed.findMany×1
+p4     200 первый:    33.1 мс /   21 запр. | повтор (медиана из 5):    29.9 мс /   21 запр. |   13739 Б | games/:id/my-city/S%3A5%2C-6 | Membership.findMany×2, TaskEvent.findMany×2, Journal.findMany×2, Session.findUnique×1
+p4     200 первый:    51.9 мс /   33 запр. | повтор (медиана из 5):    33.2 мс /   33 запр. |     989 Б | games/:id/my-city/S%3A5%2C-6/war | Battle.findMany×4, Game.findUnique×4, Game.findMany×2, Siege.findMany×2
+p4     200 первый:    32.5 мс /   34 запр. | повтор (медиана из 5):    26.2 мс /   34 запр. |    5838 Б | games/:id/my-city/S%3A5%2C-6/wall | WallBlock.findMany×12, BattleEntry.findMany×11, Membership.findMany×3, Session.findUnique×1
+p4     200 первый:    14.4 мс /    9 запр. | повтор (медиана из 5):     9.6 мс /    9 запр. |    1766 Б | games/:id/awards/teams/cmuculm0t00n3s3012zuggytf | Membership.findFirst×2, PassageRequest.count×2, Session.findUnique×1, Team.findFirst×1
+p4     200 первый:    16.5 мс /   25 запр. | повтор (медиана из 5):    17.9 мс /   25 запр. |    1426 Б | games/:id/book-map?book=sng | WallBlock.findMany×10, BattleEntry.findMany×10, Membership.findMany×2, Session.findUnique×1
+== капитан (p1) ==
+p1     200 первый:    25.5 мс /   13 запр. | повтор (медиана из 5):    23.3 мс /   13 запр. |  439655 Б | games/:id/my-map | Game.findUnique×2, Session.findUnique×1, Membership.findMany×1, Game.findUniqueOrThrow×1
+p1     200 первый:   205.0 мс /  258 запр. | повтор (медиана из 5):   181.1 мс /  258 запр. |    5888 Б | games/:id/my-trades | MapNode.findUnique×72, Membership.findMany×38, TeamCityState.findUnique×37, WallBlock.findMany×37
+p1     200 первый:    85.9 мс /  192 запр. | повтор (медиана из 5):    73.1 мс /  192 запр. |    7193 Б | games/:id/top | TeamEdgeTask.count×54, QuarryWork.count×54, BattleEntry.findMany×27, Journal.findMany×27
+== администратор (admin1) ==
+admin1 200 первый:    16.1 мс /    7 запр. | повтор (медиана из 5):    12.3 мс /    5 запр. |   62989 Б | games/:id | Session.findUnique×1, Game.findUnique×1, MapHex.findMany×1, MapNode.findMany×1
+admin1 200 первый:    17.1 мс /    7 запр. | повтор (медиана из 5):    17.9 мс /    7 запр. |   60283 Б | games/:id/progress | Game.findUnique×2, Session.findUnique×1, Team.findMany×1, TeamEdgeTask.count×1
+admin1 200 первый:    19.2 мс /    5 запр. | повтор (медиана из 5):     9.7 мс /    5 запр. |   15555 Б | games/:id/teams | Session.findUnique×1, Game.findUnique×1, Game.findUniqueOrThrow×1, Team.findMany×1
+admin1 200 первый:    19.4 мс /    5 запр. | повтор (медиана из 5):    12.0 мс /    5 запр. |   11283 Б | games/:id/submissions | Session.findUnique×1, Game.findUnique×1, TeamEdgeTask.findMany×1, MapNode.findMany×1
+admin1 200 первый:    28.0 мс /    5 запр. | повтор (медиана из 5):    43.4 мс /    5 запр. |  310935 Б | games/:id/submissions?status=APPROVED | Session.findUnique×1, Game.findUnique×1, TeamEdgeTask.findMany×1, MapNode.findMany×1
+admin1 200 первый:   113.9 мс /   14 запр. | повтор (медиана из 5):    36.3 мс /   14 запр. |  140934 Б | games/:id/battles | Battle.findMany×4, Game.findUnique×2, Game.findMany×2, Session.findUnique×1
+admin1 200 первый:     8.8 мс /    4 запр. | повтор (медиана из 5):     8.6 мс /    4 запр. |   46961 Б | games/:id/journal | Session.findUnique×1, Game.findUnique×1, Journal.findMany×1, Team.findMany×1
+admin1 200 первый:    82.4 мс /  192 запр. | повтор (медиана из 5):    73.1 мс /  192 запр. |    9828 Б | games/:id/activity | TeamEdgeTask.count×54, QuarryWork.count×54, BattleEntry.findMany×27, Journal.findMany×27
+admin1 200 первый:   145.2 мс /    9 запр. | повтор (медиана из 5):   151.5 мс /    9 запр. |   30020 Б | games/:id/awards/admin | Game.findUnique×2, Session.findUnique×1, Membership.findMany×1, Team.findMany×1
+admin1 200 первый:    10.2 мс /    2 запр. | повтор (медиана из 5):     8.1 мс /    2 запр. |   10815 Б | games/:id/standings | Session.findUnique×1, Game.findUnique×1
+admin1 200 первый:    26.1 мс /    6 запр. | повтор (медиана из 5):    13.6 мс /    6 запр. |   54779 Б | games/:id/deeds | Session.findUnique×1, Game.findUnique×1, Deed.findMany×1, Wreck.findMany×1
+admin1 200 первый:    17.7 мс /   15 запр. | повтор (медиана из 5):    12.0 мс /   15 запр. |   11649 Б | games/:id/visits | Membership.findMany×11, CityVisit.findMany×2, Session.findUnique×1, Game.findUnique×1
+admin1 200 первый:    19.3 мс /   14 запр. | повтор (медиана из 5):    17.8 мс /   14 запр. |      13 Б | games/:id/sieges | Battle.findMany×3, Game.findMany×2, Siege.findMany×2, Session.findUnique×1
+admin1 200 первый:    25.1 мс /   19 запр. | повтор (медиана из 5):    24.6 мс /   19 запр. |   14488 Б | games/:id/walls | Game.findUnique×16, Session.findUnique×1, WallBlock.findMany×1, User.findMany×1
+admin1 200 первый:   238.4 мс /   12 запр. | повтор (медиана из 5):   214.9 мс /   12 запр. |   17916 Б | games/:id/analytics/pace | Session.findUnique×1, Game.findUnique×1, Game.findUniqueOrThrow×1, MapNode.count×1
+admin1 200 первый:    25.5 мс /    4 запр. | повтор (медиана из 5):    15.1 мс /    4 запр. |  439935 Б | games/:id/teams/cmuculht800n1s301sd0a6z1q/map | Session.findUnique×1, Game.findUnique×1, Team.findFirst×1, Membership.findMany×1
+admin1 200 первый:    23.3 мс /   21 запр. | повтор (медиана из 5):    23.1 мс /   21 запр. |   14443 Б | games/:id/cities/S%3A5%2C-6 | Battle.findMany×3, Game.findUnique×2, Game.findMany×2, Membership.findMany×2
+admin1 200 первый:    99.3 мс /  199 запр. | повтор (медиана из 5):   104.7 мс /  199 запр. |  146134 Б | games/:id/season-book | TeamEdgeTask.count×54, QuarryWork.count×54, Journal.findMany×28, BattleEntry.findMany×27
+admin1 200 первый:    17.7 мс /    7 запр. | повтор (медиана из 5):    19.6 мс /    7 запр. |   12476 Б | games/:id/labels | MapNode.findMany×3, Session.findUnique×1, Game.findUnique×1, Recipient.count×1
+admin1 200 первый:     9.3 мс /    5 запр. | повтор (медиана из 5):     8.2 мс /    5 запр. |      12 Б | games/:id/quarry/submissions | Session.findUnique×1, Game.findUnique×1, QuarryWork.findMany×1, User.findMany×1
+admin1 200 первый:     6.4 мс /    4 запр. | повтор (медиана из 5):     5.7 мс /    4 запр. |      12 Б | games/:id/wrecks/submissions | Session.findUnique×1, Game.findUnique×1, WreckWork.findMany×1, User.findMany×1

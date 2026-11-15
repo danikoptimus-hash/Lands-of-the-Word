@@ -1,0 +1,63 @@
+== сценарий minute: 66001 мс по часам; занято  66137 мс, простой     50 мс
+по исходным файлам (собственное время, мс):
+    65446 (браузер: отрисовка и прочее)
+      321 apps/web/src/pages/Fauna.tsx
+      170 (движок браузера)
+       71 (сборка мусора)
+       43 apps/web/src/pages/MapLayers.tsx
+       31 библиотека react-dom
+       24 apps/web/src/pages/SeaGL.tsx
+        8 packages/domain/dist/fireworks.js
+        5 apps/web/src/pages/Lakes.tsx
+        3 apps/web/src/pages/WorldGL.tsx
+        2 apps/web/src/lib/stable.ts
+        2 apps/web/src/pages/TeamPage.tsx
+        2 apps/web/src/lib/daytime.ts
+        1 apps/web/src/lib/api.ts
+        1 packages/domain/dist/dateFormat.js
+        1 apps/web/src/lib/perf.ts
+        1 apps/web/src/pages/FireworksLayer.tsx
+        1 packages/domain/dist/hexgraph.js
+        1 apps/web/src/pages/TeamHistory.ts
+        1 apps/web/src/lib/keep.ts
+        0 библиотека scheduler
+        0 apps/web/src/components/Icon.tsx
+        0 apps/web/src/pages/TeamMap.tsx
+        0 apps/web/src/pages/RoutesGL.tsx
+        0 apps/web/src/lib/i18n.tsx
+        0 библиотека react
+по функциям:
+    65446 (program) — (браузер: отрисовка и прочее)
+       71 (garbage collector) — (сборка мусора)
+       46 keepInWater — apps/web/src/pages/Fauna.tsx
+       41 carrotPoint — apps/web/src/pages/Fauna.tsx
+       35 coastPen — apps/web/src/pages/Fauna.tsx
+       25 steerCet — apps/web/src/pages/Fauna.tsx
+       24 fill — (движок браузера)
+       23 stepShip — apps/web/src/pages/Fauna.tsx
+       23 landPen — apps/web/src/pages/Fauna.tsx
+       20 drawImage — (движок браузера)
+       20 draw — apps/web/src/pages/MapLayers.tsx
+       19 stepPod — apps/web/src/pages/Fauna.tsx
+       18 loop — apps/web/src/pages/SeaGL.tsx
+       17 drawWorld — apps/web/src/pages/Fauna.tsx
+       15 stepGull — apps/web/src/pages/Fauna.tsx
+       14 createRadialGradient — (движок браузера)
+       12 addColorStop — (движок браузера)
+       12 setTransform — (движок браузера)
+       12 requestAnimationFrame — (движок браузера)
+       11 carrotStep — apps/web/src/pages/Fauna.tsx
+       11 clearRect — (движок браузера)
+       10 stepSolo — apps/web/src/pages/Fauna.tsx
+       10 dispatchEvent — библиотека react-dom
+        8 localDay — packages/domain/dist/fireworks.js
+        8 drawArrays — (движок браузера)
+        7 clear — (движок браузера)
+        7 cut — apps/web/src/pages/MapLayers.tsx
+        7 uniform3fv — (движок браузера)
+        7 getTiles — apps/web/src/pages/MapLayers.tsx
+        6 save — (движок браузера)
+        6 uniform1f — (движок браузера)
+        6 draw — apps/web/src/pages/SeaGL.tsx
+        6 (безымянная) — библиотека react-dom
+        6 fillRect — (движок браузера)

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { Viewport } from "./MapLayers";
 import { perfMark } from "../lib/perfHud";
+import { chebyshevDistance } from "../lib/chebyshev";
 import { compileProgram, createLineProgram, lineMesh, type LineBuffer, type LineProgram, type Pt, type RGBA } from "../lib/glLines";
 
 /**
@@ -63,19 +64,8 @@ function loadTex(gl: WebGLRenderingContext, src: string, onReady: () => void): T
     const g = c.getContext("2d", { willReadFrequently: true })!;
     g.drawImage(el, PAD, PAD, w, h);
     const data = g.getImageData(0, 0, P, P).data;
-    // Расстояние Чебышёва до ближайшего непрозрачного пикселя: шаги расширения квадратным ядром 3×3, не дальше MAX_D.
-    let cur = new Uint8Array(P * P), next = new Uint8Array(P * P); const out = new Uint8Array(P * P).fill(255);
-    for (let i = 0; i < P * P; i++) if (data[i * 4 + 3]! >= 128) { cur[i] = 1; out[i] = 0; }
-    for (let step = 1; step <= MAX_D; step++) {
-      let any = false;
-      for (let y = 0; y < P; y++) for (let x = 0; x < P; x++) {
-        const i = y * P + x; if (cur[i]) { next[i] = 1; continue; }
-        let on = 0;
-        for (let dy = -1; dy <= 1 && !on; dy++) { const yy = y + dy; if (yy < 0 || yy >= P) continue; for (let dx = -1; dx <= 1; dx++) { const xx = x + dx; if (xx < 0 || xx >= P) continue; if (cur[yy * P + xx]) { on = 1; break; } } }
-        next[i] = on; if (on) { out[i] = step; any = true; }
-      }
-      [cur, next] = [next, cur]; if (!any) break;
-    }
+    // Расстояние Чебышёва до ближайшего непрозрачного пикселя, не дальше MAX_D (двухпроходный расчёт — lib/chebyshev.ts).
+    const out = chebyshevDistance(data, P, MAX_D);
     gl.bindTexture(gl.TEXTURE_2D, img);
     gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, true);
     gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, c);

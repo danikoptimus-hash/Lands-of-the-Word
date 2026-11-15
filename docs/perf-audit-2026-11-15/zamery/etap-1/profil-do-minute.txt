@@ -1,0 +1,65 @@
+== сценарий minute: 66000 мс по часам; занято  66079 мс, простой     40 мс
+по исходным файлам (собственное время, мс):
+    63722 (браузер: отрисовка и прочее)
+      726 base/apps/web/src/lib/format.ts
+      326 base/packages/domain/dist/fireworks.js
+      233 base/apps/web/src/pages/Fauna.tsx
+      224 base/packages/domain/dist/seaRoute.js
+      191 (движок браузера)
+      165 библиотека react-dom
+       82 (сборка мусора)
+       81 base/packages/domain/dist/islets.js
+       74 base/apps/web/src/pages/TeamMap.tsx
+       61 base/packages/domain/dist/hex.js
+       60 base/apps/web/src/pages/MapLayers.tsx
+       42 base/apps/web/src/pages/TeamPage.tsx
+       18 base/apps/web/src/pages/SeaGL.tsx
+       12 base/apps/web/src/lib/i18n.tsx
+       10 base/packages/domain/dist/hexgraph.js
+        9 библиотека react
+        9 библиотека scheduler
+        9 base/apps/web/src/lib/api.ts
+        4 base/apps/web/src/pages/WorldGL.tsx
+        4 библиотека react-router
+        3 base/apps/web/src/pages/Lakes.tsx
+        2 base/apps/web/src/lib/glLines.ts
+        2 base/apps/web/src/lib/daytime.ts
+        2 base/apps/web/src/pages/FireworksLayer.tsx
+        1 base/apps/web/src/lib/useViewport.ts
+        1 base/apps/web/src/lib/perf.ts
+        1 base/apps/web/src/pages/Islets.tsx
+по функциям:
+    63722 (program) — (браузер: отрисовка и прочее)
+      522 dayKey — base/apps/web/src/lib/format.ts
+      325 localDay — base/packages/domain/dist/fireworks.js
+      199 (безымянная) — base/apps/web/src/lib/format.ts
+      113 (безымянная) — base/packages/domain/dist/seaRoute.js
+       82 (garbage collector) — (сборка мусора)
+       81 isletRadiusAt — base/packages/domain/dist/islets.js
+       64 (безымянная) — base/apps/web/src/pages/TeamMap.tsx
+       63 landPen — base/apps/web/src/pages/Fauna.tsx
+       44 hexKey — base/packages/domain/dist/hex.js
+       41 fill — (движок браузера)
+       38 clearAt — base/packages/domain/dist/seaRoute.js
+       25 drawImage — (движок браузера)
+       24 addColorStop — (движок браузера)
+       23 draw — base/apps/web/src/pages/MapLayers.tsx
+       20 carrotPoint — base/apps/web/src/pages/Fauna.tsx
+       18 byTitle — base/apps/web/src/pages/TeamPage.tsx
+       17 updateProperties — библиотека react-dom
+       17 keepInWater — base/apps/web/src/pages/Fauna.tsx
+       16 coastal — base/packages/domain/dist/seaRoute.js
+       13 loop — base/apps/web/src/pages/SeaGL.tsx
+       13 requestAnimationFrame — (движок браузера)
+       13 coastPen — base/apps/web/src/pages/Fauna.tsx
+       12 commitHostUpdate — библиотека react-dom
+       12 okAt — base/packages/domain/dist/seaRoute.js
+       12 drawWorld — base/apps/web/src/pages/Fauna.tsx
+       12 updateFromMap — библиотека react-dom
+       12 seaRoute — base/packages/domain/dist/seaRoute.js
+       12 hexNeighbors — base/packages/domain/dist/hex.js
+       12 TeamPage — base/apps/web/src/pages/TeamPage.tsx
+       11 t — base/apps/web/src/lib/i18n.tsx
+       11 createRadialGradient — (движок браузера)
+       11 drawTrail — base/apps/web/src/pages/Fauna.tsx
+       11 setValueForStyles — библиотека react-dom
