@@ -280,6 +280,11 @@
 .sheet-title h2 { font-size: var(--fs-lg); min-width: 0; }
 .meta-line { display: flex; align-items: center; gap: var(--sp-1); flex-wrap: wrap; color: var(--muted); font-size: var(--fs-sm); }
 .meta-line .i { width: var(--icon-sm); height: var(--icon-sm); }
+/* Город, строка «кто решил свою долю» (решение владельца 15.11): на виду значок людей и процент решивших, остальное — в окошке по нажатию на значок. */
+.solvers-line .solvers-pop > .pop-btn { position: relative; gap: var(--sp-1); font-weight: 600; font-variant-numeric: tabular-nums; }
+.solvers-line .solvers-pop > .pop-btn::before { content: ""; position: absolute; inset: -13px -10px; } /* зона нажатия — не меньше 44 px */
+.solvers-line .solvers-pop > .pop-btn:focus-visible { outline: 2px solid var(--link); outline-offset: 3px; }
+.help-pop .solvers-facts { font-style: normal; font-weight: 600; }
 
 /* Попап города: шапка с иллюстрацией, шаги, районы, шифр, конверт. */
 .city-sheet .overlay-head { padding: 0; border-bottom: 0; position: relative; }
