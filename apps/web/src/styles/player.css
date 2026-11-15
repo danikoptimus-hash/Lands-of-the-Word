@@ -217,6 +217,11 @@
 .deed-search .i { flex: none; width: var(--icon-sm); height: var(--icon-sm); color: var(--bronze-ink, var(--accent)); }
 .side-menu .deed-search input, .side-menu .deed-search input:focus, .side-menu .deed-search input:focus-visible { flex: 1 1 auto; min-width: 0; min-height: 0; height: var(--control-h); padding: 0; border: 0; border-radius: 0; background: transparent; box-shadow: none; font: inherit; color: var(--text); outline: 0; }
 .deed-search:focus-within { border-color: var(--bronze, var(--accent)); }
+.deed-search input::-webkit-search-cancel-button, .deed-search input::-webkit-search-decoration { -webkit-appearance: none; appearance: none; display: none; }
+.deed-search { padding-right: var(--sp-1); caret-color: var(--bronze-ink, var(--accent)); }
+.deed-search .deed-search-clear { flex: none; appearance: none; display: inline-flex; align-items: center; justify-content: center; width: 40px; height: 40px; min-height: 0; margin: 0; padding: 0; border: 0; border-radius: 50%; background: none; box-shadow: none; color: var(--bronze-ink, var(--accent)); cursor: pointer; }
+.deed-search .deed-search-clear:hover { background: rgba(122, 78, 23, .1); }
+.deed-search .deed-search-clear .i { width: 18px; height: 18px; color: inherit; }
 .side-menu .list > li.deed-group > .side { flex: none; display: flex; align-items: center; gap: var(--sp-2); }
 .side-menu .list > li.deed-group .count-chip { min-width: 34px; height: 24px; font-size: var(--fs-sm); font-weight: 700; }
 .side-menu .list > li.deed-group .chev { width: var(--icon-sm); height: var(--icon-sm); color: var(--bronze-ink, var(--accent)); }
