@@ -22,15 +22,22 @@ export const awardName = (a: AwardDef) => (getLocale() === "en" ? a.nameEn : a.n
 export const awardCond = (a: AwardDef) => (getLocale() === "en" ? a.condEn : a.condRu);
 const streakDaysText = (n: number) => plural(n, ["день подряд", "дня подряд", "дней подряд"]);
 
+/**
+ * Картинка значка. В списках, сетках и рейтингах значок показывается 22–64 точки — для них уменьшенная копия 192×192
+ * (`/img/awards/s/`, делает scripts/img-gen/awards_small.py); крупная 512×512 — только в листе награды (ревизия скорости,
+ * этап 2: раньше крупная качалась и держалась в памяти для каждого значка любого размера — 3 МБ и около мегабайта памяти
+ * на значок).
+ */
+export const awardSrc = (code: string, big = false): string => (big ? `/img/awards/${code}.webp` : `/img/awards/s/${code}.webp`);
 /** Картинки значков подгружаются заранее (просьба владельца 30.10: «награды в профиле подгружаются, это выглядит как глюк»). */
 const warmed = new Set<string>();
 export function preloadAwardImages(codes: Iterable<string>): void {
-  for (const code of codes) { if (warmed.has(code)) continue; warmed.add(code); const im = new Image(); im.decoding = "async"; im.src = `/img/awards/${code}.webp`; }
+  for (const code of codes) { if (warmed.has(code)) continue; warmed.add(code); const im = new Image(); im.decoding = "async"; im.src = awardSrc(code); }
 }
 /**
  * Все значки — в фоне, когда страница свободна (владелец 30.10: «они подгружаются, это выглядит как глюк»): любая
  * карточка участника или команды открывается с готовыми картинками. Service worker держит их в кэше, так что это
- * один раз на устройство (41 картинка, ~2 МБ).
+ * один раз на устройство (уменьшенные копии, около 0,6 МБ на все).
  */
 let allQueued = false;
 export function preloadAllAwardImages(): void {
@@ -44,7 +51,9 @@ export function AwardBadge({ code, earned, count, size = "md", onClick, name = t
   const label = awardName(a);
   const body = (
     <>
-      <span className="award-img"><img src={`/img/awards/${code}.webp`} alt="" loading={eager ? "eager" : "lazy"} decoding="async" />{earned && a.repeat && (count ?? 0) > 1 && <span className="award-count">×{count}</span>}</span>
+      {/* Крупный значок (лист награды): под ним сразу видна уменьшенная копия — она уже в памяти, — крупная проявляется поверх.
+          У не взятой награды подложки нет: серый значок полупрозрачен, и цветная копия просвечивала бы сквозь него. */}
+      <span className="award-img" style={size === "lg" && earned ? { backgroundImage: `url(${awardSrc(code)})`, backgroundSize: "100% 100%" } : undefined}><img src={awardSrc(code, size === "lg")} alt="" loading={eager ? "eager" : "lazy"} decoding="async" />{earned && a.repeat && (count ?? 0) > 1 && <span className="award-count">×{count}</span>}</span>
       {name && <span className="award-name">{label}</span>}
     </>
   );
@@ -95,7 +104,7 @@ function AwardGrid({ defs, grants, onPick }: { defs: ReadonlyArray<AwardDef>; gr
 
 /** Огонёк серии: горит, если сегодняшний день засчитан, иначе серый (решение владельца 31.10). */
 export function FlameIcon({ lit, size = "md", ignite = false }: { lit: boolean; size?: "sm" | "md" | "xl"; /** Вспышка: день только что засчитан. */ ignite?: boolean }) {
-  return <span className={"streak-flame " + size + (lit ? " lit" : "") + (ignite ? " ignite" : "")} aria-hidden="true"><img src="/img/awards/flame.webp" alt="" decoding="async" /></span>;
+  return <span className={"streak-flame " + size + (lit ? " lit" : "") + (ignite ? " ignite" : "")} aria-hidden="true"><img src={awardSrc("flame", size === "xl")} alt="" decoding="async" /></span>;
 }
 const WEEKDAY = ["Вс", "Пн", "Вт", "Ср", "Чт", "Пт", "Сб"] as const;
 const weekdayOf = (key: string) => t(WEEKDAY[new Date(`${key}T12:00:00Z`).getUTCDay()]!);
@@ -313,7 +322,7 @@ export function AdminAwards({ gameId, version }: { gameId: string; version: numb
                 <span className="person"><UserAvatar name={m.name} avatarId={m.avatarId} userId={m.userId} /><span className="name">{m.name}</span></span>
                 <span className="meta chips">
                   {m.team && <TeamAvatar name={m.team.name} color={m.team.color} avatarId={m.team.avatarId} size="sm" title={m.team.name} zoom={false} />}
-                  {m.streak.current > 0 && <span className="streak-chip" title={t("Серия: {n}", { n: streakDaysText(m.streak.current) })}><img src="/img/awards/p_streak_10.webp" alt="" />{m.streak.current}</span>}
+                  {m.streak.current > 0 && <span className="streak-chip" title={t("Серия: {n}", { n: streakDaysText(m.streak.current) })}><img src={awardSrc("p_streak_10")} alt="" />{m.streak.current}</span>}
                 </span>
               </div>
               <div className="side award-row">{m.awards.length ? m.awards.map((g) => <AwardBadge key={g.code} code={g.code} earned count={g.count} size="sm" name={false} eager onClick={() => setMemberPick({ code: g.code, grant: g })} />) : <span className="muted small">{t("Наград пока нет")}</span>}</div>

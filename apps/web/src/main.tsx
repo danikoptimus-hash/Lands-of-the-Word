@@ -126,12 +126,32 @@ registerSW({ immediate: true, onRegisteredSW(_url, r) {
   window.setInterval(check, 10 * 60_000);
 } });
 if ("serviceWorker" in navigator) {
-  let had = Boolean(navigator.serviceWorker.controller), done = false;
-  const typing = () => { const el = document.activeElement; return el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement; };
-  const reload = () => { if (done) return; done = true; location.reload(); };
+  let had = Boolean(navigator.serviceWorker.controller), done = false, waiting = false;
+  // Перезагрузка — в спокойный момент (решение владельца 16.11: «да»): никто не печатает и не открыт лист или окно (дело,
+  // задание города, форма сдачи, подтверждение). Раньше страница перезагружалась сразу, как только вкладка видна и курсор
+  // не в поле ввода, — даже если игрок читал задание или собирал расстановку районов. Открытый раздел нижней панели
+  // перезагрузке не мешает: раздел, открытый город и положение карты запоминаются и возвращаются (TeamPage, useViewport).
+  const busy = () => {
+    const el = document.activeElement;
+    if (el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement || el instanceof HTMLSelectElement || (el instanceof HTMLElement && el.isContentEditable)) return true;
+    return Boolean(document.querySelector('[role="dialog"]:not(.side-menu)'));
+  };
+  const reload = () => {
+    if (done || !waiting || busy()) return;
+    done = true;
+    // Карта запоминает, куда смотрел игрок: после перезагрузки она откроется там же.
+    try { window.dispatchEvent(new Event("lotw:before-reload")); } catch { /* старый браузер */ }
+    location.reload();
+  };
   navigator.serviceWorker.addEventListener("controllerchange", () => {
     if (!had) { had = true; return; } // первая установка: страница уже свежая
-    if (document.visibilityState === "visible" && !typing()) reload();
-    else document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible" && !typing()) reload(); });
+    if (waiting) return;
+    waiting = true;
+    reload();
+    // Момент ещё не спокойный: пробуем снова — когда закрыли лист или ушли из поля, вернулись в приложение, и раз в пять секунд.
+    document.addEventListener("visibilitychange", reload);
+    document.addEventListener("focusout", () => setTimeout(reload, 400));
+    document.addEventListener("click", () => setTimeout(reload, 400));
+    window.setInterval(reload, 5000);
   });
 }

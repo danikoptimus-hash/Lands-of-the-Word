@@ -124,7 +124,7 @@ export function previewPhase(): DayPhase | null {
  * Разница часов сервера и устройства. Считается, когда приходит новое время сервера; расхождение меньше двух секунд
  * (разброс сети) прежнее значение не меняет — иначе каждый ответ карты давал «новый» свет и слои пересобирались.
  */
-function useClockOffset(serverNow: number | undefined): number {
+export function useClockOffset(serverNow: number | undefined): number {
   const last = useRef(0);
   return useMemo(() => {
     const o = serverNow ? serverNow - Date.now() : 0;

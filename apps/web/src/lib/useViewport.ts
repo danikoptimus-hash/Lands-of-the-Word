@@ -14,7 +14,20 @@ export interface Bounds { minX: number; minY: number; width: number; height: num
  * метки) масштабируются CSS-переменными, которые слои ставят на каждый кадр (WorldSvg) — без перерастрирования.
  * Сдвиг ограничен: остров не уходит из окна, минимальный масштаб — «вся карта», максимальный — в 8 раз крупнее.
  */
-export function useViewport(bounds: Bounds | null, focus?: { x: number; y: number; k?: number } | null, opts?: { /** Во сколько раз можно приблизить относительно «вся карта» (по умолчанию 8; карта команды — 14, решение владельца 30.10). */ maxZoom?: number }) {
+const REMEMBER = "lotw.view:";
+/** Запомненное перед перезагрузкой положение карты: берётся один раз и только свежее (минута). */
+function takeRemembered(key: string | undefined): { x: number; y: number; k: number } | null {
+  if (!key) return null;
+  try {
+    const raw = sessionStorage.getItem(REMEMBER + key);
+    if (!raw) return null;
+    sessionStorage.removeItem(REMEMBER + key);
+    const v = JSON.parse(raw) as { x: number; y: number; k: number; at: number };
+    return Date.now() - v.at < 60_000 && [v.x, v.y, v.k].every(Number.isFinite) && v.k > 0 ? v : null;
+  } catch { return null; }
+}
+
+export function useViewport(bounds: Bounds | null, focus?: { x: number; y: number; k?: number } | null, opts?: { /** Во сколько раз можно приблизить относительно «вся карта» (по умолчанию 8; карта команды — 14, решение владельца 30.10). */ maxZoom?: number; /** Ключ, под которым карта запоминает, куда смотрел игрок, перед перезагрузкой страницы на новую версию (main.tsx): после неё карта открывается там же, а не у старта. */ remember?: string }) {
   // Контейнер может пересоздаваться (например, после режима «глазами команды»): ссылка — колбэк,
   // а эффекты с колесом и наблюдателем размера привязаны к текущему элементу через состояние.
   const ref = useRef<HTMLDivElement | null>(null);
@@ -123,6 +136,20 @@ export function useViewport(bounds: Bounds | null, focus?: { x: number; y: numbe
     focusOn(f.x, f.y, f.k);
   }, [el, focusOn]);
 
+  // Перед перезагрузкой на новую версию — запомнить центр и масштаб (в координатах сцены, как у focusOn).
+  const rememberKey = opts?.remember;
+  useEffect(() => {
+    if (!rememberKey) return;
+    const save = () => {
+      const node = ref.current, v = viewRef.current;
+      if (!node || !boundsRef.current || !(v.k > 0)) return;
+      const pad = padLeft(node);
+      try { sessionStorage.setItem(REMEMBER + rememberKey, JSON.stringify({ x: (pad + (node.clientWidth - pad) / 2 - v.tx) / v.k, y: (node.clientHeight / 2 - v.ty) / v.k, k: v.k, at: Date.now() })); } catch { /* хранилище недоступно */ }
+    };
+    window.addEventListener("lotw:before-reload", save);
+    return () => window.removeEventListener("lotw:before-reload", save);
+  }, [rememberKey]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // Начальное положение ставится ровно один раз, когда поле карты впервые известно. Дальше карта живёт
   // только по жестам пользователя. При изменении размера окна пересчитывается предел масштаба.
   const hasBounds = Boolean(bounds);
@@ -130,7 +157,8 @@ export function useViewport(bounds: Bounds | null, focus?: { x: number; y: numbe
   useEffect(() => {
     if (!hasBounds || applied.current) return;
     applied.current = true;
-    if (focus) focusOn(focus.x, focus.y, focus.k); else fit();
+    const was = takeRemembered(opts?.remember);
+    if (was) focusOn(was.x, was.y, was.k); else if (focus) focusOn(focus.x, focus.y, focus.k); else fit();
   }, [fit, focusOn, hasBounds]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (!el) return;

@@ -4,7 +4,7 @@ import { FOG_COLOR, HEX_SIZE, TERRAIN_COLOR, coastPath, hexCenter, hexPoints } f
 import { CLOUD_TILE, cloudTile, seaTiles, type SeaTiles } from "../lib/noise";
 import type { View } from "../lib/useViewport";
 import type { MapHexDto } from "../lib/api";
-import { ISLET_IMAGES } from "@lotw/domain";
+import { ISLET_IMAGES, phaseAt } from "@lotw/domain";
 import { SeaGL } from "./SeaGL";
 import { perfMark } from "../lib/perfHud";
 import { hexKeyOf, keep } from "../lib/keep";
@@ -699,10 +699,18 @@ export function DeedFire({ r, part }: { r: number; part: "back" | "front" }) {
   );
 }
 
-/** Прогрев кеша картинок карты: вызывается после входа, чтобы карта открывалась без ожидания. */
-export function warmMapImages(): void {
+/**
+ * Прогрев кеша картинок карты: вызывается после входа, чтобы карта открывалась без ожидания. Греется набор текущего
+ * времени суток (ревизия скорости, этап 2): раньше всегда грелся дневной — 28 файлов, 3 МБ, — хотя вечером, утром и ночью
+ * карта рисует свой набор, и новый телефон качал ненужные дневные картинки одновременно с нужными. За 20 минут до смены
+ * времени суток греется и следующий набор: карта у границы рисует оба.
+ * Время суток — по часам телефона: до ответа карты пояс игры неизвестен; ошибка стоит только лишнего прогрева.
+ */
+export function warmMapImages(now: Date = new Date()): void {
   if (typeof window === "undefined") return;
-  const urls = [...TERRAINS.map((t) => IMG.terrain(t)), ...["village", "capital", "fortress", "hill_city", "port", "ruins", "temple_city", "tent_camp", "walled_city"].map((c) => IMG.city(c)), ...Array.from({ length: 6 }, (_, i) => IMG.start(i)), ...ISLET_IMAGES.map((s) => IMG.islet(s.img))];
+  const m = now.getHours() * 60 + now.getMinutes();
+  const phases = [...new Set<DayPhase>([phaseAt(m), phaseAt(m + 20)])];
+  const urls = phases.flatMap((ph) => [...TERRAINS.map((t) => IMG.terrain(t, ph)), ...["village", "capital", "fortress", "hill_city", "port", "ruins", "temple_city", "tent_camp", "walled_city"].map((c) => IMG.city(c, ph)), ...Array.from({ length: 6 }, (_, i) => IMG.start(i, ph)), ...ISLET_IMAGES.map((s) => IMG.islet(s.img, ph))]);
   const go = () => urls.forEach((u) => { const im = new Image(); im.decoding = "async"; im.src = u; });
   if ("requestIdleCallback" in window) (window as Window & { requestIdleCallback: (cb: () => void) => void }).requestIdleCallback(go); else setTimeout(go, 300);
 }

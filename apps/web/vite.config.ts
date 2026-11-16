@@ -9,7 +9,11 @@ export default defineConfig({
     react(),
     // Сервис-воркер: сборка предкешируется, картинки карты берутся из кеша устройства (месяц), API не кешируется.
     VitePWA({
-      registerType: "autoUpdate",
+      // «prompt», а не «autoUpdate»: в режиме autoUpdate сам модуль регистрации перезагружал страницу в ту же секунду, как
+      // новая версия брала её под управление, — даже если игрок читал задание или заполнял форму. Новая версия по-прежнему
+      // включается сразу (skipWaiting и clientsClaim ниже), а момент перезагрузки выбирает main.tsx: когда никто не печатает
+      // и не открыт лист (решение владельца 16.11).
+      registerType: "prompt",
       manifest: false,
       includeAssets: ["favicon.ico", "favicon-32.png", "apple-touch-icon.png", "icon-192.png", "manifest.webmanifest"],
       workbox: {
