@@ -25,7 +25,7 @@ export function passageStatus(s: PassageStatus): { label: string; tone: ChipTone
 }
 const PassageChip = ({ s }: { s: PassageStatus }) => { const p = passageStatus(s); return <Chip tone={p.tone} icon={p.icon}>{p.label}</Chip>; };
 
-/** В попапе чужого города: состояние прохода и запрос разрешения (посол, а без посла — капитан или заместитель). */
+/** В попапе чужого города: состояние прохода и запрос разрешения (капитан, заместитель или посол — решение владельца 16.11). */
 export function PassageSection({ gameId, nodeKey, version, given, onChanged }: { gameId: string; nodeKey: string; version: number; /** Запросы прохода, которые держит страница команды: ответ хозяев города приходит ей событием — раздел берёт его отсюда. */ given?: PassagesDto | null; onChanged: () => void }) {
   const { notify } = useUi();
   // Запросы прохода команды уже есть у страницы команды: показываем их сразу, свежие подменят (ревизия скорости, этап 2).
@@ -63,7 +63,7 @@ export function PassageSection({ gameId, nodeKey, version, given, onChanged }: {
               </div>
               <div className="actions"><button type="button" disabled={busy} onClick={() => void request()}><Icon name="handshake" />{t("Запросить проход")}</button></div>
             </>
-          ) : data ? <p className="hint">{data.speakWhy || t("Запрос отправляет посол, а без посла — капитан или заместитель.")}</p> : null}
+          ) : data ? <p className="hint">{data.speakWhy || t("Запрос отправляет капитан, заместитель или посол.")}</p> : null}
         </>
       )}
       {error && <p className="error" role="alert">{error}</p>}
@@ -74,7 +74,7 @@ export function PassageSection({ gameId, nodeKey, version, given, onChanged }: {
 /**
  * «Проходы» в профиле своего города — свёрнутый раздел, как «Стена» и «Испытание» (решение владельца 15.11: «проходы нужно
  * разместить в профиле города ещё одной вкладкой, на подобие стен»; до того они стояли блоком с вкладками в «Командах»).
- * Здесь запросы других команд через этот город: на открытые отвечают (посол, а без посла — капитан или заместитель),
+ * Здесь запросы других команд через этот город: на открытые отвечают (капитан, заместитель или посол),
  * выданные разрешения безотзывные; ниже — история ответов. Пока есть запрос без ответа, раздел раскрыт и помечен числом.
  */
 export function CityPassages({ gameId, nodeKey, version, given, onChanged }: { gameId: string; nodeKey: string; version: number; /** Запросы прохода команды, которые уже держит страница команды: раздел их не запрашивает сам (ревизия скорости, этап 2). */ given?: PassagesDto | null; onChanged: () => void }) {
@@ -118,7 +118,7 @@ export function CityPassages({ gameId, nodeKey, version, given, onChanged }: { g
                   <button type="button" disabled={busy === r.id} onClick={() => void decide(r, true)}><Icon name="check" />{t("Разрешить")}</button>
                 </div>
               </>
-            ) : <p className="hint">{t("Отвечает посол, а без посла — капитан или заместитель.")}</p>}
+            ) : <p className="hint">{t("Отвечает капитан, заместитель или посол.")}</p>}
           </div>
         ))}
         {closed.length > 0 && (
