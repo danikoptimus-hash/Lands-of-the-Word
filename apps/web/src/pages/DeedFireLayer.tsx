@@ -112,10 +112,19 @@ export function DeedFireLayer({ vp, fires, part, covers = NO_COVERS }: { vp: Vie
     const grads = tongues.map((tg) => { const g = ctx.createLinearGradient(0, tg.oy, 0, tg.top); for (const [at, c] of COLORS[tg.layer]) g.addColorStop(at, c); return g; });
     const glow = ctx.createRadialGradient(0, 0, 0, 0, 0, GLOW.r);
     glow.addColorStop(0, "rgba(251, 191, 36, .8)"); glow.addColorStop(0.5, "rgba(245, 158, 11, .36)"); glow.addColorStop(1, "rgba(245, 158, 11, 0)");
-    let W = 0, H = 0;
-    const resize = () => { W = Math.round(host.clientWidth * dpr); H = Math.round(host.clientHeight * dpr); if (canvas.width !== W || canvas.height !== H) { canvas.width = W; canvas.height = H; } drawn.length = 0; dirty.current = true; };
     /** Что нарисовано в прошлом кадре (в точках холста): чистим только эти места, а не весь холст. */
     const drawn: Array<[number, number, number, number]> = [];
+    let W = 0, H = 0;
+    // Список нарисованного и сам холст сбрасываются только вместе. Ошибка 16.11 (владелец: «при зуме остаются отпечатки
+    // других огоньков»): наблюдатель размера срабатывает и сразу после подключения, уже после первого кадра огня; список
+    // тогда обнулялся, а холст того же размера не очищался — первый кадр оставался на нём навсегда, если карта в этот
+    // миг двигалась (слой создаётся посреди щипка, когда масштаб проходит порог показа меток дел).
+    const resize = () => {
+      const w = Math.round(host.clientWidth * dpr), h = Math.round(host.clientHeight * dpr);
+      if (w === W && h === H) return;
+      W = w; H = h; canvas.width = w; canvas.height = h; // смена размера очищает холст
+      drawn.length = 0; dirty.current = true;
+    };
     const flick: Array<[number, number, number]> = FLICKS.map(() => [1, 1, 0]);
     const draw = (now: number) => {
       ctx.setTransform(1, 0, 0, 1, 0, 0);
