@@ -1,3 +1,4 @@
+import { coverGate } from "../lib/mapCover";
 import { useEffect, useRef } from "react";
 import { fireworksUntil } from "@lotw/domain";
 import type { Viewport } from "./MapLayers";
@@ -85,9 +86,11 @@ export function FireworksLayer({ vp, sites, clock, timeZone }: { vp: Viewport; s
       }
       ctx.globalCompositeOperation = "source-over";
     };
+    const under = coverGate();
     const loop = (now: number) => {
       raf = requestAnimationFrame(loop);
       if (document.hidden) return;
+      if (under(now)) return; // карта под листом — lib/mapCover.ts
       if (now - checked > 1000) {
         checked = now;
         const t = clockRef.current(), tz = tzRef.current;

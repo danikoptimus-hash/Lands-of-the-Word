@@ -20,7 +20,7 @@ export function perfMark(name: string, ms: number): void {
   const all = log.get(name) ?? []; all.push(ms); if (all.length > 600) all.shift(); log.set(name, all);
 }
 /** Показать объект автоматике (window.__perf[name]); без ?perf=1 ничего не делает. */
-export function perfExpose(name: "view" | "scene", value: unknown): void { if (on) (perf as Record<string, unknown>)[name] = value; }
+export function perfExpose(name: "view" | "scene" | "fauna", value: unknown): void { if (on) (perf as Record<string, unknown>)[name] = value; }
 let gestureFrames: number[] | null = null;
 /** Начало и конец жеста: пока жест идёт, цикл ниже копит длительности кадров; в конце считается итог. */
 export function perfGesture(phase: "start" | "end"): void {
