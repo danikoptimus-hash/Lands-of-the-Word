@@ -13,7 +13,8 @@ import { RoutesGL } from "./RoutesGL";
 /** Морские пути на WebGL (Э3) — по умолчанию; `?routes=canvas` — прежний способ на холсте живности (и запасной путь без WebGL). */
 const GL_ROUTES_DEFAULT = typeof location === "undefined" || !/[?&]routes=canvas/.test(location.search);
 import { deedAssignee, deedPriority, type DailyBirdDto, type EdgeTaskDto, type EdgeTaskStatus, type MapHexDto, type MapMarkDto, type MyMapDto } from "../lib/api";
-import { CoastOver, DeedFire, islandGeometry, FogLayer, fogHolePuffs, HexTiles, IMG, MapSymbols, OutlineDefs, SeaLayer, TilesLayer, WorldSvg, useCoast, type FogClear, type FogHole } from "./MapLayers";
+import { CoastOver, islandGeometry, FogLayer, fogHolePuffs, HexTiles, IMG, MapSymbols, OutlineDefs, SeaLayer, TilesLayer, WorldSvg, useCoast, type FogClear, type FogHole } from "./MapLayers";
+import { DeedFireLayer, type DeedFireSpec, type FireCover } from "./DeedFireLayer";
 import { Icon, iconPath } from "../components/Icon";
 import { fmtDate } from "../lib/format";
 import { FaunaLayer, trimRoute, type FireSite, type WreckSpec } from "./Fauna";
@@ -477,7 +478,10 @@ function TeamMapInner({ map, myId, teamIndex, selectedTaskId, onSelect, onSelect
       </g>
     );
   })();
-  const screenBody = useMemo(() => (<>
+  // Вместе с метками собираются места огней приоритетных дел: огонь рисует отдельный слой-холст (DeedFireLayer), а не
+  // слой меток — движение внутри слоя меток заставляло браузер перерисовывать его целиком на каждый кадр.
+  // Подписи и метки команды нарисованы выше значков дел — их места (covers) верхний холст огня вырезает.
+  const { el: screenBody, fires: deedFires, covers: fireCovers } = useMemo(() => { const prioFires: DeedFireSpec[] = [], covers: FireCover[] = []; const cover = (x: number, y: number, bx: number, by: number, w: number, h: number, rad: number) => { if (prioFires.length) covers.push({ x, y, bx, by, w, h, rad }); }; const el = (<>
           {/* Слои: точки узлов (старт, перекрёстки, цели дел, край тумана) — снизу (решение владельца 03.11: «чтобы точка узла не
               перекрывала название города или плена»); над ними значки дел, разведки и кораблей; над ними подписи городов и
               пленов (решение владельца 04.11: «плашки с названиями городов должны быть выше слоя значков свитков дел»); сверху метки команды. */}
@@ -535,15 +539,14 @@ function TeamMapInner({ map, myId, teamIndex, selectedTaskId, onSelect, onSelect
             }
             const sel = tk.id === selectedTaskId;
             const r = sel ? RM + 2 : RM;
-            // Приоритет капитана (решение владельца 14.11): свиток дела горит — огонь позади кружка метки.
+            // Приоритет капитана (решение владельца 14.11): свиток дела горит — огонь рисует слой DeedFireLayer.
             const prio = deedPriority(tk);
+            if (prio) prioFires.push({ x: m.x, y: m.y, r });
             return (
               <g key={"m" + e.aKey + e.bKey} data-id={tk.id} className={"m-deed " + tk.status.toLowerCase() + (sel ? " sel" : "") + (prio ? " priority" : "") + (mineOf(tk) ? " mine" : "") + assignCls(tk)} onClick={() => click(tk.id)}>
                 <g style={scm(m.x, m.y)}>
-                  {prio && <DeedFire r={r} part="back" />}
                   <circle r={r} />
                   <use href={`#m-${DEED_SYMBOL[tk.status]}`} x={-r * 0.6} y={-r * 0.6} width={r * 1.2} height={r * 1.2} />
-                  {prio && <DeedFire r={r} part="front" />}
                 </g>
               </g>
             );
@@ -551,14 +554,13 @@ function TeamMapInner({ map, myId, teamIndex, selectedTaskId, onSelect, onSelect
           {ships.map(({ tk, x, y, port }) => {
             const sel = tk.id === selectedTaskId, r = (sel ? RM + 2 : RM) + 2;
             const prio = deedPriority(tk);
+            if (prio) prioFires.push({ x, y, r });
             return (
               <g key={"ship" + tk.id} data-id={tk.id} className={"m-deed sea " + (tk.landing ? "landing" : tk.status.toLowerCase()) + (sel ? " sel" : "") + (prio ? " priority" : "") + (mineOf(tk) ? " mine" : "") + assignCls(tk)} onClick={() => { if (!vp.wasDrag()) onSelect(selectedTaskId === tk.id ? null : tk.id); }}>
                 <line className="mooring" x1={port.x} y1={port.y} x2={x} y2={y} />
                 <g style={scm(x, y)}>
-                  {prio && <DeedFire r={r} part="back" />}
                   <circle r={r} />
                   <use href="#m-ship" x={-r * 0.62} y={-r * 0.62} width={r * 1.24} height={r * 1.24} />
-                  {prio && <DeedFire r={r} part="front" />}
                 </g>
               </g>
             );
@@ -582,6 +584,7 @@ function TeamMapInner({ map, myId, teamIndex, selectedTaskId, onSelect, onSelect
               const name = startName(n.teamIndex ?? teamIndex, getLocale()), fs = fullLabels ? 11 : 9, w = Math.ceil(name.length * fs * 0.62) + 16, h = fs + 9;
               // Подпись справа от метки: по горизонтали из перекрёстка стороны не выходят (они идут вверх/вниз и наискось), метки дел не мешают.
               // Подпись плена ничего не открывает: нажатия проходят сквозь неё к точкам края тумана под ней.
+              cover(p.x, p.y, 12, -h / 2, w, h, h / 2);
               return (
                 <g key={n.key} className={"m-label start" + (fullLabels ? "" : " sm")} style={{ ...sc(p.x, p.y), pointerEvents: "none" }}>
                   <rect x={12} y={-h / 2} width={w} height={h} rx={h / 2} />
@@ -604,6 +607,8 @@ function TeamMapInner({ map, myId, teamIndex, selectedTaskId, onSelect, onSelect
               const wallW = (c?.wall ? fs + 4 : 0) + (noEntry ? fs + 5 : 0) + (empty ? fs + 4 : 0);
               const w = textWidth(text, fs) + iconW + wallW + 14, h = fs + 9;
               // Подпись стоит под картинкой города (сдвиг в единицах карты), а масштабируется через --inv на каждый кадр.
+              cover(p.x, p.y + CITY * 0.48, -w / 2, -h / 2, w, h, h / 2);
+              if (c?.battle) cover(p.x, p.y + CITY * 0.48, 8, -40, 20, 20, 10);
               return (
                 <g key={n.key} data-key={n.key} className={"m-label" + (c?.owner ? " owned" : "") + (c?.ruined ? " ruined" : "") + (fullLabels ? "" : " sm")} style={{ ...(c?.owner ? { ["--team" as string]: c.owner.color } : {}), transform: `translate(${p.x}px, ${p.y}px) translate(0, ${(CITY * 0.48).toFixed(2)}px) scale(var(--inv, 1))` }} onClick={() => clickCity(n.key)}>
                   {c?.battle && (
@@ -628,6 +633,7 @@ function TeamMapInner({ map, myId, teamIndex, selectedTaskId, onSelect, onSelect
             const name = pk.kind === "CITY" && pk.bookCode ? BOOK_BY_CODE.get(pk.bookCode)?.nameRu ?? "" : "";
             if (!name) return null;
             const p = nodePos(pk.key, size), fs = fullLabels ? 11 : 9, w = textWidth(name, fs) + 14, h = fs + 9;
+            cover(p.x, p.y + CITY * 0.48, -w / 2, -h / 2, w, h, h / 2);
             return (
               <g key={"pkl" + pk.key} className={"m-label scouted" + (fullLabels ? "" : " sm")} style={{ transform: `translate(${p.x}px, ${p.y}px) translate(0, ${(CITY * 0.48).toFixed(2)}px) scale(var(--inv, 1))`, pointerEvents: "none" }}>
                 <rect x={-w / 2} y={-h / 2} width={w} height={h} rx={h / 2} />
@@ -643,6 +649,8 @@ function TeamMapInner({ map, myId, teamIndex, selectedTaskId, onSelect, onSelect
             const w = Math.max(mk.note ? textWidth(mk.note, 11) : 0, by ? textWidth(by, 9) : 0) + 14, two = Boolean(mk.note && by), h = two ? 30 : 18;
             const when = mk.createdAt ? ` · ${fmtDate(mk.createdAt)}` : "";
             const label = (mk.note ? (by ? t("Метка команды: {note} — {name}", { note: mk.note, name: by }) : t("Метка команды: {note}", { note: mk.note })) : by ? t("Метка команды — {name}", { name: by }) : t("Метка команды")) + when;
+            cover(c.x, c.y, -11, -23, 22, 22, 11);
+            if (mk.note || by) cover(c.x, c.y, -w / 2, 0, w, h, 9);
             return (
               <g key={"mk" + mk.id} className="m-mark" style={sc(c.x, c.y, "translate(0, -12px)")} role="button" aria-label={label} onClick={() => { if (!vp.wasDrag()) onMarkTap?.(mk); }}>
                 <circle r={11} style={{ fill: map.team.color }} />
@@ -657,7 +665,7 @@ function TeamMapInner({ map, myId, teamIndex, selectedTaskId, onSelect, onSelect
               </g>
             );
           })}
-  </>), [map.revealed, map.edges, map.peeked, map.frontier, map.tasks, map.marks, onMarkTap, onFrontierTap, taskByEdge, selectedTaskId, positions, cityByKey, fullLabels, showMarkers, showForks, R, ships, landing, ripple, islandCenters, revealed, map.team.color, size]); // eslint-disable-line react-hooks/exhaustive-deps
+  </>); return { el, fires: prioFires, covers }; }, [map.revealed, map.edges, map.peeked, map.frontier, map.tasks, map.marks, onMarkTap, onFrontierTap, taskByEdge, selectedTaskId, positions, cityByKey, fullLabels, showMarkers, showForks, R, ships, landing, ripple, islandCenters, revealed, map.team.color, size]); // eslint-disable-line react-hooks/exhaustive-deps
   if (!bounds) return null;
   return (
     <div ref={vp.ref} onPointerDown={onPressDown} onPointerMove={(e) => { onPressMove(e); onHostPointerMove(e); }} onClick={onHostClick} onPointerUp={cancelPress} onPointerCancel={cancelPress} onPointerLeave={cancelPress} onClickCapture={onClickCapture} onContextMenu={(e) => { if (onMark) e.preventDefault(); }} className={"map-canvas" + (storm?.active ? " storm" : "")} style={{ background: css(light.bg) }}>
@@ -679,6 +687,8 @@ function TeamMapInner({ map, myId, teamIndex, selectedTaskId, onSelect, onSelect
         between={glRoutes ? <RoutesGL vp={vp} routes={routeSpecs} onUnsupported={() => setGlRoutes(false)} /> : null} />
       {fireworkSites.length > 0 && !perfOff("fireworks") && <FireworksLayer vp={vp} sites={fireworkSites} clock={serverClock} timeZone={map.daytime?.timeZone ?? "Asia/Tashkent"} />}
       {storm && storm.t > 0 && <StormLayer t={storm.t} />}
+      {/* Огонь приоритетных дел: большая часть — под слоем меток, малые языки у нижнего края кружка — над ним. */}
+      {deedFires.length > 0 && <DeedFireLayer vp={vp} fires={deedFires} part="back" />}
       <WorldSvg vp={vp} bounds={bounds} overlay>
         {/* Символы (корабль, якорь…) нужны верхнему слою; подсветка «показать на карте» при мире на WebGL живёт здесь же. */}
         <MapSymbols />
@@ -711,6 +721,7 @@ function TeamMapInner({ map, myId, teamIndex, selectedTaskId, onSelect, onSelect
           {screenBody}
         </g>
       </WorldSvg>
+      {deedFires.length > 0 && <DeedFireLayer vp={vp} fires={deedFires} part="front" covers={fireCovers} />}
       <div className="map-controls">
         {/* Кнопок «Вся карта» и «К старту» нет (решение владельца 24.10 после опроса участников: «не нужны, карта не такая большая»). */}
       </div>
