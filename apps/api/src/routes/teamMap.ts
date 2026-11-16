@@ -19,6 +19,7 @@ import { brickRef } from "../services/wall.js";
 import { loadBook } from "../services/bible.js";
 import { WIRE, wireTasks } from "../services/mapWire.js";
 import { staticMap } from "../services/gameMap.js";
+import { byTask, locked, withLock } from "../services/lock.js";
 
 const submitBody = z.object({
   links: z.array(z.string().trim().url().max(500)).max(10).default([]),
@@ -191,7 +192,7 @@ export async function teamMapRoutes(app: FastifyInstance): Promise<void> {
     return { status: game.status, teamIndex: team.index, team: teamOut, ...map, members, tasks: map.tasks.map((t) => hideSecret(t, "")) };
   });
 
-  app.post("/api/games/:id/edge-tasks/:taskId/take", async (request, reply) => {
+  app.post("/api/games/:id/edge-tasks/:taskId/take", locked((r) => ["take:" + r.user!.id, byTask(r)], async (request, reply) => {
     const { id, taskId } = request.params as { id: string; taskId: string };
     const m = await requireActiveMember(request, reply, id);
     if (!m) return;
@@ -214,9 +215,9 @@ export async function teamMapRoutes(app: FastifyInstance): Promise<void> {
     const updated = await bookIn(id, await prisma.teamEdgeTask.update({ where: { id: taskId }, data: { status: "TAKEN", takenById: request.user!.id, takenAt: new Date(), assignedToId: null, assignedById: null, assignedAt: null }, include: taskInclude }));
     publish(id, { type: "tasks", teamId: m.team.id });
     return { task: hideSecret(updated, request.user!.id) };
-  });
+  }));
 
-  app.post("/api/games/:id/edge-tasks/:taskId/release", async (request, reply) => {
+  app.post("/api/games/:id/edge-tasks/:taskId/release", locked(byTask, async (request, reply) => {
     const { id, taskId } = request.params as { id: string; taskId: string };
     const m = await requireMember(request, reply, id);
     if (!m) return;
@@ -228,7 +229,7 @@ export async function teamMapRoutes(app: FastifyInstance): Promise<void> {
     const updated = await bookIn(id, await prisma.teamEdgeTask.update({ where: { id: taskId }, data: { status: "OPEN", takenById: null, takenAt: null }, include: taskInclude }));
     publish(id, { type: "tasks", teamId: m.team.id });
     return { task: hideSecret(updated, request.user!.id) };
-  });
+  }));
 
   /**
    * Приоритет капитана (решение владельца 14.11, по просьбе капитана: «чтобы не объяснять каждому, какие дела брать»):
@@ -257,7 +258,7 @@ export async function teamMapRoutes(app: FastifyInstance): Promise<void> {
    * уведомление со ссылкой прямо на это дело и личная запись в летописи. `userId: null` снимает поручение.
    * Правила взятия не меняются: суточный лимит дел и заморозка действуют, как обычно, в момент взятия.
    */
-  app.post("/api/games/:id/edge-tasks/:taskId/assign", async (request, reply) => {
+  app.post("/api/games/:id/edge-tasks/:taskId/assign", locked(byTask, async (request, reply) => {
     const { id, taskId } = request.params as { id: string; taskId: string };
     const m = await requireActiveMember(request, reply, id);
     if (!m) return;
@@ -282,10 +283,10 @@ export async function teamMapRoutes(app: FastifyInstance): Promise<void> {
       journal(id, "deed_assigned", { userId: body.userId, teamId: m.team.id, personal: true, vars: { who, deed: updated.deed.title, taskId: task.id } });
     }
     return { task: { ...hideSecret(updated, me), ...assignView(updated) } };
-  });
+  }));
 
   /** Отказ от поручения: участник не может взять порученное дело — бронь снимается, поручивший узнаёт об этом. */
-  app.post("/api/games/:id/edge-tasks/:taskId/assign/decline", async (request, reply) => {
+  app.post("/api/games/:id/edge-tasks/:taskId/assign/decline", locked(byTask, async (request, reply) => {
     const { id, taskId } = request.params as { id: string; taskId: string };
     const m = await requireActiveMember(request, reply, id);
     if (!m) return;
@@ -301,10 +302,10 @@ export async function teamMapRoutes(app: FastifyInstance): Promise<void> {
       journal(id, "deed_assign_declined", { userId: task.assignedById, teamId: m.team.id, personal: true, vars: { user, deed: updated.deed.title, taskId: task.id } });
     }
     return { task: { ...hideSecret(updated, me), ...assignView(updated) } };
-  });
+  }));
 
   /** Сдача дела: ссылки на фото/видео и текст. Файлы не принимаем. */
-  app.post("/api/games/:id/edge-tasks/:taskId/submit", async (request, reply) => {
+  app.post("/api/games/:id/edge-tasks/:taskId/submit", locked(byTask, async (request, reply) => {
     const { id, taskId } = request.params as { id: string; taskId: string };
     const m = await requireActiveMember(request, reply, id);
     if (!m) return;
@@ -345,7 +346,7 @@ export async function teamMapRoutes(app: FastifyInstance): Promise<void> {
     // Письмо администраторам — сразу или дайджестом по расписанию (решение владельца 18.09, A-13).
     if ((await gameRules(id)).adminDigest === "instant") notifyAdmins(id, "новая сдача дела", (locale) => msg(locale, "Команда «{team}» сдала дело «{deed}». Нужно проверить и одобрить или вернуть.", { team: m.team.name, deed: updated.deed.title }));
     return { task: hideSecret(updated, request.user!.id) };
-  });
+  }));
 
   /**
    * Отчёты по делам для администратора (решение владельца 30.09): к старому отчёту нужно возвращаться. Полный вид сдачи —
@@ -412,7 +413,11 @@ export async function teamMapRoutes(app: FastifyInstance): Promise<void> {
     notifyTeam(id, owner.teamId, "к городу {book} подошла команда «{team}»", "Команда «{team}» подошла к вашему городу {book}: теперь она может бросить ему вызов.", { team: team?.name ?? "?", book: node.bookCode ?? "" });
     publish(id, { type: "map", teamId: owner.teamId });
   }
-  async function decideTask(id: string, taskId: string, body: { approve: boolean; comment: string }, adminId: string): Promise<{ ok: true; task: unknown } | { ok: false; code: 404 | 409; message: string }> {
+  // Решение по сдаче — в очереди на это дело (services/lock.ts): двойное нажатие «Принять» или два администратора разом
+  // не дадут двух записей в летописи и двух уведомлений; участник в ту же секунду не «отзовёт» уже принятое дело.
+  type Decided = { ok: true; task: unknown } | { ok: false; code: 404 | 409; message: string };
+  const decideTask = (id: string, taskId: string, body: { approve: boolean; comment: string }, adminId: string): Promise<Decided> => withLock("task:" + taskId, () => decideTaskNow(id, taskId, body, adminId));
+  async function decideTaskNow(id: string, taskId: string, body: { approve: boolean; comment: string }, adminId: string): Promise<Decided> {
     const task = await prisma.teamEdgeTask.findFirst({ where: { id: taskId, gameId: id } });
     if (!task) return { ok: false, code: 404, message: "Сдача не найдена" };
     // Пересмотр (решение владельца 05.10): возвращённое по ошибке дело можно принять, пока команда его не пересдала.
@@ -463,7 +468,7 @@ export async function teamMapRoutes(app: FastifyInstance): Promise<void> {
   });
 
   /** Высадка: капитан или кормчий выбирает пустой береговой узел другого острова; узел открывается, как после обычного дела. */
-  app.post("/api/games/:id/edge-tasks/:taskId/land", async (request, reply) => {
+  app.post("/api/games/:id/edge-tasks/:taskId/land", locked(byTask, async (request, reply) => {
     const { id, taskId } = request.params as { id: string; taskId: string };
     const m = await requireActiveMember(request, reply, id);
     if (!m) return;
@@ -486,7 +491,7 @@ export async function teamMapRoutes(app: FastifyInstance): Promise<void> {
     // Морская сторона получила место высадки: её видят команды, у которых открыт порт или пристань.
     void publishRoad(id, [task.fromKey, body.nodeKey], m.team.id);
     return { ok: true };
-  });
+  }));
 
   /** Прогресс всех команд для карты админа: открытые узлы и пройденные рёбра по командам. */
   /** Админ (для тестов и разбора ситуаций): открыть команде узел; ведущая к нему сторона считается пройденной. */

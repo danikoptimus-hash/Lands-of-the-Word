@@ -422,7 +422,26 @@ export async function resolveWon(b: Battle): Promise<void> {
 /** Сгоревшие вызовы, просроченные ответы, возврат зависших дел. Вызывается по таймеру и перед чтением. */
 /** За сколько до конца времени ответа стена ложится в ответ (решение владельца 02.11: «за минуту до конца таймера»). */
 export const WALL_LEAD_MS = 60_000;
-export async function sweep(gameId?: string): Promise<void> {
+/**
+ * Обход сроков: сгоревшие вызовы, просроченные ответы, осады, корабли, зависшие дела. Его запускают таймер раз в минуту
+ * и экраны испытаний при открытии. Обходы идут строго по одному (ревизия скорости, этап 2): раньше несколько приложений,
+ * открывших экран в одну секунду (после события так и бывает), запускали каждый свой обход, и каждый находил один и тот же
+ * сгоревший вызов — штраф к ставке прибавлялся дважды, запись в летописи и уведомление дублировались.
+ * Такой же обход, который ещё ждёт своей очереди, новый запрос не добавляет, а берёт его результат: он начнётся позже
+ * запроса и увидит всё то же. Пачка запросов даёт один-два обхода вместо обхода на каждый.
+ */
+let sweepChain: Promise<void> = Promise.resolve();
+const sweepQueued = new Map<string, Promise<void>>();
+export function sweep(gameId?: string): Promise<void> {
+  const key = gameId ?? "*";
+  const waiting = sweepQueued.get(key);
+  if (waiting) return waiting;
+  const run = sweepChain.then(() => { sweepQueued.delete(key); return sweepNow(gameId); });
+  sweepQueued.set(key, run);
+  sweepChain = run.catch(() => {});
+  return run;
+}
+async function sweepNow(gameId?: string): Promise<void> {
   const now = new Date();
   await checkTimeLimits(gameId);
   await expirePassages(gameId);
@@ -430,8 +449,10 @@ export async function sweep(gameId?: string): Promise<void> {
   const burnt = await prisma.battle.findMany({ where: { ...(gameId ? { gameId } : {}), status: "ATTACK", attackDeadline: { lt: now }, OR: [{ attackDoneAt: null }, { attackApprovedAt: { not: null } }] } });
   for (const b of burnt) {
     const rules = await gameRules(b.gameId);
+    // Переход — только если вызов всё ещё идёт: пока шёл обход, его могли сдать или закрыть; тогда штрафа нет.
+    const gone = await prisma.battle.updateMany({ where: { id: b.id, status: "ATTACK" }, data: { status: "EXPIRED", resolvedAt: now } });
+    if (gone.count === 0) continue;
     await prisma.$transaction([
-      prisma.battle.update({ where: { id: b.id }, data: { status: "EXPIRED", resolvedAt: now } }),
       prisma.teamCityState.upsert({
         where: { teamId_nodeKey: { teamId: b.attackerId, nodeKey: b.nodeKey } },
         create: { gameId: b.gameId, teamId: b.attackerId, nodeKey: b.nodeKey, attackPenalty: rules.burnPenalty },

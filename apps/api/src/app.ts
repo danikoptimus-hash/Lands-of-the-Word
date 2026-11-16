@@ -6,6 +6,7 @@ import fastifyStatic from "@fastify/static";
 import { ZodError } from "zod";
 import { loadEnv, type Env } from "./env.js";
 import { attachUser } from "./auth.js";
+import { prisma } from "./db.js";
 import { authRoutes } from "./routes/auth.js";
 import { googleRoutes } from "./routes/google.js";
 import { gameRoutes } from "./routes/games.js";
@@ -106,6 +107,11 @@ export async function buildApp(envOverrides: Partial<Record<keyof Env, string>> 
     app.addHook("onClose", async () => clearInterval(awardsTimer));
     const timer = setInterval(() => { sweep().catch((e) => app.log.error(e, "battle sweep failed")); expirePeaces().catch((e) => app.log.error(e, "peace expiry failed")); expireVisits().catch((e) => app.log.error(e, "visit expiry failed")); }, 60_000);
     app.addHook("onClose", async () => clearInterval(timer));
+    // Истёкшие сессии (ревизия скорости, этап 2): раньше удалялись только при выходе и смене пароля и копились в базе и её
+    // копиях. Уборка — через минуту после запуска и дальше раз в сутки.
+    const dropSessions = () => { prisma.session.deleteMany({ where: { expiresAt: { lt: new Date() } } }).then((r) => { if (r.count) app.log.info({ count: r.count }, "expired sessions removed"); }).catch((e) => app.log.error(e, "session cleanup failed")); };
+    const sessionsFirst = setTimeout(dropSessions, 60_000), sessionsTimer = setInterval(dropSessions, 86_400_000);
+    app.addHook("onClose", async () => { clearTimeout(sessionsFirst); clearInterval(sessionsTimer); });
   }
   await app.register(eventRoutes);
   await app.register(avatarRoutes);

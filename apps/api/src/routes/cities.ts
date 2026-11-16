@@ -3,6 +3,7 @@ import { scheduleAwards } from "../services/awards.js";
 import { z } from "zod";
 import { prisma } from "../db.js";
 import { publish } from "../services/events.js";
+import { byCity, locked } from "../services/lock.js";
 import { requireUser } from "../auth.js";
 import { requireActiveMember, requireAdmin, requireMember, requireSuperadmin } from "./teamMap.js";
 import { pauseAfter, rulesOf, days } from "../services/rules.js";
@@ -244,7 +245,7 @@ export async function cityRoutes(app: FastifyInstance): Promise<void> {
   });
 
   /** Расставить районы по порядку книги. Ответ — id районов в выбранном порядке. */
-  app.post("/api/games/:id/my-city/:nodeKey/order", async (request, reply) => {
+  app.post("/api/games/:id/my-city/:nodeKey/order", locked(byCity, async (request, reply) => {
     const { id, nodeKey } = request.params as { id: string; nodeKey: string };
     const c = await memberCity(request, reply, id, nodeKey, true);
     if (!c) return;
@@ -275,10 +276,10 @@ export async function cityRoutes(app: FastifyInstance): Promise<void> {
     if (wrong === 0) journal(id, "order_solved", { teamId: c.m.team.id, userId: request.user!.id, vars: { user: await nick(request.user!.id), book: c.node.bookCode ?? "" } });
     publish(id, { type: "cities", teamId: c.m.team.id });
     return { correct: wrong === 0, wrong, retryAt };
-  });
+  }));
 
   /** Ответ на задание района. Верный ответ открывает букву шифра. */
-  app.post("/api/games/:id/my-city/:nodeKey/tasks/:index/answer", async (request, reply) => {
+  app.post("/api/games/:id/my-city/:nodeKey/tasks/:index/answer", locked(byCity, async (request, reply) => {
     const { id, nodeKey, index: rawIndex } = request.params as { id: string; nodeKey: string; index: string };
     const c = await memberCity(request, reply, id, nodeKey, true);
     if (!c) return;
@@ -322,7 +323,7 @@ export async function cityRoutes(app: FastifyInstance): Promise<void> {
       return { correct: true, fragment: c.node.cityCode?.[index] ?? null, reveal: task.reveal ?? null };
     }
     return { correct: false, retryAt, wrong: (lock?.wrong ?? 0) + 1 };
-  });
+  }));
 
   /**
    * Счётчик выходов (решение владельца 02.10): клиент сообщает, что открыл задание (open) или вернулся в приложение
@@ -340,7 +341,7 @@ export async function cityRoutes(app: FastifyInstance): Promise<void> {
   });
 
   /** Ввести ключ из конверта: город взят. Первый взятый город команды — её столица. */
-  app.post("/api/games/:id/my-city/:nodeKey/capture", async (request, reply) => {
+  app.post("/api/games/:id/my-city/:nodeKey/capture", locked(byCity, async (request, reply) => {
     const { id, nodeKey } = request.params as { id: string; nodeKey: string };
     const c = await memberCity(request, reply, id, nodeKey);
     if (!c) return;
@@ -379,7 +380,7 @@ export async function cityRoutes(app: FastifyInstance): Promise<void> {
     publish(id, { type: "cities" });
     publish(id, { type: "map", teamId: c.m.team.id });
     return { ok: true, isCapital: updated.isCapital, visitDueAt: visit?.dueAt ?? null };
-  });
+  }));
 
   /** Админ (для тестов): присвоить город команде — все районы решены, город занят ею; прежний владелец теряет город. */
   app.post("/api/games/:id/cities/:nodeKey/assign", async (request, reply) => {
