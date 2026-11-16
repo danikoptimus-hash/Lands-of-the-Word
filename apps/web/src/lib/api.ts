@@ -39,8 +39,14 @@ async function once<T>(url: string, init: RequestInit, read: boolean): Promise<T
       // X-Lotw-Wire: карта команды приходит со справочником текстов дел (lib/mapWire.ts); то же шлёт запрос из index.html.
       headers: { "X-Lotw-Wire": "2", ...(init.body ? { "Content-Type": "application/json" } : {}), ...(init.headers ?? {}) },
     });
-    const res = early ? await early.catch(send) : await send();
-    const text = await res.text();
+    let res = early ? await early.catch(send) : await send();
+    let text: string;
+    try { text = await res.text(); }
+    catch (e) {
+      // Ранний ответ оборвался посреди тела (его предел ожидания — в index.html): спрашиваем обычным запросом.
+      if (!early || ctl.signal.aborted) throw e;
+      res = await send(); text = await res.text();
+    }
     // Прокси при отказе отдаёт не JSON (пустой ответ или страницу): это не повод падать на разборе.
     let data: { message?: string; issues?: Array<{ path: string; message: string }> } = {};
     try { data = text ? JSON.parse(text) : {}; } catch { if (res.ok) throw new ApiError(res.status, t("Ошибка запроса")); }

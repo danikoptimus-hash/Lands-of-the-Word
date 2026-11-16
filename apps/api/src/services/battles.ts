@@ -449,16 +449,19 @@ async function sweepNow(gameId?: string): Promise<void> {
   const burnt = await prisma.battle.findMany({ where: { ...(gameId ? { gameId } : {}), status: "ATTACK", attackDeadline: { lt: now }, OR: [{ attackDoneAt: null }, { attackApprovedAt: { not: null } }] } });
   for (const b of burnt) {
     const rules = await gameRules(b.gameId);
-    // Переход — только если вызов всё ещё идёт: пока шёл обход, его могли сдать или закрыть; тогда штрафа нет.
-    const gone = await prisma.battle.updateMany({ where: { id: b.id, status: "ATTACK" }, data: { status: "EXPIRED", resolvedAt: now } });
-    if (gone.count === 0) continue;
-    await prisma.$transaction([
-      prisma.teamCityState.upsert({
+    // Переход — только если вызов всё ещё сгорает (те же условия, что в выборке): пока шёл обход, его могли сдать на
+    // проверку или закрыть; тогда штрафа нет. Переход и штраф — одной операцией: либо оба, либо ничего.
+    const gone = await prisma.$transaction(async (tx) => {
+      const r = await tx.battle.updateMany({ where: { id: b.id, status: "ATTACK", attackDeadline: { lt: now }, OR: [{ attackDoneAt: null }, { attackApprovedAt: { not: null } }] }, data: { status: "EXPIRED", resolvedAt: now } });
+      if (r.count === 0) return false;
+      await tx.teamCityState.upsert({
         where: { teamId_nodeKey: { teamId: b.attackerId, nodeKey: b.nodeKey } },
         create: { gameId: b.gameId, teamId: b.attackerId, nodeKey: b.nodeKey, attackPenalty: rules.burnPenalty },
         update: { attackPenalty: { increment: rules.burnPenalty } },
-      }),
-    ]);
+      });
+      return true;
+    });
+    if (!gone) continue;
     publish(b.gameId, { type: "battles", teamId: b.attackerId });
     publish(b.gameId, { type: "battles", teamId: b.defenderId });
     publish(b.gameId, { type: "map", teamId: b.attackerId });

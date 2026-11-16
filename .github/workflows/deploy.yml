@@ -55,7 +55,8 @@ jobs:
       - name: Проверка настроек прокси (Caddyfile)
         run: |
           echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
-          docker run --rm -e DOMAIN=example.org -v "$PWD/deploy/caddy/Caddyfile:/etc/caddy/Caddyfile:ro" ghcr.io/danikoptimus-hash/lotw-caddy:latest caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile
+          # Файл читается, и пороги считаются как задумано: настоящий Caddy, за ним заглушка, счёт ответов.
+          deploy/caddy/limits-test.sh ghcr.io/danikoptimus-hash/lotw-caddy:latest
 
   build:
     needs: test

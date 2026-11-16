@@ -1,3 +1,4 @@
+import { pageBusy } from "./calm";
 import { Fragment, createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { api, ApiError, type User, clearReady, setOwner } from "./api";
 import { savedUser, saveUser } from "./persist";
@@ -54,15 +55,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Английский словарь — отдельный файл (ревизия скорости, этап 2). Пока он в пути, экран остаётся на русском и
   // переключается, когда словарь пришёл; при сбое связи — повтор с растущей паузой. При запуске словарь ждут ещё до первой
   // отрисовки (main.tsx), так что сюда попадает только смена языка на ходу: вход англоязычной учётки, выбор на странице входа.
-  const [, dictCame] = useState(0);
+  // Смена языка пересоздаёт весь экран, поэтому словарь, пришедший с опозданием (запуск не дождался его за три секунды),
+  // включается в спокойный момент: когда игрок не печатает и не держит открытым лист (lib/calm.ts). Язык, выбранный на
+  // ходу (вход англоязычной учётки, выбор на странице входа), включается сразу, как только словарь пришёл.
+  const [dictOn, setDictOn] = useState(englishReady);
+  const lateStart = useRef(want === "en" && !dictOn);
   useEffect(() => {
-    if (want !== "en" || englishReady()) return;
+    if (want !== "en") { lateStart.current = false; return; }
+    if (dictOn) return;
     let live = true, tm: ReturnType<typeof setTimeout> | undefined, tries = 0;
-    const go = () => { loadEnglish().then(() => { if (live) dictCame((n) => n + 1); }).catch(() => { if (live) tm = setTimeout(go, Math.min(30_000, 2000 * 2 ** tries++)); }); };
+    const apply = () => { if (!live) return; if (lateStart.current && pageBusy()) { tm = setTimeout(apply, 1000); return; } lateStart.current = false; setDictOn(true); };
+    const go = () => { loadEnglish().then(apply).catch(() => { if (live) tm = setTimeout(go, Math.min(30_000, 2000 * 2 ** tries++)); }); };
     go();
     return () => { live = false; clearTimeout(tm); };
-  }, [want]);
-  const locale: Locale = want === "en" && !englishReady() ? "ru" : want;
+  }, [want, dictOn]);
+  const locale: Locale = want === "en" && !dictOn ? "ru" : want;
   // Синхронно перед отрисовкой детей: t() читает текущий язык при рендере.
   setLocale(locale);
   const setGuestLocale = useCallback((l: Locale) => { saveGuestLocale(l); setGuest(l); }, []);

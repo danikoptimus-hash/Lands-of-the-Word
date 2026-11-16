@@ -33,6 +33,7 @@ import { DevSwitcher } from "./components/DevSwitcher";
 import "./styles/index.css";
 import { loadEnglish, readGuestLocale, t } from "./lib/i18n";
 import { savedUser } from "./lib/persist";
+import { pageBusy } from "./lib/calm";
 
 /** Только для вошедших. Пока почта не подтверждена, вместо любой страницы — «Подтвердите почту». */
 function Private({ children }: { children: React.ReactElement }) {
@@ -86,9 +87,14 @@ const start = () => ReactDOM.createRoot(document.getElementById("root")!).render
   </React.StrictMode>,
 );
 // Англоязычному игроку словарь нужен до первой отрисовки, иначе экран мигнул бы русским. Язык известен сразу: из
-// запомненной учётки или из выбора гостя. Словарь не пришёл (нет связи) — запускаемся как есть, AuthProvider повторит.
-if ((savedUser<{ id: string; locale?: string }>()?.locale ?? readGuestLocale()) === "en") void loadEnglish().catch(() => {}).finally(start);
-else start();
+// запомненной учётки или из выбора гостя. Словарь лежит в запасе сервис-воркера и приходит за миллисекунды; из сети его
+// ждём не дольше трёх секунд. Не пришёл (нет связи, медленная связь) — запускаемся как есть, AuthProvider дождётся его сам.
+if ((savedUser<{ id: string; locale?: string }>()?.locale ?? readGuestLocale()) === "en") {
+  let started = false;
+  const once = () => { if (!started) { started = true; start(); } };
+  void loadEnglish().catch(() => {}).finally(once);
+  window.setTimeout(once, 3000);
+} else start();
 
 // Кусок программы не загрузился. Если на сервере уже другая сборка (открытая вкладка просит файл прежней, которого нет) —
 // страница обновляется; если сборка та же, дело в связи: страницу не трогаем, ошибку обрабатывает тот, кто просил кусок
@@ -119,7 +125,10 @@ window.addEventListener("vite:preloadError", () => {
 // Открытое приложение (особенно установленное на телефон) не узнаёт о новой сборке само: проверка идёт только при
 // регистрации. Поэтому спрашиваем сервер о новой версии при каждом возвращении в приложение и раз в 10 минут
 // (замечание владельца 21.10: после выкладки на телефоне ещё долго старая версия).
-registerSW({ immediate: true, onRegisteredSW(_url, r) {
+// onNeedReload пуст намеренно: без него модуль сервис-воркера сам перезагружает страницу в ту же секунду, как только новая
+// версия, найденная позже минуты после запуска, взяла страницу под управление, — с открытым листом и набранным текстом
+// (нашёл независимый разбор 16.11). Когда перезагружать, решает обработчик controllerchange ниже.
+registerSW({ immediate: true, onNeedReload() { /* см. выше */ }, onRegisteredSW(_url, r) {
   if (!r) return;
   let last = Date.now();
   const check = () => { if (Date.now() - last < 30_000) return; last = Date.now(); void r.update().catch(() => {}); };
@@ -130,14 +139,10 @@ registerSW({ immediate: true, onRegisteredSW(_url, r) {
 if ("serviceWorker" in navigator) {
   let had = Boolean(navigator.serviceWorker.controller), done = false, waiting = false;
   // Перезагрузка — в спокойный момент (решение владельца 16.11: «да»): никто не печатает и не открыт лист или окно (дело,
-  // задание города, форма сдачи, подтверждение). Раньше страница перезагружалась сразу, как только вкладка видна и курсор
-  // не в поле ввода, — даже если игрок читал задание или собирал расстановку районов. Открытый раздел нижней панели
-  // перезагрузке не мешает: раздел, открытый город и положение карты запоминаются и возвращаются (TeamPage, useViewport).
-  const busy = () => {
-    const el = document.activeElement;
-    if (el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement || el instanceof HTMLSelectElement || (el instanceof HTMLElement && el.isContentEditable)) return true;
-    return Boolean(document.querySelector('[role="dialog"]:not(.side-menu)'));
-  };
+  // задание города, форма сдачи, подтверждение) — lib/calm.ts. Раньше страница перезагружалась сразу, как только вкладка
+  // видна и курсор не в поле ввода, — даже если игрок читал задание или собирал расстановку районов. Открытый раздел нижней
+  // панели перезагрузке не мешает: раздел, открытый город и положение карты запоминаются и возвращаются (TeamPage, useViewport).
+  const busy = pageBusy;
   const reload = () => {
     if (done || !waiting || busy()) return;
     done = true;
@@ -145,8 +150,7 @@ if ("serviceWorker" in navigator) {
     try { window.dispatchEvent(new Event("lotw:before-reload")); } catch { /* старый браузер */ }
     location.reload();
   };
-  navigator.serviceWorker.addEventListener("controllerchange", () => {
-    if (!had) { had = true; return; } // первая установка: страница уже свежая
+  const arm = () => {
     if (waiting) return;
     waiting = true;
     reload();
@@ -155,5 +159,15 @@ if ("serviceWorker" in navigator) {
     document.addEventListener("focusout", () => setTimeout(reload, 400));
     document.addEventListener("click", () => setTimeout(reload, 400));
     window.setInterval(reload, 5000);
+  };
+  navigator.serviceWorker.addEventListener("controllerchange", () => {
+    if (had) { arm(); return; }
+    had = true;
+    // Страница открыта без управляющего сервис-воркера: первая установка (страница свежая) или жёсткая перезагрузка, после
+    // которой вышла новая версия. Отличаем по главной странице сайта: если в ней уже другой файл программы — перезагрузка
+    // нужна, иначе страница так и осталась бы на старой версии до ручного обновления.
+    const mine = document.querySelector('script[type="module"][src*="/assets/"]')?.getAttribute("src");
+    if (!mine) return;
+    void fetch("/index.html?v=" + Date.now(), { cache: "no-store" }).then((r) => (r.ok ? r.text() : "")).then((html) => { if (html && html.includes("/assets/") && !html.includes(mine)) arm(); }).catch(() => {});
   });
 }

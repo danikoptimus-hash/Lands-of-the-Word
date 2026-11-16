@@ -1,6 +1,6 @@
 // Простой 200 секунд: сколько раз и чем приложение сверяется с сервером, сколько соединений событий держит.
 const { chromium } = require('playwright');
-const BASE = 'http://localhost:3001', GAME = 'cmucujbgq0008s301ran0fnt4'; const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const BASE = process.env.BASE || 'http://localhost:3001', GAME = 'cmucujbgq0008s301ran0fnt4'; const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 (async () => {
   const b = await chromium.launch(); const ctx = await b.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, locale: 'ru-RU', serviceWorkers: 'block' });
   await ctx.request.post(BASE + '/api/auth/login', { data: { nickname: 'p1', password: 'secret123' } });
@@ -9,6 +9,8 @@ const BASE = 'http://localhost:3001', GAME = 'cmucujbgq0008s301ran0fnt4'; const 
   p.on('request', (q) => { const u = new URL(q.url()); if (u.pathname.startsWith('/api/')) reqs.push({ u: u.pathname.replace(GAME, ':id') + (u.search ? '?…' : ''), t: Date.now() }); });
   p.on('response', async (x) => { const u = new URL(x.url()); if (u.pathname.endsWith('/my-map')) { try { bytes += (await x.body()).length; } catch {} } });
   await p.goto(`${BASE}/games/${GAME}/team`, { waitUntil: 'commit' }); await p.waitForSelector('.m-label', { timeout: 120000 }); await sleep(4000);
+  // REPEAT=1 — повторный запуск: карта показана из памяти телефона (так запускается игра у того, кто уже заходил).
+  if (process.env.REPEAT) { await p.reload({ waitUntil: 'commit' }); await p.waitForSelector('.m-label', { timeout: 120000 }); await sleep(4000); }
   const streams0 = reqs.filter((q) => /\/events(\?|$)/.test(q.u)).length;
   // открыть лист Каменоломни (раньше он открывал своё соединение событий) — через «Дела» не трогаем, просто считаем соединения до и после разделов
   const n = await p.locator('.team-dock .dock-btn').count();
