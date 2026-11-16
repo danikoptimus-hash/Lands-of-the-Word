@@ -191,6 +191,7 @@ const EN: Record<string, string> = {
   "кто-то подбирает пароль": "someone is guessing the password",
   "Здравствуйте!\n\nКто-то {n} раз подряд ввёл неверный пароль для учётки «{nickname}» на сайте Земли Слова. Вход в неё закрыт на 15 минут.\n\nЕсли это были вы — просто подождите и попробуйте снова. Если нет — после паузы смените пароль: на странице входа есть «Забыли пароль?».": "Hello!\n\nSomeone entered a wrong password {n} times in a row for the account “{nickname}” on Lands of the Word. Sign-in to it is closed for 15 minutes.\n\nIf that was you, just wait and try again. If not, change your password after the pause: the sign-in page has “Forgot password?”.",
   "Эта почта уже занята": "This email is already taken",
+  "Почту меняли слишком часто. Попробуйте через 15 минут": "The email was changed too often. Try again in 15 minutes",
   "Текущий пароль неверный": "The current password is wrong",
   "Письмо не отправилось: почтовый сервер не отвечает. Попробуйте позже или сообщите администратору": "The email was not sent: the mail server is not responding. Try again later or tell an administrator",
   "Ссылка недействительна или устарела. Запросите новую": "The link is invalid or has expired. Request a new one",

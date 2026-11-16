@@ -22,9 +22,12 @@ export default defineConfig({
         globPatterns: ["**/*.{js,css,html,ico,webmanifest}", "favicon-32.png", "icon-192.png", "apple-touch-icon.png", "img/brand/logo-64.png", "img/brand/logo-256.png"],
         // Экраны и графики администратора платформы (ECharts, 618 КБ) игрокам не нужны: заранее они не качаются, а
         // загружаются, когда их откроют (ревизия скорости 15.11: раньше лежали в предзагрузке у каждого телефона).
-        // Этап 2: так же — английский словарь, перевод и записи «Что нового», экраны администратора. Они грузятся по
-        // требованию и после первого раза лежат в кэше «lotw-chunks» (правило ниже).
-        globIgnores: ["**/Chart-*.js", "**/AdminDashboard-*.js", "**/GameAnalytics-*.js", "**/i18n.en-*.js", "**/changelog-*.js", "**/WhatsNewPage-*.js", "**/GamePage-*.js", "**/LabelsPage-*.js", "**/SupportPage-*.js", "**/AllGamesPage-*.js", "**/AdminUsersPage-*.js", "**/NewGamePage-*.js"],
+        // Этап 2: так же — перевод и записи «Что нового», экраны администратора. Они грузятся по требованию и после
+        // первого раза лежат в кэше «lotw-chunks» (правило ниже).
+        // Английский словарь (i18n.en) тоже отдельный файл, но в предзагрузке остаётся: англоязычному игроку он нужен до
+        // первой отрисовки, и после каждой выкладки он ждал бы его из сети с пустым экраном, а без связи игра запускалась
+        // бы по-русски. Предзагрузка идёт в фоне и разбора не стоит: русскоязычный игрок словарь не выполняет.
+        globIgnores: ["**/Chart-*.js", "**/AdminDashboard-*.js", "**/GameAnalytics-*.js", "**/changelog-*.js", "**/WhatsNewPage-*.js", "**/GamePage-*.js", "**/LabelsPage-*.js", "**/SupportPage-*.js", "**/AllGamesPage-*.js", "**/AdminUsersPage-*.js", "**/NewGamePage-*.js"],
         runtimeCaching: [
           // Аватарки и гербы из готового набора (решение владельца 14.11) — в своём кэше, чтобы полтораста мелких картинок не вытесняли картинки карты.
           { urlPattern: /\/img\/(avatars|crests)\/.*\.webp(\?.*)?$/, handler: "CacheFirst", options: { cacheName: "lotw-avatars", expiration: { maxEntries: 320, maxAgeSeconds: 30 * 24 * 3600 } } },

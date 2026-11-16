@@ -86,6 +86,21 @@ async function registerFailedLogin(user: User, log: { error: (e: unknown, msg: s
   } catch (e) { log.error(e, "lockout mail failed"); }
 }
 
+/**
+ * Смена почты шлёт письмо на произвольный адрес и отвечает, занята ли почта, — поэтому не чаще пяти раз за 15 минут
+ * на аккаунт (как «выслать письмо ещё раз»). Счёт в памяти процесса: после перезапуска начинается заново.
+ */
+const MAIL_CHANGES = 5, MAIL_WINDOW_MS = 15 * 60_000;
+const mailChanges = new Map<string, number[]>();
+export function mailChangeAllowed(userId: string, now = Date.now()): boolean {
+  const recent = (mailChanges.get(userId) ?? []).filter((t) => now - t < MAIL_WINDOW_MS);
+  if (recent.length >= MAIL_CHANGES) { mailChanges.set(userId, recent); return false; }
+  recent.push(now);
+  mailChanges.set(userId, recent);
+  if (mailChanges.size > 2000) for (const [k, v] of mailChanges) if (!v.some((t) => now - t < MAIL_WINDOW_MS)) mailChanges.delete(k);
+  return true;
+}
+
 export async function authRoutes(app: FastifyInstance): Promise<void> {
   const secure = app.config.NODE_ENV === "production";
 
@@ -224,6 +239,7 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
     const me = request.user!;
     if (body.email === null && me.email) return reply.code(400).send({ error: "email_required", message: err(request, "Почту нельзя убрать: без неё не восстановить пароль") });
     const changed = Boolean(body.email && body.email.toLowerCase() !== (me.email ?? "").toLowerCase());
+    if (changed && !mailChangeAllowed(me.id)) return reply.code(429).send({ error: "too_many", message: err(request, "Почту меняли слишком часто. Попробуйте через 15 минут") });
     if (changed) {
       const taken = await prisma.user.findFirst({ where: { email: { equals: body.email!, mode: "insensitive" }, NOT: { id: me.id } } });
       if (taken) return reply.code(409).send({ error: "conflict", message: err(request, "Эта почта уже занята") });

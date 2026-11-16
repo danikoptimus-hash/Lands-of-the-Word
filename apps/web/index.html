@@ -28,10 +28,13 @@
           if (!me) return;
           var uid = JSON.parse(me).id, box = (window.__lotwBoot = {});
           // Предел ожидания ответа — 20 секунд, как у запросов самой программы: на «зависшей» связи первый круг не висит минутами.
+          // Предел действует до конца ответа, а не до его заголовков: связь может зависнуть и посреди тела (ответ, который
+          // к тому времени уже прочитан, отмена не задевает).
           var get = function (u) {
-            var c = window.AbortController ? new AbortController() : null, tm = c ? setTimeout(function () { c.abort(); }, 20000) : 0;
-            var p = fetch(u, { credentials: "same-origin", signal: c ? c.signal : undefined, headers: { "X-Lotw-Wire": "2" } });
-            p.then(function () { clearTimeout(tm); }, function () {}); box[u] = p;
+            var c = window.AbortController ? new AbortController() : null;
+            if (c) setTimeout(function () { c.abort(); }, 20000);
+            var p = (box[u] = fetch(u, { credentials: "same-origin", signal: c ? c.signal : undefined, headers: { "X-Lotw-Wire": "2" } }));
+            p.then(null, function () {}); // сбой заберёт программа; без этой строки он числился бы необработанным
           };
           var game = function (g) {
             get("/api/games/" + g + "/teams");

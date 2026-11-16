@@ -31,7 +31,9 @@ let mode: UnderMode = initial();
 let covered = false;
 
 export const underMode = (): UnderMode => mode;
-export function setUnderMode(m: UnderMode): void { mode = m; try { window.localStorage.setItem(KEY, m); } catch { /* хранилище недоступно */ } }
+/** Замер «закрыта ли карта» текущей страницы: его зовёт смена режима (в режиме «как сейчас» замеры не ведутся). */
+let remeasure: (() => void) | null = null;
+export function setUnderMode(m: UnderMode): void { mode = m; try { window.localStorage.setItem(KEY, m); } catch { /* хранилище недоступно */ } remeasure?.(); }
 /** Карта закрыта листом, и режим просит её не рисовать (или рисовать редко). */
 export const mapCovered = (): boolean => covered && mode !== "now";
 /** Только для проверок: закрыта ли карта листом (без учёта режима). */
@@ -75,13 +77,16 @@ export function useMapCover(host: HTMLElement | null): void {
     };
     // Карта закрыта, а страница изменилась — возможно, лист убрали: меряем сразу, ещё до отрисовки кадра без листа, чтобы слои
     // ожили в том же кадре, в котором карта снова видна. В обратную сторону спешить не нужно: пока лист выезжает, карта живёт.
-    const soon = () => { if (covered) { window.clearTimeout(timer); measure(); } else if (!timer) timer = window.setTimeout(measure, 60); window.clearTimeout(later); later = window.setTimeout(measure, 450); };
+    // В режиме «как сейчас» (он в игре по умолчанию) слои рисуют всегда и замер не нужен: страница при открытом листе
+    // меняется часто, а каждый замер — это запрос размеров у браузера.
+    const soon = () => { if (mode === "now") return; if (covered) { window.clearTimeout(timer); measure(); } else if (!timer) timer = window.setTimeout(measure, 60); window.clearTimeout(later); later = window.setTimeout(measure, 450); };
     const mo = new MutationObserver(soon);
     mo.observe(document.body, { childList: true, subtree: true });
     document.addEventListener("transitionend", soon, true);
     document.addEventListener("animationend", soon, true);
     window.addEventListener("resize", soon);
     measure();
-    return () => { mo.disconnect(); document.removeEventListener("transitionend", soon, true); document.removeEventListener("animationend", soon, true); window.removeEventListener("resize", soon); window.clearTimeout(timer); window.clearTimeout(later); covered = false; };
+    remeasure = measure;
+    return () => { remeasure = null; mo.disconnect(); document.removeEventListener("transitionend", soon, true); document.removeEventListener("animationend", soon, true); window.removeEventListener("resize", soon); window.clearTimeout(timer); window.clearTimeout(later); covered = false; };
   }, [host]);
 }

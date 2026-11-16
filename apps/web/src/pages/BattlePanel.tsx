@@ -50,6 +50,8 @@ export function WarSection({ gameId, nodeKey, teamId, isCaptain, canAlly = isCap
   const [bid, setBid] = useState<number | "">(() => ready<WarDto>(warUrl)?.minBid ?? "");
   /** Ставку из прежнего ответа игрок не менял: свежий минимум её подменит. */
   const bidTouched = useRef(false);
+  /** Свежий ответ уже пришёл: до него вызов не бросить — минимальная ставка в прежнем ответе могла быть другой. */
+  const [fresh, setFresh] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [now, setNow] = useState(Date.now());
@@ -57,7 +59,7 @@ export function WarSection({ gameId, nodeKey, teamId, isCaptain, canAlly = isCap
   // секунду, таймер каждую секунду заводился заново и не срабатывал никогда (ревизия 15.11).
   const loadRef = useRef<() => unknown>(() => undefined);
   useEffect(() => { const tm = setInterval(() => void loadRef.current(), 60_000); return () => clearInterval(tm); }, []);
-  const load = () => apiReady<WarDto>(warUrl).then((w) => { setWar(w); setError(null); if (!bidTouched.current) setBid(w.minBid); }).catch((e) => setError(e instanceof ApiError ? e.message : t("Ошибка сети")));
+  const load = () => apiReady<WarDto>(warUrl).then((w) => { setWar(w); setFresh(true); setError(null); if (!bidTouched.current) setBid(w.minBid); }).catch((e) => setError(e instanceof ApiError ? e.message : t("Ошибка сети")));
   loadRef.current = load;
   useEffect(() => { void load(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [gameId, nodeKey, version]);
   useEffect(() => { const tm = setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(tm); }, []);
@@ -104,7 +106,7 @@ export function WarSection({ gameId, nodeKey, teamId, isCaptain, canAlly = isCap
             <label htmlFor="war-bid">{t("Ставка, стихов")}</label>
             <div className="row nowrap">
               <input id="war-bid" type="number" inputMode="numeric" min={war.minBid} max={war.maxBid ?? undefined} value={bid} onChange={(e) => { bidTouched.current = true; setBid(e.target.value === "" ? "" : Number(e.target.value)); }} />
-              <button type="button" disabled={busy || bid === "" || bid < war.minBid || (war.maxBid != null && bid > war.maxBid)} onClick={() => void declare()}><Icon name="wave" />{t("Сделать вызов")}</button>
+              <button type="button" disabled={busy || !fresh || bid === "" || bid < war.minBid || (war.maxBid != null && bid > war.maxBid)} onClick={() => void declare()}><Icon name="wave" />{t("Сделать вызов")}</button>
             </div>
             <p className="hint">{t("минимум {n}", { n: war.minBid })}{war.maxBid != null ? ` · ${t("максимум {n}: хранители ({m}) не ответят больше", { n: war.maxBid, m: plural(war.ownerMembers ?? 0, ["участник", "участника", "участников"]) })}` : ""}{war.penalty ? ` · ${t("включая штраф {n} за незавершённые вызовы", { n: war.penalty })}` : ""}{war.queue > 0 ? ` · ${t("в очереди уже {n}", { n: war.queue })}` : ""}</p>
           </div>

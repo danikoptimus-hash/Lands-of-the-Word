@@ -33,6 +33,24 @@ describe("память между запусками", () => {
     expect(loadSnap(MAP, "u1")).toBeNull();
   });
 
+  it("смещение часов сервера считается, когда ответ пришёл, а не когда карту запомнили снова", () => {
+    vi.useFakeTimers(); vi.setSystemTime(1_700_000_000_000);
+    const serverNow = Date.now() + 5000; // часы сервера спешат на пять секунд
+    saveSnap(MAP, "u1", { rev: 1, daytime: { now: serverNow } }); flushSnaps();
+    // Через двадцать минут пришла «разница»: карта та же, отметка времени сервера в ней прежняя.
+    vi.setSystemTime(1_700_000_000_000 + 20 * 60_000);
+    saveSnap(MAP, "u1", { rev: 2, daytime: { now: serverNow } }); flushSnaps();
+    // Следующий запуск — ещё через минуту: «время сервера» в снимке — сейчас плюс те же пять секунд, а не минус двадцать минут.
+    vi.setSystemTime(1_700_000_000_000 + 21 * 60_000);
+    const snap = loadSnap<{ rev: number; daytime: { now: number } }>(MAP, "u1");
+    expect(snap?.rev).toBe(2);
+    expect(snap!.daytime.now - Date.now()).toBe(5000);
+    // Карту из снимка запомнили снова (пришла «разница» до свежего ответа) — смещение то же.
+    vi.setSystemTime(1_700_000_000_000 + 30 * 60_000);
+    saveSnap(MAP, "u1", { ...snap!, rev: 3 }); flushSnaps();
+    expect(loadSnap<{ daytime: { now: number } }>(MAP, "u1")!.daytime.now - Date.now()).toBe(5000);
+  });
+
   it("запись отложена и склеена: в хранилище попадает последнее значение", () => {
     saveSnap(MAP, "u1", { rev: 1 }); saveSnap(MAP, "u1", { rev: 2 }); saveSnap(MAP, "u1", { rev: 3 });
     expect(ls().getItem("lotw.s:" + MAP)).toBeNull();

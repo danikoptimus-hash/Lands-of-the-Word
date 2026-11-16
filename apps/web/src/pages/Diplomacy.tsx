@@ -26,7 +26,7 @@ export function passageStatus(s: PassageStatus): { label: string; tone: ChipTone
 const PassageChip = ({ s }: { s: PassageStatus }) => { const p = passageStatus(s); return <Chip tone={p.tone} icon={p.icon}>{p.label}</Chip>; };
 
 /** В попапе чужого города: состояние прохода и запрос разрешения (посол, а без посла — капитан или заместитель). */
-export function PassageSection({ gameId, nodeKey, version, onChanged }: { gameId: string; nodeKey: string; version: number; onChanged: () => void }) {
+export function PassageSection({ gameId, nodeKey, version, given, onChanged }: { gameId: string; nodeKey: string; version: number; /** Запросы прохода, которые держит страница команды: ответ хозяев города приходит ей событием — раздел берёт его отсюда. */ given?: PassagesDto | null; onChanged: () => void }) {
   const { notify } = useUi();
   // Запросы прохода команды уже есть у страницы команды: показываем их сразу, свежие подменят (ревизия скорости, этап 2).
   const [data, setData] = useState<PassagesDto | null>(() => ready<PassagesDto>(`/api/games/${gameId}/my-passages`));
@@ -35,6 +35,8 @@ export function PassageSection({ gameId, nodeKey, version, onChanged }: { gameId
   const [busy, setBusy] = useState(false);
   const load = (join = false) => apiReady<PassagesDto>(`/api/games/${gameId}/my-passages`, { join }).then(setData).catch(() => {});
   useEffect(() => { void load(true); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [gameId, version]);
+  // Страница обновила запросы (хозяева города ответили) — берём её данные: иначе в открытом листе оставалось «Запрос отправлен».
+  useEffect(() => { if (given) setData(given); }, [given]);
   const mine = data?.outgoing.filter((r) => r.nodeKey === nodeKey) ?? [];
   const last = mine[0];
   async function request() {
@@ -82,7 +84,8 @@ export function CityPassages({ gameId, nodeKey, version, given, onChanged }: { g
   const [busy, setBusy] = useState<string | null>(null);
   const load = (join = false) => apiReady<PassagesDto>(`/api/games/${gameId}/my-passages`, { join }).then(setOwn).catch(() => {});
   // Сам раздел запрашивает данные, только если страница их не дала; после своего ответа — всегда (и страница обновится следом).
-  useEffect(() => { if (given === undefined) void load(true); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [gameId, version, given === undefined]);
+  // «Не дала» — и когда её собственный запрос ещё в пути или не удался (null): иначе раздел оставался пустым до следующего события.
+  useEffect(() => { if (given == null) void load(true); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [gameId, version, given == null]);
   // Страница обновила запросы (событие, свой ответ) — берём её данные.
   useEffect(() => { if (given) setOwn(given); }, [given]);
   const data = own;

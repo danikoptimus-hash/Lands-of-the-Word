@@ -15,4 +15,5 @@ export const COMMON: Record<string, string> = {
   "Сервер долго не отвечает. Проверьте связь и попробуйте ещё раз.": "The server is taking too long to respond. Check your connection and try again.",
   "Нет связи с сервером. Пробуем снова…": "No connection to the server. Retrying…",
   "Что-то пошло не так. Обновите страницу — данные игры не пропали.": "Something went wrong. Reload the page — your game data is safe.",
+  "Страница не загрузилась: нет связи с сервером. Проверьте связь и обновите страницу.": "The page did not load: no connection to the server. Check your connection and reload the page.",
 };
