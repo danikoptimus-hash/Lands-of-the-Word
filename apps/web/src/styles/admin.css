@@ -302,6 +302,20 @@ details.legend .items span { display: inline-flex; align-items: center; gap: var
 .dock-btn .badge.trials { display: inline-flex; align-items: center; justify-content: center; gap: 1px; box-sizing: border-box; width: 27px; padding: 0; right: auto; left: -7px; }
 .dock-btn .badge.trials .i { width: 9px; height: 9px; color: inherit; }
 .admin-popup.overlay-backdrop { z-index: 8; }
+/* Панель разделов у администратора работает как у участников (решение владельца 16.11: «реализуй такую же работу
+   вкладок у админа… ты почему-то у участников сделал, а здесь нет»): пока раздел открыт, панель разделов, шапка
+   и шестерёнка стоят выше листа и затемнения — из раздела сразу переходят в другой; повторное нажатие закрывает.
+   На телефоне лист кончается над панелью, под ней — фон самого листа; на компьютере окно раздела стоит по центру
+   и не заходит ни под колонку плиток, ни под шапку. Размеры — те же, что у листа участника (player.css). */
+.admin-screen.with-popup .admin-dock, .admin-screen.with-popup .admin-top, .admin-screen.with-popup .admin-gear { z-index: calc(var(--z-dialog) + 1); }
+@media (max-width: 767px) {
+  .overlay-backdrop:has(> .overlay.admin-popup) { align-items: flex-end; padding: 0; }
+  .overlay.admin-popup { box-sizing: border-box; max-width: none; height: calc(100% - var(--safe-top) - 64px); max-height: calc(100% - var(--safe-top) - 64px); border-radius: var(--r-lg) var(--r-lg) 0 0; padding-bottom: calc(52px + 2 * var(--sp-2) + var(--safe-bottom)); }
+}
+@media (min-width: 768px) {
+  .overlay-backdrop:has(> .overlay.admin-popup) { align-items: stretch; padding: calc(var(--sp-3) + var(--safe-top) + 60px) var(--sp-4) var(--sp-4); }
+  .overlay.admin-popup { height: auto; max-height: none; max-width: min(880px, calc(100% - 2 * (64px + 3 * var(--sp-3) - var(--sp-4)))); }
+}
 .admin-popup .overlay-body .card { box-shadow: none; }
 @media (max-width: 767px) {
   .admin-dock { top: auto; left: 50%; transform: translateX(-50%); bottom: calc(var(--sp-2) + var(--safe-bottom)); flex-direction: row; padding: var(--sp-1); background: color-mix(in srgb, var(--surface) 90%, transparent); border-radius: 22px; box-shadow: var(--shadow-2); }
