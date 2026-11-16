@@ -515,7 +515,6 @@ function TaskView({ task, onPrev, onNext, teamDone = false, fragments, district,
     if (!fresh || freshWas.current) return;
     freshWas.current = true;
     if (task.type === "order") setOrder(validDraft(draft, task.items.map((i) => i.id)));
-    if (task.type === "orders") setGroups(ordersDraft(draft, task.groups.map((g) => g.items.map((i) => i.id))));
     if (task.type === "chiasm") setSlots(chiasmDraft(draft, task.items.map((i) => i.id), task.n * 2));
   }, [fresh]); // eslint-disable-line react-hooks/exhaustive-deps
   const [words, setWords] = useState<string[] | null>(null);
