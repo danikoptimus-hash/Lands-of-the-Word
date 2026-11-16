@@ -9,7 +9,7 @@ const BASE = 'http://localhost:3001', GAME = 'cmucujbgq0008s301ran0fnt4'; const 
   p.on('request', (q) => { const u = new URL(q.url()); if (u.pathname.startsWith('/api/')) reqs.push({ u: u.pathname.replace(GAME, ':id') + (u.search ? '?…' : ''), t: Date.now() }); });
   p.on('response', async (x) => { const u = new URL(x.url()); if (u.pathname.endsWith('/my-map')) { try { bytes += (await x.body()).length; } catch {} } });
   await p.goto(`${BASE}/games/${GAME}/team`, { waitUntil: 'commit' }); await p.waitForSelector('.m-label', { timeout: 120000 }); await sleep(4000);
-  const streams0 = reqs.filter((q) => q.u.endsWith('/events')).length;
+  const streams0 = reqs.filter((q) => /\/events(\?|$)/.test(q.u)).length;
   // открыть лист Каменоломни (раньше он открывал своё соединение событий) — через «Дела» не трогаем, просто считаем соединения до и после разделов
   const n = await p.locator('.team-dock .dock-btn').count();
   for (let i = 0; i < n; i++) { const bb = await p.locator('.team-dock .dock-btn').nth(i).boundingBox(); await p.touchscreen.tap(bb.x + bb.width / 2, bb.y + bb.height / 2); await sleep(900); await p.touchscreen.tap(bb.x + bb.width / 2, bb.y + bb.height / 2); await sleep(400); }

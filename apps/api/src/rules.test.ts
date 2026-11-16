@@ -3,6 +3,7 @@ import { activeMsBetween, addActiveMs, addAwakeMs, awakeMsBetween, dayLightAt, d
 import { readFile } from "node:fs/promises";
 import { buildApp } from "./app.js";
 import { prisma } from "./db.js";
+import { dropStaticMap } from "./services/gameMap.js";
 import { cleanupFixtures, readyForStart, registerVerified, setGamePhase, zoneForLocalHour } from "./testAuth.js";
 import { orderQueue, sumVerses } from "./services/battles.js";
 import { nearZone } from "./services/teamMap.js";
@@ -390,6 +391,7 @@ describe("штраф, роли, пророк", () => {
     const toCity = (map0.json().tasks as Array<{ id: string; toKey: string; sea: boolean; status: string }>).find((t) => !t.sea && t.status === "OPEN")!;
     const cityKey = toCity.toKey;
     await prisma.mapNode.update({ where: { gameId_key: { gameId, key: cityKey } }, data: { kind: "CITY", bookCode: "jon" } });
+    dropStaticMap(gameId); // вид перекрёстка правим в обход игры: неизменная карта партии лежит в памяти сервера
     await prisma.teamEdgeTask.update({ where: { id: toCity.id }, data: { status: "APPROVED", decidedAt: new Date() } });
     await prisma.teamNodeState.create({ data: { teamId: team2, nodeKey: cityKey } });
     await prisma.teamCityState.create({ data: { gameId, teamId: team2, nodeKey: cityKey, orderSolved: true, doneTasks: [0], hintTasks: [1], attackPenalty: 5 } });
