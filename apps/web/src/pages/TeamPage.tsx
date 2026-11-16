@@ -1169,8 +1169,8 @@ export function TeamPage() {
               {/* Приоритет капитана (решение владельца 14.11): капитан или заместитель отмечает дело — его свиток на карте горит у всей команды. */}
               {task.person && <p className="meta-line mt-2 person-line"><Icon name="user" />{t("Кому: {name}", { name: task.person.name })}</p>}
               {/* Поручение (решение владельца 14.11): одна строка — кому поручено и до какого времени держится бронь; адресату — кто поручил.
-                  Слов «взять может только он» здесь нет (решение владельца 16.11: «вообще убираем эти слова» — игра не знает, он это или она);
-                  по той же причине рядом с именем нет «поручил» и «он». */}
+                  О том, кто может взять дело, в строке ничего нет (решение владельца 16.11: «вообще убираем эти слова» — игра не знает,
+                  мужчина это или женщина); по той же причине рядом с именем нет местоимений и глаголов в прошедшем времени. */}
               {assignee && <p className={"meta-line mt-2 assign-line" + (assignedToMe ? " me" : "")}><Icon name="user-plus" /><span>{assignedToMe
                 ? (memberName(task.assignedById ?? null) ? t("Вам поручает {name}", { name: memberName(task.assignedById ?? null) }) : t("Поручено вам"))
                 : t("Поручено: {name}", { name: memberName(assignee) })}{task.assignedUntil && <> · {assignedToMe ? t("взять до {time}", { time: unbroken(fmtDate(task.assignedUntil)) }) : t("до {time}", { time: unbroken(fmtDate(task.assignedUntil)) })}</>}</span></p>}
