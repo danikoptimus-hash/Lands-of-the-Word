@@ -18,6 +18,28 @@
   </head>
   <body>
     <div id="root"></div>
+    <!-- Запросы первого круга уходят сразу, пока программа качается и разбирается (ревизия скорости, этап 2): «кто я», игры,
+         команды, состав и карта последней игры. Только если в прошлый раз кто-то был вошедшим; программа забирает ответы
+         в lib/api.ts (takeEarly). Карта спрашивается с номером версии снимка: если она та же, ответ — около килобайта. -->
+    <script>
+      (function () {
+        try {
+          var ls = window.localStorage, me = ls.getItem("lotw.me");
+          if (!me) return;
+          var uid = JSON.parse(me).id, box = (window.__lotwBoot = {});
+          var get = function (u) { var p = fetch(u, { credentials: "same-origin" }); p.catch(function () {}); box[u] = p; };
+          var game = function (g) {
+            get("/api/games/" + g + "/teams");
+            var rev = (ls.getItem("lotw.rev:" + g) || "").split(":");
+            get("/api/games/" + g + "/my-map" + (rev[0] === uid && rev[1] && ls.getItem("lotw.s:/api/games/" + g + "/my-map") ? "?have=" + rev[1] : ""));
+          };
+          get("/api/auth/me");
+          var path = location.pathname, m = /^\/games\/([^/]+)\/team\/?$/.exec(path);
+          if (m) game(m[1]);
+          else if (path === "/") { get("/api/games"); get("/api/me/teams"); var last = ls.getItem("lotw.game"); if (last) game(last); }
+        } catch (e) { /* хранилище недоступно — игра загрузится обычным порядком */ }
+      })();
+    </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

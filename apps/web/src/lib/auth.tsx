@@ -1,5 +1,6 @@
 import { Fragment, createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { api, ApiError, type User, clearReady } from "./api";
+import { api, ApiError, type User, clearReady, setOwner } from "./api";
+import { savedUser, saveUser } from "./persist";
 import { readGuestLocale, saveGuestLocale, setLocale, type Locale } from "./i18n";
 import { syncPush } from "./push";
 
@@ -31,8 +32,18 @@ const Ctx = createContext<AuthState | null>(null);
 const signedOut = (e: unknown) => e instanceof ApiError && (e.status === 401 || e.status === 403);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<User | null>(null);
-  const [loading, setLoading] = useState(true);
+  // Кто вошёл в прошлый раз, помнится между запусками (ревизия скорости, этап 2): игра открывается сразу, не дожидаясь ответа
+  // «кто я». Ответ всё равно запрашивается; если сервер скажет «не вошёл» или назовёт другую учётку — запомненное стирается.
+  const [user, setUser] = useState<User | null>(() => { const was = savedUser<User>(); if (was) setOwner(was.id); return was; });
+  const [loading, setLoading] = useState(() => user === null);
+  /** Принять ответ сервера «кто я». */
+  const accept = useCallback((u: User | null) => {
+    if (!u) { clearReady(); setUser(null); return; }
+    const was = savedUser<User>();
+    // На устройстве остались снимки другой учётки (аккаунт сменили в соседней вкладке): стираем и начинаем с чистого листа.
+    if (was && was.id !== u.id) { clearReady(); setOwner(u.id); saveUser(u); window.location.reload(); return; }
+    setOwner(u.id); saveUser(u); setUser(u);
+  }, []);
   const [offline, setOffline] = useState(false);
   const [guestLocale, setGuest] = useState<Locale>(readGuestLocale());
   const locale: Locale = user ? (user.locale === "en" ? "en" : "ru") : guestLocale;
@@ -52,9 +63,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     let alive = true, tries = 0, timer: ReturnType<typeof setTimeout> | undefined;
     const ask = () => {
       const was = answered.current;
-      api<{ user: User }>("/api/auth/me").then((r) => { if (!alive || was !== answered.current) return; setUser(r.user); setOffline(false); setLoading(false); }).catch((e) => {
+      api<{ user: User }>("/api/auth/me").then((r) => { if (!alive || was !== answered.current) return; accept(r.user); setOffline(false); setLoading(false); }).catch((e) => {
         if (!alive || was !== answered.current) return;
-        if (signedOut(e)) { setUser(null); setOffline(false); setLoading(false); return; }
+        if (signedOut(e)) { accept(null); setOffline(false); setLoading(false); return; }
         tries++; setOffline(true);
         timer = setTimeout(ask, Math.min(10_000, 1000 * 2 ** Math.min(tries - 1, 4)));
       });
@@ -62,15 +73,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     ask();
     return () => { alive = false; if (timer) clearTimeout(timer); };
   }, []);
-  useEffect(() => { if (user) void loadAccounts(); else setAccounts([]); }, [user, loadAccounts]);
+  // По номеру учётки, а не по объекту: «кто я» подтверждает запомненного пользователя новым объектом, и список запрашивался дважды.
+  const userId = user?.id;
+  useEffect(() => { if (userId) void loadAccounts(); else setAccounts([]); }, [userId, loadAccounts]);
 
   const login = useCallback(async (nickname: string, password: string, add = false) => {
     const r = await api<{ user: User }>("/api/auth/login", { method: "POST", body: JSON.stringify({ nickname, password, add }) });
-    answered.current++; clearReady(); setUser(r.user); setOffline(false); setLoading(false);
+    answered.current++; clearReady(); accept(r.user); setOffline(false); setLoading(false);
     void syncPush();
   }, []);
   const switchAccount = useCallback(async (userId: string) => {
     await api("/api/auth/switch", { method: "POST", body: JSON.stringify({ userId }) });
+    clearReady();
     // Страницы держат данные прежнего аккаунта (игры, карта, события): проще начать с чистого листа.
     window.location.assign("/");
   }, []);
@@ -81,12 +95,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Язык, выбранный гостем на странице входа, становится языком новой учётки.
   const register = useCallback(async (nickname: string, password: string, email: string) => {
     const r = await api<{ user: User }>("/api/auth/register", { method: "POST", body: JSON.stringify({ nickname, password, email, locale: guestLocale }) });
-    answered.current++; clearReady(); setUser(r.user); setOffline(false); setLoading(false);
-  }, [guestLocale]);
+    answered.current++; clearReady(); accept(r.user); setOffline(false); setLoading(false);
+  }, [guestLocale, accept]);
   const refresh = useCallback(async () => {
     // Сбой связи пользователя не сбрасывает: только ответ сервера «не вошёл».
-    try { const r = await api<{ user: User }>("/api/auth/me"); answered.current++; setUser(r.user); setOffline(false); setLoading(false); } catch (e) { if (signedOut(e)) { answered.current++; setUser(null); setOffline(false); setLoading(false); } }
-  }, []);
+    try { const r = await api<{ user: User }>("/api/auth/me"); answered.current++; accept(r.user); setOffline(false); setLoading(false); } catch (e) { if (signedOut(e)) { answered.current++; accept(null); setOffline(false); setLoading(false); } }
+  }, [accept]);
   const logout = useCallback(async () => {
     const r = await api<{ ok: boolean; user: User | null }>("/api/auth/logout", { method: "POST" });
     clearReady();

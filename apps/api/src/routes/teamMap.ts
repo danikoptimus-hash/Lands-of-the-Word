@@ -5,6 +5,7 @@ import { z } from "zod";
 import { prisma } from "../db.js";
 import { assertAwake, assertTasksOpen, gameDaytime } from "../services/daytime.js";
 import { publish } from "../services/events.js";
+import { publishRoad } from "../services/eventScope.js";
 import { requireUser } from "../auth.js";
 import { getTeamMap, isSeaKey, landingCandidates, revealNode, withDeedBook, bookOfNodeKey, deedLimitsFor, birdFor, assignActive, assignView, type DeedLimit } from "../services/teamMap.js";
 import { loadCityContent } from "../services/cities.js";
@@ -152,7 +153,13 @@ export async function teamMapRoutes(app: FastifyInstance): Promise<void> {
       const book = await loadBook(r.bookCode);
       returnedBlocks.push({ id: r.id, nodeKey: r.nodeKey, bookCode: r.bookCode, ref: (book ? brickRef(book, r.startIdx, r.endIdx) : "") + (r.repairOfId ? " (починка)" : ""), comment: r.adminComment, at: (r.decidedAt ?? r.createdAt).toISOString() });
     }
-    return { returnedBlocks, quarryNew, seenWrecks, arrivals, status: game.status, startedAt: game.startedAt, gameName: game.name, deedLimit, deedsFrozenUntil, visits, deedsFrozenReason: deedsFrozenUntil ? m.deedsFrozenReason : null, daytime, team: { id: m.team.id, name: m.team.name, color: m.team.color, avatarId: m.team.avatarId, startNodeKey: m.team.startNodeKey, ...(await prisma.team.findUniqueOrThrow({ where: { id: m.team.id }, select: { stones: true, cargoBlocks: true } })) }, ...map, tasks: map.tasks.map((t) => hideSecret(t, request.user!.id)) };
+    // То, что маршрут добавляет к общей карте команды: личное и по часам (лимит дел, заморозка, «Внимание», время суток).
+    const own = { returnedBlocks, quarryNew, seenWrecks, arrivals, status: game.status, startedAt: game.startedAt, gameName: game.name, deedLimit, deedsFrozenUntil, visits, deedsFrozenReason: deedsFrozenUntil ? m.deedsFrozenReason : null, daytime, team: { id: m.team.id, name: m.team.name, color: m.team.color, avatarId: m.team.avatarId, startNodeKey: m.team.startNodeKey, ...(await prisma.team.findUniqueOrThrow({ where: { id: m.team.id }, select: { stones: true, cargoBlocks: true } })) } };
+    // У приложения уже эта версия карты (ревизия скорости, этап 2): отдаём только добавки — около килобайта вместо всей
+    // карты. Так приложение сверяется с сервером без скачивания карты; саму карту оно получает «разницей» по событиям.
+    const have = Number((request.query as { have?: string }).have);
+    if (Number.isFinite(have) && have === map.rev) return { same: true, rev: map.rev, now: Date.now(), ...own };
+    return { ...own, ...map, tasks: map.tasks.map((t) => hideSecret(t, request.user!.id)) };
   });
 
   /** Администратор: карта глазами команды — ровно то, что видит она (туман, стороны, метки дел), без действий. */
@@ -258,7 +265,8 @@ export async function teamMapRoutes(app: FastifyInstance): Promise<void> {
       const who = await nick(me);
       // Уведомление ведёт прямо на дело: карточка откроется, карта покажет его сторону.
       notifyUser(id, body.userId, "вам поручили дело", "{who} поручил(а) вам дело «{deed}». Возьмите его в течение суток: до тех пор его не возьмёт никто другой.", { who, deed: updated.deed.title }, { footer: "Открыть дело", query: `?task=${task.id}` });
-      journal(id, "deed_assigned", { userId: body.userId, personal: true, vars: { who, deed: updated.deed.title, taskId: task.id } });
+      // teamId — чтобы событие летописи ушло только своей команде: личная запись без него будила всю партию (ревизия, этап 2).
+      journal(id, "deed_assigned", { userId: body.userId, teamId: m.team.id, personal: true, vars: { who, deed: updated.deed.title, taskId: task.id } });
     }
     return { task: { ...hideSecret(updated, me), ...assignView(updated) } };
   });
@@ -277,7 +285,7 @@ export async function teamMapRoutes(app: FastifyInstance): Promise<void> {
     if (task.assignedById) {
       const user = await nick(me);
       notifyUser(id, task.assignedById, "поручение не принято", "{user} не может взять дело «{deed}». Дело снова свободно для всей команды.", { user, deed: updated.deed.title }, { footer: "Открыть дело", query: `?task=${task.id}` });
-      journal(id, "deed_assign_declined", { userId: task.assignedById, personal: true, vars: { user, deed: updated.deed.title, taskId: task.id } });
+      journal(id, "deed_assign_declined", { userId: task.assignedById, teamId: m.team.id, personal: true, vars: { user, deed: updated.deed.title, taskId: task.id } });
     }
     return { task: { ...hideSecret(updated, me), ...assignView(updated) } };
   });
@@ -418,6 +426,9 @@ export async function teamMapRoutes(app: FastifyInstance): Promise<void> {
     else if (task.takenById) notifyUser(id, task.takenById, "дело вернули на доработку", (locale) => msg(locale, "Администратор вернул дело «{deed}».{comment}", { deed: updated.deed.title, comment: body.comment ? msg(locale, " Комментарий: {comment}", { comment: body.comment }) : "" }));
     publish(id, { type: "submissions", teamId: task.teamId });
     publish(id, { type: "tasks", teamId: task.teamId });
+    // Принятое дело — новая пройденная сторона: её видят команды, у которых открыт любой её конец (чужая дорога на карте).
+    // Раньше им об этом не сообщалось вовсе — карта догоняла при следующем скачивании раз в минуту (ревизия, этап 2).
+    if (body.approve && !task.sea) void publishRoad(id, [task.fromKey, task.toKey], task.teamId);
     return { ok: true, task: updated };
   }
   app.post("/api/games/:id/edge-tasks/:taskId/decide", async (request, reply) => {
@@ -459,6 +470,8 @@ export async function teamMapRoutes(app: FastifyInstance): Promise<void> {
     scheduleAwards(id);
     publish(id, { type: "map", teamId: m.team.id });
     publish(id, { type: "tasks", teamId: m.team.id });
+    // Морская сторона получила место высадки: её видят команды, у которых открыт порт или пристань.
+    void publishRoad(id, [task.fromKey, body.nodeKey], m.team.id);
     return { ok: true };
   });
 
@@ -483,6 +496,7 @@ export async function teamMapRoutes(app: FastifyInstance): Promise<void> {
     await revealNode(id, teamId, body.nodeKey);
     publish(id, { type: "map", teamId });
     publish(id, { type: "tasks", teamId });
+    void publishRoad(id, task ? [task.fromKey, body.nodeKey] : [body.nodeKey], teamId);
     return { ok: true, viaTask: Boolean(task) };
   });
 

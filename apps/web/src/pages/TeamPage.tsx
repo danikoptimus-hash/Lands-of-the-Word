@@ -3,15 +3,15 @@ import { Picker } from "../components/Picker";
 import { nodePos } from "../lib/hexmap";
 import { Link, useParams, useSearchParams } from "react-router-dom";
 import { BOOKS } from "@lotw/domain";
-import { api, ApiError, apiReady, deedAssignee, deedPriority, prefetch, ready, type AwardsDto, type BattleDto, type DailyBirdDto, type EdgeTaskDto, type EdgeTaskStatus, type GameRole, type MapMarkDto, type MyMapDto, type PeaceTeamDto, type StandingsDto, type TeamDto } from "../lib/api";
+import { api, ApiError, apiReady, deedAssignee, deedPriority, prefetch, ready, setReady, type AwardsDto, type BattleDto, type DailyBirdDto, type EdgeTaskDto, type EdgeTaskStatus, type GameRole, type MapMarkDto, type MyMapDto, type PeaceTeamDto, type StandingsDto, type TeamDto } from "../lib/api";
 import { useAuth } from "../lib/auth";
-import { useCoalesced, useGameEvents, type MapPush } from "../lib/useGameEvents";
+import { streamAlive, useCoalesced, useGameEvents, type MapPush } from "../lib/useGameEvents";
 import { keepSame, useNow } from "../lib/stable";
 import { applyPatch } from "fast-json-patch";
 import { TeamMap, type MarkPoint } from "./TeamMap";
 import { AwardRating, FlameIcon, MilestoneCard, StreakBanner, TeamAwardsBlock, awardsCached, preloadAllAwardImages, preloadAwardImages } from "./Awards";
 import { AWARD_BY_CODE } from "@lotw/domain";
-import { previewPhase, useStorm } from "../lib/daytime";
+import { previewPhase, useDayRules, useStorm } from "../lib/daytime";
 import { TimelineClock } from "./Timeline";
 import { mapAt, teamMoves } from "./TeamHistory";
 import { CityPopup } from "./CityPopup";
@@ -192,6 +192,8 @@ export function TeamPage() {
   // Часы сервера для шторма — время самого ответа (daytime.now): map.now — момент расчёта карты, а она лежит в памяти
   // сервера до минуты, и шторм начинался бы у части игроков с таким же опозданием.
   const storm = useStorm(map?.daytime, map?.daytime?.now ?? map?.now, () => stormReload.current());
+  // Ночь и «задания открыты» считаются на месте по часам сервера: карта по таймеру больше не качается (ревизия, этап 2).
+  const dayRules = useDayRules(map?.daytime?.timeZone, map?.daytime?.now ?? map?.now, map?.daytime);
   const stormWas = useRef(storm.active);
   // Карта обёрнута в memo и получает обработчики с постоянной «личностью»: сами функции объявлены ниже и создаются заново при
   // каждой отрисовке страницы, а обёртки вызывают их последнюю версию. Так карта перерисовывается только от своих данных,
@@ -389,20 +391,37 @@ export function TeamPage() {
   // потерялось бы молча (находка независимого разбора 15.11).
   const mapRev = useRef<number | undefined>(firstMap?.rev);
   const mapRef = useRef<MyMapDto | null>(firstMap);
-  const putMap = useCallback((next: MyMapDto | null) => { mapRef.current = next; setMap(next); }, []);
+  const mapUrl = `/api/games/${id}/my-map`;
+  // Текущая карта кладётся и в память готовых ответов, и в снимок между запусками: следующий запуск покажет её сразу.
+  const putMap = useCallback((next: MyMapDto | null) => { mapRef.current = next; setMap(next); if (next) setReady(mapUrl, next); }, [mapUrl]);
   // Счётчик принятых карт — чтобы узнать опоздавший ответ: пока полный запрос был в пути (плохая связь), могла прийти и
   // примениться более новая «разница» или другой полный ответ. Такой опоздавший ответ старее того, что уже на экране, и
   // раньше затирал его — чужое взятое дело снова выглядело свободным до следующего перечитывания (находка повторного
   // разбора 15.11). Теперь он отбрасывается, а карта перечитывается заново.
   const mapSeq = useRef(0), mapAgain = useRef<() => void>(NOOP);
   const acceptMap = useCallback((m: MyMapDto) => { mapSeq.current++; mapRev.current = m.rev; putMap(keepSame(mapRef.current, m, MAP_VOLATILE)); }, [putMap]);
+  // Когда карта уже есть (с прошлого запуска или этого сеанса), сервер спрашивается с номером её версии: если карта та же,
+  // он отвечает только добавками — лимит дел, «Внимание», время суток — около килобайта вместо всей карты (ревизия, этап 2).
+  // Так устроено любое перечитывание: после своего действия, по событию, при возврате в приложение, страховочная сверка.
+  const lastCheck = useRef(0);
   const fetchMap = useCallback((join: boolean) => {
-    const seq = mapSeq.current;
-    return apiReady<MapResp>(`/api/games/${id}/my-map`, { join }).then((m) => {
+    const seq = mapSeq.current, have = mapRef.current && mapRev.current !== undefined ? mapRev.current : null;
+    const req = have === null ? apiReady<MapResp>(mapUrl, { join }) : apiReady<MapResp | (Partial<MapResp> & { same: true })>(`${mapUrl}?have=${have}`, { join, keep: false });
+    return req.then((m) => {
+      lastCheck.current = Date.now();
+      if ("same" in m) {
+        // Добавки не зависят от версии карты: накладываем на ту, что сейчас на экране (она могла уйти вперёд «разницей»).
+        const base = mapRef.current;
+        if (!base) { mapAgain.current(); return; }
+        const { same: _same, rev: _rev, ...own } = m;
+        putMap(keepSame(base, { ...base, ...own } as MyMapDto, MAP_VOLATILE));
+        setMapError(null); setDisplayTimeZone(m.daytime?.timeZone); if (m.gameName) setGameName(m.gameName);
+        return;
+      }
       if (mapSeq.current !== seq && mapRev.current !== undefined && m.rev !== undefined && m.rev < mapRev.current) { mapAgain.current(); return; }
       acceptMap(m); setMapError(null); setDisplayTimeZone(m.daytime?.timeZone); if (m.gameName) setGameName(m.gameName);
     }).catch((e) => setMapError(e instanceof ApiError ? e.message : t("Ошибка сети")));
-  }, [id, acceptMap]);
+  }, [mapUrl, acceptMap, putMap]);
   const loadMap = useCallback(() => fetchMap(false), [fetchMap]);
   // Первый показ берёт ответы, которые главная уже запросила заранее и которые ещё в пути.
   useEffect(() => { void fetchTeam(true); void fetchMap(true); }, [fetchTeam, fetchMap]);
@@ -423,6 +442,12 @@ export function TeamPage() {
   // Перечитывания по событиям склеиваются (решение владельца 23.10): несколько событий за 2,5 с — одно перечитывание.
   const teamLater = useCoalesced(loadTeam), mapLater = useCoalesced(loadMap), passagesLater = useCoalesced(loadPassages), battlesLater = useCoalesced(loadBattles), standingsLater = useCoalesced(loadStandings), peaceLater = useCoalesced(loadPeace);
   mapAgain.current = mapLater;
+  // Положение и испытания освежаются при открытии раздела. Чужие перемены в них больше не будят всю партию событиями
+  // (адресная рассылка, ревизия скорости, этап 2), а смотреть на чужие числа игрок приходит именно сюда.
+  useEffect(() => {
+    if (!menu) return;
+    if (menuView === "standings") standingsLater(); else if (menuView === "battles") battlesLater();
+  }, [menu, menuView, standingsLater, battlesLater]);
   const cityLater = useCoalesced(() => setCityVersion((v) => v + 1)), feedLater = useCoalesced(() => setFeedVersion((v) => v + 1));
   const awardsLater = useCoalesced(() => setAwardsVersion((v) => v + 1));
   // Карта приходит разницей от сервера (решение владельца 24.10): применяем к своей версии; если версии разошлись — перечитываем.
@@ -459,12 +484,31 @@ export function TeamPage() {
     if (e.type === "journal" || e.type === "peace" || e.type === "submissions" || e.type === "cities" || e.type === "battles" || e.type === "game") feedLater();
     if (e.type === "awards" || e.type === "submissions" || e.type === "game") awardsLater();
   }, onMapPush);
+  // Сверка с сервером вместо скачивания карты раз в минуту (ревизия скорости, этап 2). Пока канал событий жив, перемены
+  // приходят сами; страховочная сверка — раз в три минуты и лёгкая («карта та же» — килобайт). Канал молчит — сверяемся
+  // раз в минуту, как раньше. Вернулись в приложение после паузы или появилась сеть — сверяемся сразу. В фоне не сверяемся.
   useEffect(() => {
-    const tm = setInterval(() => void loadMap(), 60000);
-    const onFocus = () => void loadMap();
-    window.addEventListener("focus", onFocus);
-    return () => { clearInterval(tm); window.removeEventListener("focus", onFocus); };
-  }, [loadMap]);
+    let hiddenAt = 0;
+    const check = () => { void loadMap(); };
+    const tm = setInterval(() => {
+      if (document.visibilityState !== "visible") return;
+      if (!streamAlive(id) || Date.now() - lastCheck.current > 170_000) check();
+    }, 60_000);
+    const onVis = () => {
+      if (document.visibilityState === "hidden") { hiddenAt = Date.now(); return; }
+      if (hiddenAt && Date.now() - hiddenAt > 5000) check();
+      hiddenAt = 0;
+    };
+    document.addEventListener("visibilitychange", onVis);
+    window.addEventListener("online", check);
+    return () => { clearInterval(tm); document.removeEventListener("visibilitychange", onVis); window.removeEventListener("online", check); };
+  }, [loadMap, id]);
+  // На границе суток игры (0:00 и 7:00) меняются лимит дел и то, что можно делать: сверяемся в этот момент.
+  const openWas = useRef(dayRules.tasksOpen);
+  useEffect(() => {
+    if (openWas.current !== undefined && dayRules.tasksOpen !== undefined && openWas.current !== dayRules.tasksOpen) void loadMap();
+    openWas.current = dayRules.tasksOpen;
+  }, [dayRules.tasksOpen, loadMap]);
 
   const me = team?.members.find((m) => m.user.id === user?.id);
   const isCaptain = me?.role === "CAPTAIN";
@@ -697,8 +741,8 @@ export function TeamPage() {
   const knownCities = map.revealed.filter((n) => n.kind === "CITY" && n.bookCode).map((n) => ({ name: bookName(n.bookCode!), ...nodePos(n.key) }));
   const deedWhere = (tk: EdgeTaskDto) => { const a = nodePos(tk.fromKey), b = nodePos(tk.toKey); const x = (a.x + b.x) / 2, y = (a.y + b.y) / 2; let best = "", bd = Infinity; for (const c of knownCities) { const d = (c.x - x) ** 2 + (c.y - y) ** 2; if (d < bd) { bd = d; best = c.name; } } return best ? t("у города {city}", { city: best }) : t("на карте"); };
   // Фаза для подписей: предпросмотр `?tod=` (снимки инструкции) перекрывает серверную, правила считает сервер.
-  const phase = previewPhase() ?? map.daytime?.phase;
-  const canTakeNow = phase !== "night" || Boolean(map.daytime?.tasksOpen);
+  const phase = previewPhase() ?? dayRules.phase;
+  const canTakeNow = phase !== "night" || Boolean(dayRules.tasksOpen);
   const landingTask = landingId ? map.tasks.find((tk) => tk.id === landingId && tk.landing) ?? null : null;
   const incoming = passages?.incoming.filter((r) => r.status === "PENDING") ?? [];
   // Бейдж на кнопке меню — только то, что требует действия: возвращённое дело, входящий запрос прохода, наш ход в испытании.
@@ -1037,7 +1081,7 @@ export function TeamPage() {
         {wreckId && !storm.active && (() => {
           const w = (map.wrecks ?? []).find((x) => x.id === wreckId);
           if (!w) return null;
-          return <WreckSheet gameId={id} wreck={w} container={mapEl} canWork={isLeader || me?.gameRole === "CHRONICLER"} canTake={phase !== "night" || Boolean(map?.daytime?.tasksOpen)} asleep={phase === "night"} members={(team.members ?? []).map((mm) => ({ id: mm.user.id, name: mm.user.displayName ?? mm.user.nickname }))} onClose={() => setWreckId(null)} onChanged={() => void loadMap()} />;
+          return <WreckSheet gameId={id} wreck={w} container={mapEl} canWork={isLeader || me?.gameRole === "CHRONICLER"} canTake={phase !== "night" || Boolean(dayRules.tasksOpen)} asleep={phase === "night"} members={(team.members ?? []).map((mm) => ({ id: mm.user.id, name: mm.user.displayName ?? mm.user.nickname }))} onClose={() => setWreckId(null)} onChanged={() => void loadMap()} />;
         })()}
         {!storm.active && (
           <nav className="admin-dock team-dock" aria-label={t("Разделы")}>
@@ -1153,7 +1197,7 @@ export function TeamPage() {
           const canScout = me?.gameRole === "SCOUT" && !peeked && !(map?.revealed ?? []).some((n) => n.key === task.toKey);
           const night = phase === "night";
           // Взять дело можно до полуночи, как и решать задания города (решение владельца 04.10); сдача и разведка — с 7:00.
-          const canTake = !night || Boolean(map?.daytime?.tasksOpen);
+          const canTake = !night || Boolean(dayRules.tasksOpen);
           // «Разведать» — такая же квадратная кнопка со значком и «?», как остальные действия дела (решение владельца 14.11).
           // Ночью кнопки те же, что днём (решение владельца 15.11): нажатие показывает подсказку о ночи, строки со знаком месяца нет.
           const NIGHT_ALL = t("Ночь: дела ждут утра. С 7:00 по местному времени дело можно взять, сдать или разведать.");

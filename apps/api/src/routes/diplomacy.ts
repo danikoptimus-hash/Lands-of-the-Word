@@ -38,6 +38,8 @@ export async function expirePassages(gameId?: string): Promise<void> {
   for (const r of rows) {
     await prisma.passageRequest.update({ where: { id: r.id }, data: { status: "EXPIRED", decidedAt: new Date() } });
     publish(r.gameId, { type: "map", teamId: r.requesterId });
+    // Владельцу города тоже: у него входящий запрос иначе так и остаётся «ждёт ответа» (находка разбора событий 16.11).
+    publish(r.gameId, { type: "map", teamId: r.ownerId });
     notifyTeam(r.gameId, r.requesterId, "проход не разрешён", "Владелец города не ответил на запрос прохода в срок: по правилам это отказ. Можно запросить снова.");
     const [rq, ow] = await teamNames(r.requesterId, r.ownerId);
     const book = (await bookOf(r.gameId, [r.nodeKey])).get(r.nodeKey) ?? "";
@@ -316,7 +318,8 @@ export async function diplomacyRoutes(app: FastifyInstance): Promise<void> {
       prisma.team.update({ where: { id: m.team.id }, data: { capitalMovedAt: new Date() } }),
     ]);
     journal(id, "capital_moved", { teamId: m.team.id, userId: request.user!.id });
-    publish(id, { type: "cities", teamId: m.team.id });
+    // Столицу видят все (карта, открытый лист города у другой команды): оба события общие.
+    publish(id, { type: "cities" });
     publish(id, { type: "map" });
     return { ok: true };
   });

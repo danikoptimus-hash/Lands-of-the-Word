@@ -373,7 +373,9 @@ export async function cityRoutes(app: FastifyInstance): Promise<void> {
     journal(id, c.node.ruined ? "ruins_taken" : "city_captured", { everyone: true, teamId: c.m.team.id, userId: request.user!.id, vars: { team: c.m.team.name, book: c.node.bookCode ?? "", capital: updated.isCapital ? " (столица)" : "" } });
     // Город взят ключом от адресата: в тот же день нужен отчёт о визите (решение владельца 22.10). Опустевший город берётся без адресата.
     const visit = c.node.ruined ? null : await openVisit(id, c.m.team.id, nodeKey, c.node.bookCode ?? "");
-    publish(id, { type: "cities", teamId: c.m.team.id });
+    // Взятие города видят все: владелец на карте, «Городов» в положении, открытый лист этого города у другой команды.
+    // Поэтому событие общее (адресная рассылка, ревизия скорости, этап 2).
+    publish(id, { type: "cities" });
     publish(id, { type: "map", teamId: c.m.team.id });
     return { ok: true, isCapital: updated.isCapital, visitDueAt: visit?.dueAt ?? null };
   });

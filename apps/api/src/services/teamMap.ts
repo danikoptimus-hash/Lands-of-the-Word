@@ -5,7 +5,7 @@ import { hexCorners, vertexKey, vertexHexes, parseVertexKey, BOOKS, localMinutes
 import { loadCityContent } from "./cities.js";
 import { notifyTeam, notifyUser } from "./notify.js";
 import { createHash } from "node:crypto";
-import { publish, onPublish, TEAM_ONLY, hasTeamSubscribers, pushToTeam, type GameEventType } from "./events.js";
+import { publish, onPublish, hasTeamSubscribers, pushToTeam, type GameEventType } from "./events.js";
 import jsonPatch from "fast-json-patch";
 const { compare } = jsonPatch;
 import { days, rulesOf, type Rules } from "./rules.js";
@@ -553,9 +553,10 @@ export async function penalizeTeam(gameId: string, teamId: string, byId: string)
     prisma.teamPenalty.create({ data: { gameId, teamId, fromKey: pick.fromKey, toKey: pick.toKey, byId } }),
   ]);
   await ensureFrontier(gameId, teamId);
-  publish(gameId, { type: "map", teamId });
+  // Пройденная сторона снова свободна: это видят соседи (чужая дорога на карте, положение) — события карты и городов общие.
+  publish(gameId, { type: "map" });
   publish(gameId, { type: "tasks", teamId });
-  publish(gameId, { type: "cities", teamId });
+  publish(gameId, { type: "cities" });
   notifyTeam(gameId, teamId, "штраф: участок пути аннулирован", (locale) => msg(locale, city
     ? "Администратор назначил команде штраф: последняя пройденная сторона аннулирована, город за ней снова закрыт, его задания начинаются заново. Дело на этой стороне нужно сделать заново."
     : "Администратор назначил команде штраф: одна пройденная сторона на конце пути аннулирована, перекрёсток за ней снова закрыт. Дело на этой стороне нужно сделать заново."));
@@ -597,22 +598,37 @@ const mapCache = new Map<string, { gameId: string; at: number; value: Promise<Te
  * События одного действия идут пачкой (сдача → tasks, submissions, journal), поэтому пересчёт откладывается на 300 мс.
  */
 const pending = new Map<string, { timer: ReturnType<typeof setTimeout>; prev: TeamMap | null }>();
+/**
+ * Последняя посчитанная карта команды (`known`) и последняя, отправленная её приложениям «разницей» (`sent`). Раньше прежняя
+ * карта бралась из записи кэша, а запись стирается при каждом сбросе: если второе изменение приходило, пока сервер ещё
+ * считал карту после первого, прежней карты не находилось, и приложениям уходило «перечитай целиком» (ревизия, этап 2).
+ * Рассылки одной команды идут строго по очереди (`pushing`): «разница» всегда считается от той карты, что уже у приложений.
+ */
+const known = new Map<string, TeamMap>(), sent = new Map<string, TeamMap>(), pushing = new Map<string, Promise<void>>();
 export function invalidateTeamMaps(gameId: string, teamId?: string): void {
   const ids = teamId ? [teamId] : [...mapCache].filter(([, e]) => e.gameId === gameId).map(([k]) => k);
   for (const id of ids) {
-    const entry = mapCache.get(id);
     mapCache.delete(id);
     if (!hasTeamSubscribers(gameId, id)) continue;
     // Пачка событий одного действия: прежняя карта берётся из первого сброса, остальные её не теряют.
     const was = pending.get(id);
     if (was) clearTimeout(was.timer);
-    const prev = was?.prev ?? entry?.last ?? null;
-    pending.set(id, { prev, timer: setTimeout(() => { pending.delete(id); void pushMapUpdate(gameId, id, prev); }, 300) });
+    const prev = was?.prev ?? known.get(id) ?? null;
+    pending.set(id, { prev, timer: setTimeout(() => {
+      pending.delete(id);
+      const run = (pushing.get(id) ?? Promise.resolve()).then(() => pushMapUpdate(gameId, id, prev));
+      pushing.set(id, run);
+      void run.finally(() => { if (pushing.get(id) === run) pushing.delete(id); });
+    }, 300) });
   }
 }
-async function pushMapUpdate(gameId: string, teamId: string, prev: TeamMap | null): Promise<void> {
+async function pushMapUpdate(gameId: string, teamId: string, captured: TeamMap | null): Promise<void> {
   try {
+    // Основа «разницы» — самая свежая из двух: карта на момент сброса или та, что уже ушла приложениям предыдущей рассылкой.
+    const was = sent.get(teamId);
+    const prev = was && (!captured || was.rev > captured.rev) ? was : captured;
     const next = await getTeamMap(gameId, teamId);
+    sent.set(teamId, next);
     if (!prev || prev.rev === next.rev) { if (!prev) pushToTeam(gameId, teamId, "map-stale", { rev: next.rev }); return; }
     // Тайные дела: ссылки и текст сдачи видит только сдавший — в разнице их нет (сравниваются обезличенные карты).
     const patch = compare(publicMap(prev), publicMap(next));
@@ -627,7 +643,9 @@ function publicMap(m: TeamMap): Record<string, unknown> {
 // Награды и мир в карту команды не входят: их события карты не сбрасывают (раньше каждая выданная награда заставляла
 // пересчитать карты всех команд партии).
 const NOT_ON_MAP: ReadonlySet<GameEventType> = new Set(["awards", "peace"]);
-onPublish((gameId, ev) => { if (!NOT_ON_MAP.has(ev.type)) invalidateTeamMaps(gameId, ev.teamId && TEAM_ONLY.has(ev.type) ? ev.teamId : undefined); });
+// Событие команды сбрасывает только её карту (ревизия скорости, этап 2: адресная рассылка — services/events.ts);
+// общее событие — карты всех команд партии.
+onPublish((gameId, ev) => { if (!NOT_ON_MAP.has(ev.type)) invalidateTeamMaps(gameId, ev.teamId); });
 export function getTeamMap(gameId: string, teamId: string): Promise<TeamMap> {
   const hit = mapCache.get(teamId);
   if (hit && hit.gameId === gameId && Date.now() - hit.at < MAP_TTL_MS) return hit.value;
@@ -636,7 +654,7 @@ export function getTeamMap(gameId: string, teamId: string): Promise<TeamMap> {
     const sig = mapSignature(m), was = lastRev.get(teamId);
     const rev = was && was.gameId === gameId && was.sig === sig ? was.rev : ++mapRev;
     lastRev.set(teamId, { gameId, sig, rev });
-    const full = { ...m, rev }; entry.last = full; return full;
+    const full = { ...m, rev }; entry.last = full; known.set(teamId, full); return full;
   });
   mapCache.set(teamId, entry);
   entry.value.catch(() => { if (mapCache.get(teamId) === entry) mapCache.delete(teamId); });
