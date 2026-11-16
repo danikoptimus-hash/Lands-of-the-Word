@@ -1,7 +1,7 @@
 import { MEASURE } from "../lib/measure";
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { BOOKS, cityTasksOpen, dayLight } from "@lotw/domain";
-import { api, ApiError, apiReady, ready, type CityTaskDto, type MapCityDto, type MyCityDto, type SupportItemDto, type TaskLockDto, type VisitDto } from "../lib/api";
+import { api, ApiError, apiReady, ready, setReady, type CityTaskDto, type MapCityDto, type MyCityDto, type SupportItemDto, type TaskLockDto, type VisitDto } from "../lib/api";
 import { useUi } from "../lib/ui";
 import { IMG } from "./MapLayers";
 import { BurntScroll, CipherSeal, Crossword, LockChoice, LockRings, PickCooling, ProphetCandle, WaxEnvelope, findGap, ChiasmBoard } from "./CityForms";
@@ -121,7 +121,11 @@ export function CityPopup({ gameId, nodeKey, teamId, isCaptain, canAlly, version
     const r = el.getBoundingClientRect(), b = body.getBoundingClientRect();
     body.scrollTop += r.top - b.top - (b.height - r.height) / 2;
   }, [taskIndex]);
-  const [busy, setBusy] = useState(false);
+  const [busyNow, setBusy] = useState(false);
+  /** Свежий ответ уже пришёл. Пока на экране прежний, всё, что пишет на сервер (расстановка, замок, ответы, печать), выключено:
+   *  иначе один ход по устаревшей расстановке затирал сохранённую — общую на команду (нашёл независимый разбор 16.11). */
+  const [fresh, setFresh] = useState(false);
+  const busy = busyNow || !fresh;
   const [key, setKey] = useState("");
   /** Разница часов сервера и устройства (мс): паузы отмычки и печати сравниваются по часам сервера (05.11: при сбитых часах
    *  телефона кнопка «Ответить» оживала раньше, чем сервер принимал ответ, а счётчик ошибок не рос — ответы отбивались как 429). */
@@ -150,7 +154,7 @@ export function CityPopup({ gameId, nodeKey, teamId, isCaptain, canAlly, version
     // На экране был прежний ответ: черновик расстановки команды мог измениться — берём свежий, если игрок ещё ничего не двигал.
     if (stale.current && !touched.current) { const d = orderDraftOf(c); if (d) setOrder(d); }
     stale.current = false;
-    setCity(c); setNow(Date.now() + skew.current); setError(null);
+    setCity(c); setFresh(true); setNow(Date.now() + skew.current); setError(null);
   }).catch((e) => {
     setError(e instanceof ApiError ? e.message : t("Ошибка сети"));
     // Город больше не наш к показу (не дошли, нет такого): прежний ответ с экрана убираем.
@@ -159,7 +163,7 @@ export function CityPopup({ gameId, nodeKey, teamId, isCaptain, canAlly, version
   useEffect(() => { void load(); }, [load, version]);
   useEffect(() => { const tm = setInterval(() => setNow(Date.now() + skew.current), 1000); return () => clearInterval(tm); }, []);
   useEffect(() => { if (city && !order) { const d = orderDraftOf(city); if (d) setOrder(d); } }, [city, order]);
-  const saveDraft = useDraftSaver(`/api/games/${gameId}/my-city/${encodeURIComponent(nodeKey)}/draft`);
+  const saveDraft = useDraftSaver(`/api/games/${gameId}/my-city/${encodeURIComponent(nodeKey)}/draft`, url);
 
   const book = BOOK_BY_CODE.get(city?.node.bookCode ?? preview?.bookCode ?? "");
   const districts = city?.content?.districts ?? [];
@@ -420,7 +424,7 @@ export function CityPopup({ gameId, nodeKey, teamId, isCaptain, canAlly, version
       {/* Проход и испытание — свёрнутые секции; в чужом городе «Проход» первой. Запросить проход можно ещё до решения районов. */}
       {city?.content && !task && foreign && (
         <Fold icon="handshake" title={t("Проход")}>
-          <PassageSection gameId={gameId} nodeKey={nodeKey} version={version} onChanged={onChanged} />
+          <PassageSection gameId={gameId} nodeKey={nodeKey} version={version} given={passages} onChanged={onChanged} />
         </Fold>
       )}
       {/* Стена своего города (решение владельца 01.11): кладка, кнопка «+» — сдать блок. */}
@@ -454,7 +458,7 @@ export function CityPopup({ gameId, nodeKey, teamId, isCaptain, canAlly, version
       )}
       {!sleeping && city?.content && task && (
         <TaskView key={task.index} task={task} onPrev={prevTask != null ? () => setTaskIndex(prevTask) : null} onNext={nextTask != null ? () => setTaskIndex(nextTask) : null} teamDone={done.includes(task.index)} fragments={city.content.fragments} district={districts.find((d) => d.index === task.index)} groupTitles={task.groupDistricts?.map((n) => districts.find((d) => d.index === n - 1)?.title ?? String(n)) ?? null} done={mine.includes(task.index)} fragment={city.content.fragments[task.index] ?? null} busy={busy} cooldown={cooldown} onBack={() => setTaskIndex(null)} onAnswer={(v) => answer(task.index, v)}
-          reveal={revealOnce?.index === task.index ? revealOnce.text : null} hintsUsed={city.state.hintTasks.filter((x) => x === task.index).length} canHint={city.team.gameRole === "PROPHET"} onHint={() => hint(task.index)} gameId={gameId} nodeKey={nodeKey} draft={city.state.taskDrafts?.[String(task.index)]}
+          reveal={revealOnce?.index === task.index ? revealOnce.text : null} hintsUsed={city.state.hintTasks.filter((x) => x === task.index).length} canHint={city.team.gameRole === "PROPHET"} onHint={() => hint(task.index)} gameId={gameId} nodeKey={nodeKey} draft={city.state.taskDrafts?.[String(task.index)]} fresh={fresh}
           lock={city.state.locks.find((l) => l.index === task.index) ?? null} support={city.state.support.filter((r) => r.taskIndex === task.index)} pauseSteps={city.state.pauseSteps} now={now} onSupport={(m) => support(task.index, m)} notify={notify} />
       )}
       {letter && (
@@ -486,7 +490,7 @@ const isLocked = (locks: TaskLockDto[], index: number, now: number) => locks.som
 /** Пара строк хиазма в письме пророка: буква места (Б), строки первой и второй половины, номер пары от начала, число пар и номер письма. */
 type ChiasmPairDto = { mark: string; first: string; second: string; place: number; n: number; step: number };
 
-function TaskView({ task, onPrev, onNext, teamDone = false, fragments, district, groupTitles, done, fragment, busy, onBack, onAnswer, reveal = null, hintsUsed, canHint, onHint, gameId, nodeKey, lock, support, pauseSteps, now, onSupport, notify, draft }: { /** Соседние задания: кнопки «назад/вперёд» в шапке задания (15.10); null — края списка. */ onPrev: (() => void) | null; onNext: (() => void) | null; /** Команда уже открыла знак этого задания, а я ещё не решал: решаю для своего зачёта (решение владельца 05.10). */ teamDone?: boolean; /** Черновик расстановки для задания «по порядку» (общий для команды). */ draft?: string[]; task: CityTaskDto; fragments: Array<string | null>; district?: { title: string; verses: string; summary?: string }; groupTitles: string[] | null; done: boolean; fragment: string | null; busy: boolean; cooldown: number; onBack: () => void; onAnswer: (v: unknown) => Promise<boolean>; /** Стих-подтверждение, один раз сразу после верного ответа (05.11); сервер его не хранит. */ reveal?: string | null; /** Сколько писем пророка к заданию уже открыто: обычно 0 или 1, к хиазму — по паре на свечу (05.11). */ hintsUsed: number; canHint: boolean; onHint: () => void; gameId: string; nodeKey: string; lock: TaskLockDto | null; support: SupportItemDto[]; pauseSteps: number[]; now: number; onSupport: (message: string) => Promise<boolean>; notify: (text: string, tone?: "bad") => void }) {
+function TaskView({ task, onPrev, onNext, teamDone = false, fragments, district, groupTitles, done, fragment, busy, onBack, onAnswer, reveal = null, hintsUsed, canHint, onHint, gameId, nodeKey, lock, support, pauseSteps, now, onSupport, notify, draft, fresh }: { /** Свежий ответ города уже пришёл (до него на экране прежний, и расстановка не нажимается). */ fresh: boolean; /** Соседние задания: кнопки «назад/вперёд» в шапке задания (15.10); null — края списка. */ onPrev: (() => void) | null; onNext: (() => void) | null; /** Команда уже открыла знак этого задания, а я ещё не решал: решаю для своего зачёта (решение владельца 05.10). */ teamDone?: boolean; /** Черновик расстановки для задания «по порядку» (общий для команды). */ draft?: string[]; task: CityTaskDto; fragments: Array<string | null>; district?: { title: string; verses: string; summary?: string }; groupTitles: string[] | null; done: boolean; fragment: string | null; busy: boolean; cooldown: number; onBack: () => void; onAnswer: (v: unknown) => Promise<boolean>; /** Стих-подтверждение, один раз сразу после верного ответа (05.11); сервер его не хранит. */ reveal?: string | null; /** Сколько писем пророка к заданию уже открыто: обычно 0 или 1, к хиазму — по паре на свечу (05.11). */ hintsUsed: number; canHint: boolean; onHint: () => void; gameId: string; nodeKey: string; lock: TaskLockDto | null; support: SupportItemDto[]; pauseSteps: number[]; now: number; onSupport: (message: string) => Promise<boolean>; notify: (text: string, tone?: "bad") => void }) {
   /** Отмычка остывает: растущая пауза на это задание после неверного ответа (решение владельца 18.09). */
   const locked = lock?.lockedUntil != null && lock.lockedUntil > now;
   useAwayCounter(done ? null : `/api/games/${gameId}/my-city/${nodeKey}/tasks/${task.index}/focus`);
@@ -504,7 +508,16 @@ function TaskView({ task, onPrev, onNext, teamDone = false, fragments, district,
   const [order, setOrder] = useState<string[]>(task.type === "order" ? validDraft(draft, task.items.map((i) => i.id)) : []);
   /** Хиазм (05.11): строки по местам прочтения, пустое место — null; черновик хранит «-» вместо пустого. */
   const [slots, setSlots] = useState<Array<string | null>>(task.type === "chiasm" ? chiasmDraft(draft, task.items.map((i) => i.id), task.n * 2) : []);
-  const saveDraft = useDraftSaver(`/api/games/${gameId}/my-city/${encodeURIComponent(nodeKey)}/draft`);
+  const saveDraft = useDraftSaver(`/api/games/${gameId}/my-city/${encodeURIComponent(nodeKey)}/draft`, `/api/games/${gameId}/my-city/${encodeURIComponent(nodeKey)}`);
+  // Свежий ответ города пришёл уже при открытом задании: расстановку берём из него (до этого она не нажималась).
+  const freshWas = useRef(fresh);
+  useEffect(() => {
+    if (!fresh || freshWas.current) return;
+    freshWas.current = true;
+    if (task.type === "order") setOrder(validDraft(draft, task.items.map((i) => i.id)));
+    if (task.type === "orders") setGroups(ordersDraft(draft, task.groups.map((g) => g.items.map((i) => i.id))));
+    if (task.type === "chiasm") setSlots(chiasmDraft(draft, task.items.map((i) => i.id), task.n * 2));
+  }, [fresh]); // eslint-disable-line react-hooks/exhaustive-deps
   const [words, setWords] = useState<string[] | null>(null);
   /** Итог последней отправки — для сцены формы (весы выравниваются, замок заклинивает); сбрасывается при смене ответа. */
   const [result, setResult] = useState<"ok" | "bad" | null>(null);
@@ -608,7 +621,7 @@ function validDraft(draft: string[] | undefined, ids: string[]): string[] {
   return draft.every((x) => set.has(x)) && new Set(draft).size === ids.length ? draft : ids;
 }
 /** Отложенное сохранение черновика (400 мс после последнего перемещения; при закрытии листа — сразу). Ошибки сети молча: черновик — удобство, не прогресс. */
-function useDraftSaver(url: string): (body: { order?: string[]; taskIndex?: number; ids?: string[] }) => void {
+function useDraftSaver(url: string, cityUrl: string): (body: { order?: string[]; taskIndex?: number; ids?: string[] }) => void {
   const pending = useRef<{ order?: string[]; taskIndex?: number; ids?: string[] } | null>(null);
   const timer = useRef(0);
   const flush = useCallback(() => {
@@ -617,7 +630,13 @@ function useDraftSaver(url: string): (body: { order?: string[]; taskIndex?: numb
     if (body) api(url, { method: "PUT", body: JSON.stringify(body) }).catch(() => undefined);
   }, [url]);
   useEffect(() => flush, [flush]);
-  return useCallback((body) => { pending.current = { ...pending.current, ...body }; window.clearTimeout(timer.current); timer.current = window.setTimeout(flush, 400); }, [flush]);
+  return useCallback((body) => {
+    pending.current = { ...pending.current, ...body }; window.clearTimeout(timer.current); timer.current = window.setTimeout(flush, 400);
+    // Сохранение черновика событий не шлёт, а город при повторном открытии показывается из запомненного ответа: правим
+    // и его, иначе на миг показалась бы расстановка до этих ходов.
+    const c = ready<MyCityDto>(cityUrl);
+    if (c) setReady(cityUrl, { ...c, state: { ...c.state, ...(body.order ? { orderDraft: body.order } : {}), ...(body.taskIndex != null && body.ids ? { taskDrafts: { ...c.state.taskDrafts, [String(body.taskIndex)]: body.ids } } : {}) } }, { persist: false });
+  }, [flush, cityUrl]);
 }
 
 /**

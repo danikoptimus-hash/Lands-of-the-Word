@@ -2,7 +2,7 @@ import type { FastifyInstance } from "fastify";
 import { prisma } from "../db.js";
 import { requireUser } from "../auth.js";
 import { err } from "../services/i18n.js";
-import { subscribe } from "../services/events.js";
+import { streamsClosing, subscribe } from "../services/events.js";
 import { gameMembership } from "../services/membership.js";
 import { WIRE } from "../services/mapWire.js";
 
@@ -18,6 +18,8 @@ export async function eventRoutes(app: FastifyInstance): Promise<void> {
     // Наблюдатель (администратор платформы) тоже слушает события: поток только читает.
     if (!admin && !member && request.user!.platformRole !== "SUPERADMIN") return reply.code(403).send({ error: "forbidden", message: err(request, "Нет доступа к игре") });
 
+    // Сервер уже останавливается (выкладка): поток не открываем — приложение переподключится к новому серверу.
+    if (streamsClosing()) return reply.code(503).header("Retry-After", "2").send({ error: "restarting" });
     reply.raw.writeHead(200, {
       "Content-Type": "text/event-stream; charset=utf-8",
       "Cache-Control": "no-cache, no-transform",

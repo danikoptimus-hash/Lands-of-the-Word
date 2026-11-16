@@ -1,5 +1,6 @@
 import { Suspense, useEffect, useState } from "react";
 import { Link, Outlet, useLocation, useNavigate } from "react-router-dom";
+import { ErrorBoundary } from "../components/ErrorBoundary";
 import { avatarImage } from "@lotw/domain";
 import { api } from "../lib/api";
 import { useAuth } from "../lib/auth";
@@ -31,7 +32,8 @@ export function Layout() {
     return () => { alive = false; window.clearInterval(timer); window.removeEventListener("lotw:support", load); };
   }, [superadmin, path]);
   const bare = /^\/games\/[^/]+(\/team)?$/.test(path) && path !== "/games/new";
-  if (bare) return <Suspense fallback={<p className="container muted">{t("Загрузка…")}</p>}><Outlet /></Suspense>;
+  // Своя граница ошибок у страницы: не загрузился её файл (плохая связь) — сообщение на месте страницы, а не вместо всей игры.
+  if (bare) return <ErrorBoundary key={path}><Suspense fallback={<p className="container muted">{t("Загрузка…")}</p>}><Outlet /></Suspense></ErrorBoundary>;
   return (
     <>
       <header className="topbar">
@@ -55,7 +57,7 @@ export function Layout() {
         </div>
       </header>
       {/* Страница, которая лежит отдельным файлом (экраны администратора, «Что нового»), ждёт здесь: шапка остаётся на месте. */}
-      <main className="container"><Suspense fallback={<p className="muted">{t("Загрузка…")}</p>}><Outlet /></Suspense></main>
+      <main className="container"><ErrorBoundary key={path} part><Suspense fallback={<p className="muted">{t("Загрузка…")}</p>}><Outlet /></Suspense></ErrorBoundary></main>
     </>
   );
 }

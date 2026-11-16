@@ -178,8 +178,18 @@ describe("аккаунт", () => {
     expect(ok.statusCode).toBe(200);
     const login = await app.inject({ method: "POST", url: "/api/auth/login", payload: { nickname: "acc_" + nick, password: "newsecret123" } });
     expect(login.statusCode).toBe(200);
+    // Смена почты — не чаще пяти раз за 15 минут на аккаунт (выше почта не менялась: адрес был тот же); имя и язык — без ограничения.
+    // Та же учётка, а не новая: регистраций с одного адреса — десять в минуту, и весь файл в них укладывается впритык.
+    const c2 = login.headers["set-cookie"] as string;
+    const change = (i: number) => app.inject({ method: "PATCH", url: "/api/auth/me", headers: { cookie: c2 }, payload: { email: `ml${i}_${nick}@example.com` } });
+    for (let i = 0; i < 5; i++) expect((await change(i)).statusCode).toBe(200);
+    const sixth = await change(5);
+    expect(sixth.statusCode).toBe(429);
+    expect(sixth.json().error).toBe("too_many");
+    expect((await app.inject({ method: "PATCH", url: "/api/auth/me", headers: { cookie: c2 }, payload: { displayName: "Писарь", locale: "en" } })).statusCode).toBe(200);
     await prisma.user.deleteMany({ where: { nickname: "acc_" + nick } });
   });
+
 });
 
 describe("восстановление пароля", () => {

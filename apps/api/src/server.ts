@@ -6,16 +6,20 @@ import { backfillUserDays } from "./services/activity.js";
 import { closeAllStreams } from "./services/events.js";
 
 const app = await buildApp();
-// Сначала открывается порт, служебные задачи идут следом в фоне (ревизия скорости, этап 2). Раньше пять задач по всем играм
-// выполнялись до открытия порта, и всё это время после выкладки игроки ждали ответа. Каждая задача — обычные правки базы,
-// безопасные при работающей игре; сбой задачи пишется в журнал и не мешает остальным.
-try {
-  await app.listen({ port: app.config.PORT, host: app.config.HOST });
-} catch (err) {
-  app.log.error(err);
-  process.exit(1);
+type Task = [string, (log: typeof app.log) => Promise<unknown>];
+/** Сбой задачи пишется в журнал и не мешает остальным; время каждой — тоже в журнал (видно, сколько стоит запуск). */
+async function runTasks(tasks: Task[]): Promise<void> {
+  for (const [name, run] of tasks) {
+    const at = Date.now();
+    try { await run(app.log); app.log.info({ task: name, ms: Date.now() - at }, "startup task done"); }
+    catch (err) { app.log.error({ err, task: name }, "startup task failed"); }
+  }
 }
-const startup: Array<[string, (log: typeof app.log) => Promise<unknown>]> = [
+// До открытия порта — задачи, которые правят дела и испытания идущих игр: пока порт закрыт, с действиями игроков они не
+// пересекаются. На этапе 2 ревизии скорости они шли в фоне после открытия порта; независимый разбор 16.11 показал гонку
+// (сверка набора убирает дело, а игрок в тот же миг его берёт), и они вернулись сюда. Запросы на это время придерживает
+// прокси (до 20 секунд), а не получают отказ.
+await runTasks([
   // Новая версия стандартного набора дел попадает в идущие игры при каждом запуске (деплое).
   ["сверка набора дел", syncAllGames],
   // Разово: в идущих играх, начатых до правила «одинаковые дела не рядом», свободные дела перекомпоновываются (решение владельца 01.10).
@@ -24,16 +28,18 @@ const startup: Array<[string, (log: typeof app.log) => Promise<unknown>]> = [
   ["дела без книги", repairBooklessDeedsAll],
   // Мир закрывает испытания (решение владельца 04.10): при каждом запуске закрываются идущие испытания между командами, у которых мир.
   ["испытания при мире", closeTrialsForAllPeaces],
+]);
+try {
+  await app.listen({ port: app.config.PORT, host: app.config.HOST });
+} catch (err) {
+  app.log.error(err);
+  process.exit(1);
+}
+// После открытия порта, в фоне — то, что игру не правит.
+void runTasks([
   // Разово: дни активности для аналитики восстанавливаются из действий (решение владельца 23.10).
   ["дни активности", backfillUserDays],
-];
-void (async () => {
-  for (const [name, run] of startup) {
-    const at = Date.now();
-    try { await run(app.log); app.log.info({ task: name, ms: Date.now() - at }, "startup task done"); }
-    catch (err) { app.log.error({ err, task: name }, "startup task failed"); }
-  }
-})();
+]);
 
 // Мягкая остановка (ревизия скорости, этап 2). При выкладке Docker просит процесс завершиться и через 10 секунд убивает
 // его. Раньше просьбу никто не слушал: все 10 секунд сервер продолжал принимать запросы, а потом они обрывались на

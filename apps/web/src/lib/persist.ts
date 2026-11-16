@@ -35,11 +35,22 @@ export function persistable(url: string): boolean {
 }
 const gameOf = (url: string): string | null => /^\/api\/games\/([^/?]+)\/my-map$/.exec(url)?.[1] ?? null;
 
-/** Смещение часов сервера в ответе карты: по нему при показе снимка «время сервера» ставится на сейчас, а не на вчера. */
-function clockOffset(v: unknown): number | undefined {
+/**
+ * Смещение часов сервера в ответе карты: по нему при показе снимка «время сервера» ставится на сейчас, а не на вчера.
+ * Считается один раз — когда ответ с этой отметкой времени пришёл. Карта потом меняется «разницами» и запоминается снова
+ * с той же отметкой: считать смещение заново в этот момент нельзя — оно вышло бы на минуты (в скрытой вкладке — на часы)
+ * меньше, и следующий запуск до свежего ответа считал бы ночь и день по отставшим часам.
+ */
+const clocks = new Map<string, { at: number; off: number }>();
+function clockOffset(url: string, v: unknown): number | undefined {
   const m = v as { now?: number; daytime?: { now?: number } } | null;
   const at = m?.daytime?.now ?? m?.now;
-  return typeof at === "number" ? at - Date.now() : undefined;
+  if (typeof at !== "number") return undefined;
+  const was = clocks.get(url);
+  if (was && was.at === at) return was.off;
+  const off = at - Date.now();
+  clocks.set(url, { at, off });
+  return off;
 }
 
 const pending = new Map<string, { userId: string; value: unknown; off: number | undefined; timer: ReturnType<typeof setTimeout> }>();
@@ -84,7 +95,7 @@ function write(url: string, userId: string, value: unknown, off: number | undefi
  */
 export function saveSnap(url: string, userId: string, value: unknown, wait = 1500): void {
   if (!persistable(url)) return;
-  const off = clockOffset(value), was = pending.get(url);
+  const off = clockOffset(url, value), was = pending.get(url);
   if (was) { was.userId = userId; was.value = value; was.off = off; return; }
   const timer = setTimeout(() => { const p = pending.get(url); pending.delete(url); if (p) write(url, p.userId, p.value, p.off); }, wait);
   pending.set(url, { userId, value, off, timer });
@@ -102,7 +113,10 @@ export function loadSnap<T>(url: string, userId: string): T | null {
     const s = JSON.parse(raw) as Snap;
     if (s.f !== FORM || s.u !== userId || Date.now() - s.t > MAX_AGE) { dropSnap(url); return null; }
     const v = s.v as { now?: number; daytime?: { now?: number } } | null;
-    if (v && typeof s.off === "number") { const now = Date.now() + s.off; if (typeof v.now === "number") v.now = now; if (v.daytime && typeof v.daytime.now === "number") v.daytime.now = now; }
+    if (v && typeof s.off === "number") {
+      const now = Date.now() + s.off; if (typeof v.now === "number") v.now = now; if (v.daytime && typeof v.daytime.now === "number") v.daytime.now = now;
+      clocks.set(url, { at: now, off: s.off }); // карту из снимка запомнят снова с этой же отметкой — смещение прежнее
+    }
     return s.v as T;
   } catch { return null; }
 }

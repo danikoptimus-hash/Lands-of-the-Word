@@ -81,9 +81,16 @@ export function subscriberCount(gameId: string): number { return subscribers.get
  * остановки; приложения переподключатся сами — через случайную паузу, уже к новому серверу.
  */
 export function closeAllStreams(): void {
+  closing = true;
   for (const set of subscribers.values()) for (const sub of set) { try { sub.reply.raw.end(); } catch { /* уже закрыт */ } }
   subscribers.clear();
 }
+/**
+ * Сервер останавливается: новые потоки не открываются. Запрос потока, который в момент остановки ещё ждал базу,
+ * подписался бы уже после закрытия остальных и держал бы сервер до принудительной остановки (находка разбора 16.11).
+ */
+let closing = false;
+export const streamsClosing = (): boolean => closing;
 /** Слушает ли карту кто-то из этой команды (наблюдатели без команды не считаются: им карта команды не рассылается). */
 export function hasTeamSubscribers(gameId: string, teamId: string): boolean {
   const k = teamFormats(gameId, teamId);

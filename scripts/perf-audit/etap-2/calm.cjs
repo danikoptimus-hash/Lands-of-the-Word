@@ -1,7 +1,9 @@
 // Новая версия при открытом листе: страница не перезагружается, пока лист открыт; после закрытия — перезагружается,
-// карта остаётся на том же месте. BASE=http://localhost:3001 node calm.cjs  (во время теста пересобирает apps/web)
+// карта остаётся на том же месте. BASE=http://localhost:3001 WEB=apps/web node calm.cjs  (во время теста пересобирает apps/web)
+// Перед выходом новой версии страница живёт WAIT секунд (по умолчанию 70): обновление, найденное позже минуты после запуска,
+// модуль сервис-воркера считает «внешним» и без onNeedReload перезагружает страницу сам — этот путь и проверяется.
 const { chromium } = require('playwright'); const { execSync } = require('child_process');
-const BASE = process.env.BASE || 'http://localhost:3001', GAME = 'cmucujbgq0008s301ran0fnt4', WEB = process.env.WEB;
+const BASE = process.env.BASE || 'http://localhost:3001', GAME = 'cmucujbgq0008s301ran0fnt4', WEB = process.env.WEB, WAIT = Number(process.env.WAIT ?? 70);
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 (async () => {
   const b = await chromium.launch();
@@ -11,12 +13,17 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   await p.goto(`${BASE}/games/${GAME}/team`, { waitUntil: 'commit' }); await p.waitForSelector('.m-label', { timeout: 120000 });
   await p.waitForFunction(() => Boolean(navigator.serviceWorker && navigator.serviceWorker.controller), null, { timeout: 60000 });
   await sleep(2500);
+  // Игрок, который уже заходил раньше: страница загружена под управлением сервис-воркера (у первого захода модуль
+  // сервис-воркера обновление «обновлением» не считает и страницу не трогает — так проверка ошибку не видит).
+  await p.reload({ waitUntil: 'commit' }); await p.waitForSelector('.m-label', { timeout: 120000 }); await sleep(2500);
+  console.log('страница под управлением сервис-воркера с самой загрузки:', await p.evaluate(() => Boolean(navigator.serviceWorker.controller)));
   const pos = () => p.evaluate(() => { const r = document.querySelector('.m-label[data-key="N:11,0"]')?.getBoundingClientRect(); return r ? [Math.round(r.x), Math.round(r.y)] : null; });
   await p.mouse.move(200, 400); await p.mouse.down(); await p.mouse.move(110, 330, { steps: 8 }); await p.mouse.up(); await sleep(500);
   const before = await pos();
   await p.evaluate(() => { window.__mark = 1; document.querySelector('.m-label[data-key="N:11,0"]').dispatchEvent(new MouseEvent('click', { bubbles: true })); });
   await p.waitForSelector('.city-sheet', { timeout: 30000 }); await sleep(800);
-  console.log('лист города открыт; собираю новую версию…');
+  console.log(`лист города открыт; страница живёт ${WAIT} с, затем собираю новую версию…`);
+  await sleep(WAIT * 1000);
   execSync('npx vite build', { cwd: WEB, stdio: 'ignore' });
   await p.evaluate(() => navigator.serviceWorker.getRegistration().then((r) => r && r.update()));
   // ждём, пока новая версия возьмёт страницу под управление, и ещё 8 секунд
