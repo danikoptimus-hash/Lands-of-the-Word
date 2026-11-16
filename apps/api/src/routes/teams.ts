@@ -243,8 +243,8 @@ export async function teamRoutes(app: FastifyInstance): Promise<void> {
       prisma.membership.create({ data: { teamId: to.id, userId, role: "MEMBER", gameRole: "NONE" } }),
     ]);
     if (game.status === "ACTIVE") await ensureFrontier(id, to.id);
-    publish(id, { type: "teams", teamId });
-    publish(id, { type: "teams", teamId: to.id });
+    // Число участников команды видят все («Участников» в положении, предел ставки в испытании): событие общее.
+    publish(id, { type: "teams" });
     notifyUser(id, userId, "вы переведены в команду «{team}»", "Администратор перевёл вас в команду «{team}». Откройте карту команды.", { team: to.name });
     { const who = await nick(userId); journal(id, "member_left", { teamId, vars: { user: who, team: to.name } }); journal(id, "member_joined", { teamId: to.id, vars: { user: who, team: membership.team.name } }); journal(id, "member_moved", { personal: true, userId, teamId: to.id, vars: { team: to.name } }); }
     return { ok: true };
@@ -277,7 +277,7 @@ export async function teamRoutes(app: FastifyInstance): Promise<void> {
     const game = await requireGameAdmin(request, reply, id);
     if (!game) return;
     await prisma.membership.deleteMany({ where: { teamId, userId, team: { gameId: id } } });
-    publish(id, { type: "teams", teamId });
+    publish(id, { type: "teams" });
     return { ok: true };
   });
 
@@ -328,7 +328,7 @@ export async function teamRoutes(app: FastifyInstance): Promise<void> {
       prisma.membership.create({ data: { teamId: invite.teamId, userId: request.user!.id, role: invite.role }, include: { team: { select: { id: true, name: true, color: true, avatarId: true, gameId: true } } } }),
       prisma.invite.update({ where: { id: token }, data: { usesLeft: { decrement: 1 } } }),
     ]);
-    publish(invite.gameId, { type: "teams", teamId: invite.teamId });
+    publish(invite.gameId, { type: "teams" });
     // Пришёл из выбывшей команды (10.11): запись в летопись новой команды; в составе выбывшей он остаётся.
     if (mine.length > 0) {
       const old = await prisma.team.findUnique({ where: { id: mine[0]!.teamId }, select: { name: true } });

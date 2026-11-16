@@ -5,6 +5,7 @@ import { prisma } from "../db.js";
 import { requireUser } from "../auth.js";
 import { assertAwake } from "../services/daytime.js";
 import { publish } from "../services/events.js";
+import { byTask, locked } from "../services/lock.js";
 import { revealNode } from "../services/teamMap.js";
 import { notifyAdmins, notifyTeam } from "../services/notify.js";
 import { err, msg } from "../services/i18n.js";
@@ -108,7 +109,7 @@ export async function quarryRoutes(app: FastifyInstance): Promise<void> {
   });
 
   /** Решение администратора: принято — команде камни; возвращено — с комментарием. */
-  app.post("/api/games/:id/quarry/works/:workId/decide", async (request, reply) => {
+  app.post("/api/games/:id/quarry/works/:workId/decide", locked((r) => "quarry-work:" + (r.params as { workId: string }).workId, async (request, reply) => {
     const { id, workId } = request.params as { id: string; workId: string };
     if (!(await requireAdmin(request, reply, id))) return;
     const body = decideBody.parse(request.body);
@@ -131,14 +132,14 @@ export async function quarryRoutes(app: FastifyInstance): Promise<void> {
     publish(id, { type: "quarry", teamId: work.teamId });
     publish(id, { type: "teams" });
     return { ok: true, stones };
-  });
+  }));
 
   /**
    * Вымостить дорогу: камень списывается, свободная сторона открывается как пройденная (без дела).
    * Возвращённое администратором дело тоже можно вымостить (решение владельца 05.11 по вопросу участника
    * «почему здесь не могу нажать „вымостить дорогу“»): старая сдача стирается, сторона считается вымощенной.
    */
-  app.post("/api/games/:id/edge-tasks/:taskId/pave", async (request, reply) => {
+  app.post("/api/games/:id/edge-tasks/:taskId/pave", locked((r) => ["stones:" + (r.params as { id: string }).id, byTask(r)], async (request, reply) => {
     const { id, taskId } = request.params as { id: string; taskId: string };
     const m = await requireActiveMember(request, reply, id);
     if (!m) return;
@@ -161,5 +162,5 @@ export async function quarryRoutes(app: FastifyInstance): Promise<void> {
     publish(id, { type: "quarry", teamId: m.team.id });
     publish(id, { type: "teams" });
     return { ok: true, stones: team.stones - 1 };
-  });
+  }));
 }

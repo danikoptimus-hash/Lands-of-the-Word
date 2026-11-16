@@ -5,6 +5,7 @@ import { z } from "zod";
 import { prisma } from "../db.js";
 import { assertAwake, assertTasksOpen, gameDaytime } from "../services/daytime.js";
 import { publish } from "../services/events.js";
+import { publishRoad } from "../services/eventScope.js";
 import { requireUser } from "../auth.js";
 import { getTeamMap, isSeaKey, landingCandidates, revealNode, withDeedBook, bookOfNodeKey, deedLimitsFor, birdFor, assignActive, assignView, type DeedLimit } from "../services/teamMap.js";
 import { loadCityContent } from "../services/cities.js";
@@ -16,6 +17,9 @@ import { adminOrObserver } from "../services/access.js";
 import { paceForecast } from "../services/pace.js";
 import { brickRef } from "../services/wall.js";
 import { loadBook } from "../services/bible.js";
+import { WIRE, wireTasks } from "../services/mapWire.js";
+import { staticMap } from "../services/gameMap.js";
+import { byTask, locked, withLock } from "../services/lock.js";
 
 const submitBody = z.object({
   links: z.array(z.string().trim().url().max(500)).max(10).default([]),
@@ -119,40 +123,57 @@ export async function teamMapRoutes(app: FastifyInstance): Promise<void> {
     if (!m) return;
     const game = await prisma.game.findUniqueOrThrow({ where: { id }, select: { status: true, name: true, settings: true, startedAt: true } });
     if (game.status === "DRAFT") return { status: game.status, gameName: game.name, team: { id: m.team.id, name: m.team.name, color: m.team.color }, hexes: [], revealed: [], edges: [], tasks: [], cities: [], peeked: [] };
-    const map = await getTeamMap(id, m.team.id);
-    const deedLimit = await deedLimitFor(id, request.user!.id);
-    // Время суток игры (решение владельца 03.10): карта красится по фазе и поясу, ночью действия закрыты.
-    const daytime = await gameDaytime(id);
+    // Всё, что маршрут добавляет к карте, запрашивается разом (ревизия скорости, этап 2): раньше тринадцать обращений к базе
+    // шли одно за другим, а маршрут вызывается чаще всех — каждой сверкой каждого приложения.
+    const userId = request.user!.id, teamId = m.team.id, since = new Date(Date.now() - 14 * 86_400_000), recent = new Date(Date.now() - 3 * 86_400_000);
+    const [map, deedLimit, daytime, visitRows, rejected, seen, myCityRows, quarryRows, geo] = await Promise.all([
+      getTeamMap(id, teamId),
+      deedLimitFor(id, userId),
+      // Время суток игры (решение владельца 03.10): карта красится по фазе и поясу, ночью действия закрыты.
+      gameDaytime(id),
+      // Открытые отчёты о визитах (решение владельца 22.10): команде — метка на городе и пункт «требует внимания».
+      prisma.cityVisit.findMany({ where: { teamId, status: { in: ["PENDING", "SUBMITTED"] } }, select: { id: true, nodeKey: true, bookCode: true, status: true, dueAt: true } }),
+      // Возвращённые администратором блоки стены (решение владельца 04.11: возврат — в «Внимание»): свои, за две недели,
+      // пока тот же блок не сдан заново; записи испытаний клиент берёт из my-battles.
+      prisma.wallBlock.findMany({ where: { teamId, userId, status: "REJECTED", decidedAt: { gte: since } }, orderBy: { decidedAt: "desc" }, select: { id: true, nodeKey: true, bookCode: true, startIdx: true, endIdx: true, adminComment: true, decidedAt: true, createdAt: true, repairOfId: true } }),
+      // Прочитанные пункты (решение владельца 07.11): нажатый пункт исчезает только у этого участника, не у всей команды.
+      prisma.attentionSeen.findMany({ where: { userId, gameId: id }, select: { kind: true, refId: true } }),
+      prisma.teamCityState.findMany({ where: { teamId, capturedAt: { not: null } }, select: { nodeKey: true } }),
+      // Новые дела Каменоломни (решение владельца 06.11: уведомление в «Внимание»): появились за трое суток, команда их ещё не сдавала.
+      prisma.deed.findMany({ where: { gameId: id, quarry: true, disabled: false, createdAt: { gte: recent }, quarryWorks: { none: { teamId, status: { in: ["SUBMITTED", "APPROVED"] } } } }, orderBy: { createdAt: "desc" }, select: { id: true, title: true, createdAt: true } }),
+      staticMap(id),
+    ]);
     const deedsFrozenUntil = m.deedsFrozenUntil && m.deedsFrozenUntil.getTime() > Date.now() ? m.deedsFrozenUntil : null;
-    // Открытые отчёты о визитах (решение владельца 22.10): команде — метка на городе и пункт «требует внимания».
-    const visits = (await prisma.cityVisit.findMany({ where: { teamId: m.team.id, status: { in: ["PENDING", "SUBMITTED"] } }, select: { id: true, nodeKey: true, bookCode: true, status: true, dueAt: true } })).filter((v) => v.status !== "PENDING" || v.dueAt.getTime() > Date.now());
-    // Возвращённые администратором блоки стены (решение владельца 04.11: возврат — в «Внимание»): свои, за две недели,
-    // пока тот же блок не сдан заново; записи испытаний клиент берёт из my-battles.
-    const since = new Date(Date.now() - 14 * 86_400_000);
-    const rejected = await prisma.wallBlock.findMany({ where: { teamId: m.team.id, userId: request.user!.id, status: "REJECTED", decidedAt: { gte: since } }, orderBy: { decidedAt: "desc" }, select: { id: true, nodeKey: true, bookCode: true, startIdx: true, endIdx: true, adminComment: true, decidedAt: true, createdAt: true, repairOfId: true } });
-    // Новые дела Каменоломни (решение владельца 06.11: уведомление в «Внимание»): появились за трое суток, команда их ещё не сдавала.
-    // Прочитанные пункты (решение владельца 07.11): нажатый пункт исчезает только у этого участника, не у всей команды.
-    const seen = await prisma.attentionSeen.findMany({ where: { userId: request.user!.id, gameId: id }, select: { kind: true, refId: true } });
+    const visits = visitRows.filter((v) => v.status !== "PENDING" || v.dueAt.getTime() > Date.now());
     const seenQuarry = new Set(seen.filter((x) => x.kind === "quarry").map((x) => x.refId));
     const seenWrecks = seen.filter((x) => x.kind === "wreck").map((x) => x.refId);
     // К своему городу подошла чужая команда (решение владельца 07.11: вместо шатров на карте — push, уведомление и пункт
     // «Внимание»): чужие одобренные дела, ведущие в наш взятый город, за трое суток; прочитанный пункт исчезает у прочитавшего.
     const seenArrivals = new Set(seen.filter((x) => x.kind === "arrival").map((x) => x.refId));
-    const myCities = (await prisma.teamCityState.findMany({ where: { teamId: m.team.id, capturedAt: { not: null } }, select: { nodeKey: true } })).map((c) => c.nodeKey);
-    const arrivalRows = myCities.length === 0 ? [] : (await prisma.teamEdgeTask.findMany({ where: { gameId: id, status: "APPROVED", NOT: { teamId: m.team.id }, toKey: { in: myCities }, decidedAt: { gte: new Date(Date.now() - 3 * 86_400_000) } }, orderBy: { decidedAt: "desc" }, select: { id: true, toKey: true, sea: true, decidedAt: true, team: { select: { id: true, name: true, color: true, avatarId: true } } } })).filter((a) => !seenArrivals.has(a.id));
-    const arrivalBooks = new Map((await prisma.mapNode.findMany({ where: { gameId: id, key: { in: [...new Set(arrivalRows.map((a) => a.toKey))] } }, select: { key: true, bookCode: true } })).map((n) => [n.key, n.bookCode ?? ""]));
-    const arrivals = arrivalRows.map((a) => ({ id: a.id, nodeKey: a.toKey, bookCode: arrivalBooks.get(a.toKey) ?? "", book: bookName(arrivalBooks.get(a.toKey) ?? ""), sea: a.sea, at: (a.decidedAt ?? new Date()).toISOString(), team: a.team }));
-    const quarryNew = (await prisma.deed.findMany({ where: { gameId: id, quarry: true, disabled: false, createdAt: { gte: new Date(Date.now() - 3 * 86_400_000) }, quarryWorks: { none: { teamId: m.team.id, status: { in: ["SUBMITTED", "APPROVED"] } } } }, orderBy: { createdAt: "desc" }, select: { id: true, title: true, createdAt: true } }))
-      .filter((d) => !seenQuarry.has(d.id))
-      .map((d) => ({ id: d.id, title: d.title, createdAt: d.createdAt.toISOString() }));
+    const myCities = myCityRows.map((c) => c.nodeKey);
+    const arrivalRows = myCities.length === 0 ? [] : (await prisma.teamEdgeTask.findMany({ where: { gameId: id, status: "APPROVED", NOT: { teamId }, toKey: { in: myCities }, decidedAt: { gte: recent } }, orderBy: { decidedAt: "desc" }, select: { id: true, toKey: true, sea: true, decidedAt: true, team: { select: { id: true, name: true, color: true, avatarId: true } } } })).filter((a) => !seenArrivals.has(a.id));
+    // Книги городов — из неизменной карты партии в памяти сервера (services/gameMap.ts), без запроса.
+    const bookOf = new Map(geo.nodes.map((n) => [n.key, n.bookCode ?? ""]));
+    const arrivals = arrivalRows.map((a) => ({ id: a.id, nodeKey: a.toKey, bookCode: bookOf.get(a.toKey) ?? "", book: bookName(bookOf.get(a.toKey) ?? ""), sea: a.sea, at: (a.decidedAt ?? new Date()).toISOString(), team: a.team }));
+    const quarryNew = quarryRows.filter((d) => !seenQuarry.has(d.id)).map((d) => ({ id: d.id, title: d.title, createdAt: d.createdAt.toISOString() }));
     const returnedBlocks: Array<{ id: string; nodeKey: string; bookCode: string; ref: string; comment: string; at: string }> = [];
     for (const r of rejected) {
-      const redone = await prisma.wallBlock.count({ where: { teamId: m.team.id, userId: request.user!.id, nodeKey: r.nodeKey, startIdx: r.startIdx, status: { not: "REJECTED" }, createdAt: { gt: r.createdAt } } });
+      const redone = await prisma.wallBlock.count({ where: { teamId, userId, nodeKey: r.nodeKey, startIdx: r.startIdx, status: { not: "REJECTED" }, createdAt: { gt: r.createdAt } } });
       if (redone > 0) continue;
       const book = await loadBook(r.bookCode);
       returnedBlocks.push({ id: r.id, nodeKey: r.nodeKey, bookCode: r.bookCode, ref: (book ? brickRef(book, r.startIdx, r.endIdx) : "") + (r.repairOfId ? " (починка)" : ""), comment: r.adminComment, at: (r.decidedAt ?? r.createdAt).toISOString() });
     }
-    return { returnedBlocks, quarryNew, seenWrecks, arrivals, status: game.status, startedAt: game.startedAt, gameName: game.name, deedLimit, deedsFrozenUntil, visits, deedsFrozenReason: deedsFrozenUntil ? m.deedsFrozenReason : null, daytime, team: { id: m.team.id, name: m.team.name, color: m.team.color, avatarId: m.team.avatarId, startNodeKey: m.team.startNodeKey, ...(await prisma.team.findUniqueOrThrow({ where: { id: m.team.id }, select: { stones: true, cargoBlocks: true } })) }, ...map, tasks: map.tasks.map((t) => hideSecret(t, request.user!.id)) };
+    // То, что маршрут добавляет к общей карте команды: личное и по часам (лимит дел, заморозка, «Внимание», время суток).
+    // Камни и груз команды — из уже прочитанного членства (раньше команда читалась из базы второй раз).
+    const own = { returnedBlocks, quarryNew, seenWrecks, arrivals, status: game.status, startedAt: game.startedAt, gameName: game.name, deedLimit, deedsFrozenUntil, visits, deedsFrozenReason: deedsFrozenUntil ? m.deedsFrozenReason : null, daytime, team: { id: m.team.id, name: m.team.name, color: m.team.color, avatarId: m.team.avatarId, startNodeKey: m.team.startNodeKey, stones: m.team.stones, cargoBlocks: m.team.cargoBlocks } };
+    // У приложения уже эта версия карты (ревизия скорости, этап 2): отдаём только добавки — около килобайта вместо всей
+    // карты. Так приложение сверяется с сервером без скачивания карты; саму карту оно получает «разницей» по событиям.
+    const have = Number((request.query as { have?: string }).have);
+    if (Number.isFinite(have) && have === map.rev) return { same: true, rev: map.rev, now: Date.now(), ...own };
+    const tasks = map.tasks.map((t) => hideSecret(t, request.user!.id));
+    // Приложение новой версии просит карту со справочником текстов дел (services/mapWire.ts): ответ на треть меньше.
+    if (request.headers["x-lotw-wire"] === WIRE) return { ...own, ...map, ...wireTasks(tasks) };
+    return { ...own, ...map, tasks };
   });
 
   /** Администратор: карта глазами команды — ровно то, что видит она (туман, стороны, метки дел), без действий. */
@@ -171,7 +192,7 @@ export async function teamMapRoutes(app: FastifyInstance): Promise<void> {
     return { status: game.status, teamIndex: team.index, team: teamOut, ...map, members, tasks: map.tasks.map((t) => hideSecret(t, "")) };
   });
 
-  app.post("/api/games/:id/edge-tasks/:taskId/take", async (request, reply) => {
+  app.post("/api/games/:id/edge-tasks/:taskId/take", locked((r) => ["take:" + r.user!.id, byTask(r)], async (request, reply) => {
     const { id, taskId } = request.params as { id: string; taskId: string };
     const m = await requireActiveMember(request, reply, id);
     if (!m) return;
@@ -194,9 +215,9 @@ export async function teamMapRoutes(app: FastifyInstance): Promise<void> {
     const updated = await bookIn(id, await prisma.teamEdgeTask.update({ where: { id: taskId }, data: { status: "TAKEN", takenById: request.user!.id, takenAt: new Date(), assignedToId: null, assignedById: null, assignedAt: null }, include: taskInclude }));
     publish(id, { type: "tasks", teamId: m.team.id });
     return { task: hideSecret(updated, request.user!.id) };
-  });
+  }));
 
-  app.post("/api/games/:id/edge-tasks/:taskId/release", async (request, reply) => {
+  app.post("/api/games/:id/edge-tasks/:taskId/release", locked(byTask, async (request, reply) => {
     const { id, taskId } = request.params as { id: string; taskId: string };
     const m = await requireMember(request, reply, id);
     if (!m) return;
@@ -208,7 +229,7 @@ export async function teamMapRoutes(app: FastifyInstance): Promise<void> {
     const updated = await bookIn(id, await prisma.teamEdgeTask.update({ where: { id: taskId }, data: { status: "OPEN", takenById: null, takenAt: null }, include: taskInclude }));
     publish(id, { type: "tasks", teamId: m.team.id });
     return { task: hideSecret(updated, request.user!.id) };
-  });
+  }));
 
   /**
    * Приоритет капитана (решение владельца 14.11, по просьбе капитана: «чтобы не объяснять каждому, какие дела брать»):
@@ -237,7 +258,7 @@ export async function teamMapRoutes(app: FastifyInstance): Promise<void> {
    * уведомление со ссылкой прямо на это дело и личная запись в летописи. `userId: null` снимает поручение.
    * Правила взятия не меняются: суточный лимит дел и заморозка действуют, как обычно, в момент взятия.
    */
-  app.post("/api/games/:id/edge-tasks/:taskId/assign", async (request, reply) => {
+  app.post("/api/games/:id/edge-tasks/:taskId/assign", locked(byTask, async (request, reply) => {
     const { id, taskId } = request.params as { id: string; taskId: string };
     const m = await requireActiveMember(request, reply, id);
     if (!m) return;
@@ -258,13 +279,14 @@ export async function teamMapRoutes(app: FastifyInstance): Promise<void> {
       const who = await nick(me);
       // Уведомление ведёт прямо на дело: карточка откроется, карта покажет его сторону.
       notifyUser(id, body.userId, "вам поручили дело", "{who} поручил(а) вам дело «{deed}». Возьмите его в течение суток: до тех пор его не возьмёт никто другой.", { who, deed: updated.deed.title }, { footer: "Открыть дело", query: `?task=${task.id}` });
-      journal(id, "deed_assigned", { userId: body.userId, personal: true, vars: { who, deed: updated.deed.title, taskId: task.id } });
+      // teamId — чтобы событие летописи ушло только своей команде: личная запись без него будила всю партию (ревизия, этап 2).
+      journal(id, "deed_assigned", { userId: body.userId, teamId: m.team.id, personal: true, vars: { who, deed: updated.deed.title, taskId: task.id } });
     }
     return { task: { ...hideSecret(updated, me), ...assignView(updated) } };
-  });
+  }));
 
   /** Отказ от поручения: участник не может взять порученное дело — бронь снимается, поручивший узнаёт об этом. */
-  app.post("/api/games/:id/edge-tasks/:taskId/assign/decline", async (request, reply) => {
+  app.post("/api/games/:id/edge-tasks/:taskId/assign/decline", locked(byTask, async (request, reply) => {
     const { id, taskId } = request.params as { id: string; taskId: string };
     const m = await requireActiveMember(request, reply, id);
     if (!m) return;
@@ -277,13 +299,13 @@ export async function teamMapRoutes(app: FastifyInstance): Promise<void> {
     if (task.assignedById) {
       const user = await nick(me);
       notifyUser(id, task.assignedById, "поручение не принято", "{user} не может взять дело «{deed}». Дело снова свободно для всей команды.", { user, deed: updated.deed.title }, { footer: "Открыть дело", query: `?task=${task.id}` });
-      journal(id, "deed_assign_declined", { userId: task.assignedById, personal: true, vars: { user, deed: updated.deed.title, taskId: task.id } });
+      journal(id, "deed_assign_declined", { userId: task.assignedById, teamId: m.team.id, personal: true, vars: { user, deed: updated.deed.title, taskId: task.id } });
     }
     return { task: { ...hideSecret(updated, me), ...assignView(updated) } };
-  });
+  }));
 
   /** Сдача дела: ссылки на фото/видео и текст. Файлы не принимаем. */
-  app.post("/api/games/:id/edge-tasks/:taskId/submit", async (request, reply) => {
+  app.post("/api/games/:id/edge-tasks/:taskId/submit", locked(byTask, async (request, reply) => {
     const { id, taskId } = request.params as { id: string; taskId: string };
     const m = await requireActiveMember(request, reply, id);
     if (!m) return;
@@ -324,7 +346,7 @@ export async function teamMapRoutes(app: FastifyInstance): Promise<void> {
     // Письмо администраторам — сразу или дайджестом по расписанию (решение владельца 18.09, A-13).
     if ((await gameRules(id)).adminDigest === "instant") notifyAdmins(id, "новая сдача дела", (locale) => msg(locale, "Команда «{team}» сдала дело «{deed}». Нужно проверить и одобрить или вернуть.", { team: m.team.name, deed: updated.deed.title }));
     return { task: hideSecret(updated, request.user!.id) };
-  });
+  }));
 
   /**
    * Отчёты по делам для администратора (решение владельца 30.09): к старому отчёту нужно возвращаться. Полный вид сдачи —
@@ -391,7 +413,11 @@ export async function teamMapRoutes(app: FastifyInstance): Promise<void> {
     notifyTeam(id, owner.teamId, "к городу {book} подошла команда «{team}»", "Команда «{team}» подошла к вашему городу {book}: теперь она может бросить ему вызов.", { team: team?.name ?? "?", book: node.bookCode ?? "" });
     publish(id, { type: "map", teamId: owner.teamId });
   }
-  async function decideTask(id: string, taskId: string, body: { approve: boolean; comment: string }, adminId: string): Promise<{ ok: true; task: unknown } | { ok: false; code: 404 | 409; message: string }> {
+  // Решение по сдаче — в очереди на это дело (services/lock.ts): двойное нажатие «Принять» или два администратора разом
+  // не дадут двух записей в летописи и двух уведомлений; участник в ту же секунду не «отзовёт» уже принятое дело.
+  type Decided = { ok: true; task: unknown } | { ok: false; code: 404 | 409; message: string };
+  const decideTask = (id: string, taskId: string, body: { approve: boolean; comment: string }, adminId: string): Promise<Decided> => withLock("task:" + taskId, () => decideTaskNow(id, taskId, body, adminId));
+  async function decideTaskNow(id: string, taskId: string, body: { approve: boolean; comment: string }, adminId: string): Promise<Decided> {
     const task = await prisma.teamEdgeTask.findFirst({ where: { id: taskId, gameId: id } });
     if (!task) return { ok: false, code: 404, message: "Сдача не найдена" };
     // Пересмотр (решение владельца 05.10): возвращённое по ошибке дело можно принять, пока команда его не пересдала.
@@ -418,6 +444,9 @@ export async function teamMapRoutes(app: FastifyInstance): Promise<void> {
     else if (task.takenById) notifyUser(id, task.takenById, "дело вернули на доработку", (locale) => msg(locale, "Администратор вернул дело «{deed}».{comment}", { deed: updated.deed.title, comment: body.comment ? msg(locale, " Комментарий: {comment}", { comment: body.comment }) : "" }));
     publish(id, { type: "submissions", teamId: task.teamId });
     publish(id, { type: "tasks", teamId: task.teamId });
+    // Принятое дело — новая пройденная сторона: её видят команды, у которых открыт любой её конец (чужая дорога на карте).
+    // Раньше им об этом не сообщалось вовсе — карта догоняла при следующем скачивании раз в минуту (ревизия, этап 2).
+    if (body.approve && !task.sea) void publishRoad(id, [task.fromKey, task.toKey], task.teamId);
     return { ok: true, task: updated };
   }
   app.post("/api/games/:id/edge-tasks/:taskId/decide", async (request, reply) => {
@@ -439,7 +468,7 @@ export async function teamMapRoutes(app: FastifyInstance): Promise<void> {
   });
 
   /** Высадка: капитан или кормчий выбирает пустой береговой узел другого острова; узел открывается, как после обычного дела. */
-  app.post("/api/games/:id/edge-tasks/:taskId/land", async (request, reply) => {
+  app.post("/api/games/:id/edge-tasks/:taskId/land", locked(byTask, async (request, reply) => {
     const { id, taskId } = request.params as { id: string; taskId: string };
     const m = await requireActiveMember(request, reply, id);
     if (!m) return;
@@ -459,8 +488,10 @@ export async function teamMapRoutes(app: FastifyInstance): Promise<void> {
     scheduleAwards(id);
     publish(id, { type: "map", teamId: m.team.id });
     publish(id, { type: "tasks", teamId: m.team.id });
+    // Морская сторона получила место высадки: её видят команды, у которых открыт порт или пристань.
+    void publishRoad(id, [task.fromKey, body.nodeKey], m.team.id);
     return { ok: true };
-  });
+  }));
 
   /** Прогресс всех команд для карты админа: открытые узлы и пройденные рёбра по командам. */
   /** Админ (для тестов и разбора ситуаций): открыть команде узел; ведущая к нему сторона считается пройденной. */
@@ -483,6 +514,7 @@ export async function teamMapRoutes(app: FastifyInstance): Promise<void> {
     await revealNode(id, teamId, body.nodeKey);
     publish(id, { type: "map", teamId });
     publish(id, { type: "tasks", teamId });
+    void publishRoad(id, task ? [task.fromKey, body.nodeKey] : [body.nodeKey], teamId);
     return { ok: true, viaTask: Boolean(task) };
   });
 

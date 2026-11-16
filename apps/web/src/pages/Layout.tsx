@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { Link, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { avatarImage } from "@lotw/domain";
 import { api } from "../lib/api";
@@ -31,7 +31,7 @@ export function Layout() {
     return () => { alive = false; window.clearInterval(timer); window.removeEventListener("lotw:support", load); };
   }, [superadmin, path]);
   const bare = /^\/games\/[^/]+(\/team)?$/.test(path) && path !== "/games/new";
-  if (bare) return <Outlet />;
+  if (bare) return <Suspense fallback={<p className="container muted">{t("Загрузка…")}</p>}><Outlet /></Suspense>;
   return (
     <>
       <header className="topbar">
@@ -54,7 +54,8 @@ export function Layout() {
           )}
         </div>
       </header>
-      <main className="container"><Outlet /></main>
+      {/* Страница, которая лежит отдельным файлом (экраны администратора, «Что нового»), ждёт здесь: шапка остаётся на месте. */}
+      <main className="container"><Suspense fallback={<p className="muted">{t("Загрузка…")}</p>}><Outlet /></Suspense></main>
     </>
   );
 }

@@ -1,14 +1,20 @@
 import { Link } from "react-router-dom";
 import { Back } from "../components/Back";
 import { Icon } from "../components/Icon";
-import { t, getLocale } from "../lib/i18n";
+import { useEffect, useState } from "react";
+import { t, getLocale, loadNewsEnglish, newsEnglishReady } from "../lib/i18n";
 import { CHANGELOG } from "../content/changelog";
+import { LoadingState } from "../components/State";
 
 /** Дата выкладки словами, без «сегодня/вчера»: список должен читаться одинаково и через месяц. */
 const dayLabel = (iso: string) => new Date(iso + "T12:00:00").toLocaleDateString(getLocale() === "en" ? "en-GB" : "ru-RU", { day: "numeric", month: "long", year: "numeric" });
 
 /** «Что нового»: изменения игры по датам, кратко. Данные — content/changelog.ts. */
 export function WhatsNewPage() {
+  // Перевод записей — отдельный файл: на английском ждём его; не пришёл (нет связи) — показываем записи как есть.
+  const [ready, setReady] = useState(() => getLocale() !== "en" || newsEnglishReady());
+  useEffect(() => { if (ready) return; let live = true; loadNewsEnglish().catch(() => {}).finally(() => { if (live) setReady(true); }); return () => { live = false; }; }, [ready]);
+  if (!ready) return <div className="how-to"><Back to="-1" label={t("Назад")} /><LoadingState rows={4} /></div>;
   return (
     <div className="how-to">
       <Back to="-1" label={t("Назад")} />

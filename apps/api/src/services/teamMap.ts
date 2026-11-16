@@ -5,7 +5,9 @@ import { hexCorners, vertexKey, vertexHexes, parseVertexKey, BOOKS, localMinutes
 import { loadCityContent } from "./cities.js";
 import { notifyTeam, notifyUser } from "./notify.js";
 import { createHash } from "node:crypto";
-import { publish, onPublish, TEAM_ONLY, hasTeamSubscribers, pushToTeam, type GameEventType } from "./events.js";
+import { publish, onPublish, hasTeamSubscribers, pushToTeam, teamFormats, type GameEventType } from "./events.js";
+import { wireTasks } from "./mapWire.js";
+import { staticMap } from "./gameMap.js";
 import jsonPatch from "fast-json-patch";
 const { compare } = jsonPatch;
 import { days, rulesOf, type Rules } from "./rules.js";
@@ -194,7 +196,8 @@ export async function ensureFrontier(gameId: string, teamId: string): Promise<vo
 
   const revealed = new Set((await prisma.teamNodeState.findMany({ where: { teamId }, select: { nodeKey: true } })).map((n) => n.nodeKey));
   await dropOpenedMarks(teamId, revealed);
-  const edges = await prisma.mapEdge.findMany({ where: { gameId }, select: { aKey: true, bKey: true } });
+  // Дороги, книги городов и порты — из памяти партии (services/gameMap.ts): после генерации карты они не меняются.
+  const geo = await staticMap(gameId), edges = geo.edges;
   const existingTasks = await prisma.teamEdgeTask.findMany({ where: { teamId }, select: { fromKey: true, toKey: true, sea: true, createdAt: true } });
   const existing = new Set(existingTasks.map((t) => `${t.fromKey}>${t.toKey}`));
   const blocked = await blockedCities(gameId, teamId);
@@ -202,7 +205,7 @@ export async function ensureFrontier(gameId: string, teamId: string): Promise<vo
   const ownedBooks = new Map([...owned].map(([k, v]) => [k, v.bookCode]));
   // Тематика по книге города задаётся в момент появления стороны — из любого города, не только взятого (решение владельца 29.09:
   // дело, которое уже видно на карте, не подменяется; раньше стороны из взятого города пересчитывались при взятии).
-  const cityBooks = new Map((await prisma.mapNode.findMany({ where: { gameId, kind: "CITY", bookCode: { not: null } }, select: { key: true, bookCode: true } })).map((n) => [n.key, n.bookCode!]));
+  const cityBooks = new Map(geo.nodes.filter((n) => n.kind === "CITY" && n.bookCode).map((n) => [n.key, n.bookCode!]));
   // Из одного порта — один рейс за взятие: после высадки toKey становится узлом высадки, но дело остаётся.
   // Рейс, начатый до нынешнего взятия порта (порт теряли и вернули), не мешает новому (решение владельца 18.09).
   const sailed = new Set(existingTasks.filter((t) => t.sea && (owned.get(t.fromKey)?.capturedAt.getTime() ?? 0) - 5_000 <= t.createdAt.getTime()).map((t) => t.fromKey));
@@ -232,12 +235,12 @@ export async function ensureFrontier(gameId: string, teamId: string): Promise<vo
   await ensureRemoteDeed(gameId, teamId, created);
   // Морская сторона: из каждого взятого командой порта (береговой город) — одно дело; после его одобрения
   // капитан выбирает пустой береговой узел другого острова и высаживается там (2.3a).
-  const ports = await prisma.mapNode.findMany({ where: { gameId, kind: "CITY", coastal: true, key: { in: [...ownedBooks.keys()] } }, select: { key: true, island: true, bookCode: true } });
+  const ports = geo.nodes.filter((n) => n.kind === "CITY" && n.coastal && ownedBooks.has(n.key));
   for (const port of ports) {
     if (sailed.has(port.key)) continue;
     // Плыть есть куда, только если на другом острове ещё остались свободные береговые развилки.
-    const free = await prisma.mapNode.count({ where: { gameId, kind: "EMPTY", coastal: true, island: { not: port.island } } });
-    if (free === 0) continue;
+    const free = geo.nodes.some((n) => n.kind === "EMPTY" && n.coastal && n.island !== port.island);
+    if (!free) continue;
     const deedId = await pickDeed(gameId, teamId, port.bookCode, undefined, false, { fromKey: port.key, toKey: port.key });
     if (!deedId) return;
     await prisma.teamEdgeTask.create({ data: { teamId, gameId, fromKey: port.key, toKey: seaKey(port.key), deedId, sea: true } }).catch((e: unknown) => { if (!isUniqueViolation(e)) throw e; });
@@ -553,9 +556,10 @@ export async function penalizeTeam(gameId: string, teamId: string, byId: string)
     prisma.teamPenalty.create({ data: { gameId, teamId, fromKey: pick.fromKey, toKey: pick.toKey, byId } }),
   ]);
   await ensureFrontier(gameId, teamId);
-  publish(gameId, { type: "map", teamId });
+  // Пройденная сторона снова свободна: это видят соседи (чужая дорога на карте, положение) — события карты и городов общие.
+  publish(gameId, { type: "map" });
   publish(gameId, { type: "tasks", teamId });
-  publish(gameId, { type: "cities", teamId });
+  publish(gameId, { type: "cities" });
   notifyTeam(gameId, teamId, "штраф: участок пути аннулирован", (locale) => msg(locale, city
     ? "Администратор назначил команде штраф: последняя пройденная сторона аннулирована, город за ней снова закрыт, его задания начинаются заново. Дело на этой стороне нужно сделать заново."
     : "Администратор назначил команде штраф: одна пройденная сторона на конце пути аннулирована, перекрёсток за ней снова закрыт. Дело на этой стороне нужно сделать заново."));
@@ -597,26 +601,50 @@ const mapCache = new Map<string, { gameId: string; at: number; value: Promise<Te
  * События одного действия идут пачкой (сдача → tasks, submissions, journal), поэтому пересчёт откладывается на 300 мс.
  */
 const pending = new Map<string, { timer: ReturnType<typeof setTimeout>; prev: TeamMap | null }>();
+/**
+ * Последняя посчитанная карта команды (`known`) и последняя, отправленная её приложениям «разницей» (`sent`). Раньше прежняя
+ * карта бралась из записи кэша, а запись стирается при каждом сбросе: если второе изменение приходило, пока сервер ещё
+ * считал карту после первого, прежней карты не находилось, и приложениям уходило «перечитай целиком» (ревизия, этап 2).
+ * Рассылки одной команды идут строго по очереди (`pushing`): «разница» всегда считается от той карты, что уже у приложений.
+ */
+const known = new Map<string, TeamMap>(), sent = new Map<string, TeamMap>(), pushing = new Map<string, Promise<void>>();
 export function invalidateTeamMaps(gameId: string, teamId?: string): void {
   const ids = teamId ? [teamId] : [...mapCache].filter(([, e]) => e.gameId === gameId).map(([k]) => k);
   for (const id of ids) {
-    const entry = mapCache.get(id);
     mapCache.delete(id);
     if (!hasTeamSubscribers(gameId, id)) continue;
     // Пачка событий одного действия: прежняя карта берётся из первого сброса, остальные её не теряют.
     const was = pending.get(id);
     if (was) clearTimeout(was.timer);
-    const prev = was?.prev ?? entry?.last ?? null;
-    pending.set(id, { prev, timer: setTimeout(() => { pending.delete(id); void pushMapUpdate(gameId, id, prev); }, 300) });
+    const prev = was?.prev ?? known.get(id) ?? null;
+    pending.set(id, { prev, timer: setTimeout(() => {
+      pending.delete(id);
+      const run = (pushing.get(id) ?? Promise.resolve()).then(() => pushMapUpdate(gameId, id, prev));
+      pushing.set(id, run);
+      void run.finally(() => { if (pushing.get(id) === run) pushing.delete(id); });
+    }, 300) });
   }
 }
-async function pushMapUpdate(gameId: string, teamId: string, prev: TeamMap | null): Promise<void> {
+async function pushMapUpdate(gameId: string, teamId: string, captured: TeamMap | null): Promise<void> {
   try {
+    // Основа «разницы» — самая свежая из двух: карта на момент сброса или та, что уже ушла приложениям предыдущей рассылкой.
+    const was = sent.get(teamId);
+    const prev = was && (!captured || was.rev > captured.rev) ? was : captured;
     const next = await getTeamMap(gameId, teamId);
+    sent.set(teamId, next);
     if (!prev || prev.rev === next.rev) { if (!prev) pushToTeam(gameId, teamId, "map-stale", { rev: next.rev }); return; }
     // Тайные дела: ссылки и текст сдачи видит только сдавший — в разнице их нет (сравниваются обезличенные карты).
-    const patch = compare(publicMap(prev), publicMap(next));
-    if (patch.length) pushToTeam(gameId, teamId, "map-patch", { base: prev.rev, rev: next.rev, patch });
+    // «Разница» считается в том виде, в каком карту держит приложение: со справочником текстов дел — новым, с вложенными
+    // текстами — тем, что ещё не обновились после выкладки (их через несколько минут не остаётся, и второй расчёт пропадает).
+    const who = teamFormats(gameId, teamId), a = publicMap(prev), b = publicMap(next);
+    if (who.wire) {
+      const patch = compare(wireMap(a), wireMap(b));
+      if (patch.length) pushToTeam(gameId, teamId, "map-patch", { base: prev.rev, rev: next.rev, patch }, true);
+    }
+    if (who.legacy) {
+      const patch = compare(a, b);
+      if (patch.length) pushToTeam(gameId, teamId, "map-patch", { base: prev.rev, rev: next.rev, patch }, false);
+    }
   } catch (e) { console.error("map push failed", e); }
 }
 /** Карта в том виде, в каком её получает клиент (даты — строками, как в JSON), без тайных ссылок и без номера версии. */
@@ -624,19 +652,29 @@ function publicMap(m: TeamMap): Record<string, unknown> {
   const { rev: _rev, ...rest } = m;
   return JSON.parse(JSON.stringify({ ...rest, tasks: m.tasks.map((t) => (t.deed.secret ? { ...t, links: [], note: "" } : t)) }));
 }
+/** Карта со справочником текстов дел вместо текста в каждой стороне (services/mapWire.ts). */
+function wireMap(m: Record<string, unknown>): Record<string, unknown> {
+  return { ...m, ...wireTasks(m.tasks as Array<{ deed: unknown }>) };
+}
 // Награды и мир в карту команды не входят: их события карты не сбрасывают (раньше каждая выданная награда заставляла
 // пересчитать карты всех команд партии).
 const NOT_ON_MAP: ReadonlySet<GameEventType> = new Set(["awards", "peace"]);
-onPublish((gameId, ev) => { if (!NOT_ON_MAP.has(ev.type)) invalidateTeamMaps(gameId, ev.teamId && TEAM_ONLY.has(ev.type) ? ev.teamId : undefined); });
+// Событие команды сбрасывает только её карту (ревизия скорости, этап 2: адресная рассылка — services/events.ts);
+// общее событие — карты всех команд партии.
+onPublish((gameId, ev) => { if (!NOT_ON_MAP.has(ev.type)) invalidateTeamMaps(gameId, ev.teamId); });
 export function getTeamMap(gameId: string, teamId: string): Promise<TeamMap> {
   const hit = mapCache.get(teamId);
   if (hit && hit.gameId === gameId && Date.now() - hit.at < MAP_TTL_MS) return hit.value;
   const entry = { gameId, at: Date.now(), last: hit?.last ?? null, value: undefined as unknown as Promise<TeamMap> };
   entry.value = computeTeamMap(gameId, teamId).then((m) => {
+    // Пока шёл расчёт, карту сбросили (событие) или начали считать заново: этот результат уже устарел. Раньше он всё равно
+    // записывался как последняя карта и получал номер версии — если старый расчёт кончался позже нового, старое содержимое
+    // оказывалось «новее» (находка независимого разбора 16.11). Отдаём свежий расчёт.
+    if (mapCache.get(teamId) !== entry) return getTeamMap(gameId, teamId);
     const sig = mapSignature(m), was = lastRev.get(teamId);
     const rev = was && was.gameId === gameId && was.sig === sig ? was.rev : ++mapRev;
     lastRev.set(teamId, { gameId, sig, rev });
-    const full = { ...m, rev }; entry.last = full; return full;
+    const full = { ...m, rev }; entry.last = full; known.set(teamId, full); return full;
   });
   mapCache.set(teamId, entry);
   entry.value.catch(() => { if (mapCache.get(teamId) === entry) mapCache.delete(teamId); });
@@ -645,18 +683,20 @@ export function getTeamMap(gameId: string, teamId: string): Promise<TeamMap> {
 
 async function computeTeamMap(gameId: string, teamId: string) {
   await ensureFrontier(gameId, teamId);
-  const [revealedRows, rawTasks, hexes, nodes, edges, teamRow] = await Promise.all([
+  // Гексы, перекрёстки и дороги — из памяти партии (services/gameMap.ts); из базы — только то, что меняется: какие города разорены.
+  const [revealedRows, rawTasks, geo, ruinedRows, teamRow] = await Promise.all([
     prisma.teamNodeState.findMany({ where: { teamId }, select: { nodeKey: true, revealedAt: true } }),
     prisma.teamEdgeTask.findMany({
       where: { teamId },
       include: { deed: { select: { id: true, title: true, description: true, direction: true, proofType: true, secret: true, remote: true } }, person: { select: { id: true, name: true } } },
       orderBy: { createdAt: "asc" },
     }),
-    prisma.mapHex.findMany({ where: { gameId }, select: { q: true, r: true, terrain: true, rotation: true, island: true } }),
-    prisma.mapNode.findMany({ where: { gameId }, select: { key: true, corner: true, q: true, r: true, kind: true, bookCode: true, cityType: true, teamIndex: true, ruined: true, island: true, coastal: true } }),
-    prisma.mapEdge.findMany({ where: { gameId }, select: { aKey: true, bKey: true } }),
+    staticMap(gameId),
+    prisma.mapNode.findMany({ where: { gameId, ruined: true }, select: { key: true } }),
     prisma.team.findUnique({ where: { id: teamId }, select: { startNodeKey: true } }),
   ]);
+  const ruinedKeys = new Set(ruinedRows.map((n) => n.key));
+  const hexes = geo.hexes, edges = geo.edges, nodes = geo.nodes.map((n) => ({ ...n, ruined: ruinedKeys.has(n.key) }));
   // Чужие проходы там, где у команды открыт туман: пройденные другими командами стороны, касающиеся открытых
   // перекрёстков (решение владельца 18.09: команда должна понимать, где противник).
   // Чужие пройденные стороны: сухопутные и морские с выбранной высадкой (toKey уже узел, а не «sea:…»). По ним на

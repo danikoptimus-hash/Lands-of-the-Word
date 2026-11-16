@@ -1,4 +1,4 @@
-import { onPublish, TEAM_ONLY, type GameEventType } from "./events.js";
+import { onPublish, type GameEventType } from "./events.js";
 
 /**
  * Готовые ответы для экранов команды (решение владельца 24.10: «команды, ленту тоже переделать… чтобы всё работало
@@ -46,4 +46,6 @@ export function invalidateViews(gameId: string, teamId?: string, types?: readonl
     for (const [key, entry] of cache) if (key.startsWith(`${name}:`) && entry.gameId === gameId) cache.delete(key);
   }
 }
-onPublish((gameId, ev) => invalidateViews(gameId, ev.teamId && TEAM_ONLY.has(ev.type) ? ev.teamId : undefined, [ev.type]));
+// Событие команды сбрасывает готовые ответы только этой команды и общие на партию (ревизия скорости, этап 2);
+// общее событие — ответы всех команд.
+onPublish((gameId, ev) => invalidateViews(gameId, ev.teamId, [ev.type]));

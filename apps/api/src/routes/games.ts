@@ -5,6 +5,7 @@ import { generateMap, MapGenError } from "@lotw/domain";
 import { prisma } from "../db.js";
 import { defineView } from "../services/views.js";
 import { publish } from "../services/events.js";
+import { dropStaticMap } from "../services/gameMap.js";
 import { requireUser } from "../auth.js";
 import { err } from "../services/i18n.js";
 import { effectiveNodeCount, recommendedDeedCount } from "./deeds.js";
@@ -66,7 +67,8 @@ async function loadGameForAdmin(request: FastifyRequest, reply: FastifyReply, ga
 }
 
 /** Положение команд — один готовый ответ на партию (services/views.ts), сбрасывается взятиями, испытаниями и составом. */
-const standingsView = defineView("standings", { scope: "game", events: ["cities", "battles", "teams", "map", "quarry"], compute: async (gameId) => ({ rows: await standings(gameId), leaderTeamId: (await leader(gameId))?.teamId ?? null }) });
+// Принятое дело меняет «Принятых дел» и «Открытых перекрёстков», поэтому в списке есть и события дел (ревизия, этап 2).
+const standingsView = defineView("standings", { scope: "game", events: ["cities", "battles", "teams", "map", "quarry", "tasks", "submissions"], compute: async (gameId) => ({ rows: await standings(gameId), leaderTeamId: (await leader(gameId))?.teamId ?? null }) });
 
 export async function gameRoutes(app: FastifyInstance): Promise<void> {
   app.addHook("preHandler", requireUser);
@@ -221,6 +223,7 @@ export async function gameRoutes(app: FastifyInstance): Promise<void> {
       // Сводка карты хранится в настройках, чтобы шаг «Карта» показывал её и после перезагрузки страницы.
       prisma.game.update({ where: { id }, data: { mapSeed: seed, settings: { ...(game.settings as object), mapStats: { startDistances: map.stats.startDistances, minCityGap: map.stats.minCityGap, avgCityGap: map.stats.avgCityGap } } } }),
     ]);
+    dropStaticMap(id);
     publish(id, { type: "map" });
     return { seed, stats: map.stats };
   });

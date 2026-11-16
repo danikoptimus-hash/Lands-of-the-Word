@@ -28,12 +28,13 @@ const PassageChip = ({ s }: { s: PassageStatus }) => { const p = passageStatus(s
 /** В попапе чужого города: состояние прохода и запрос разрешения (посол, а без посла — капитан или заместитель). */
 export function PassageSection({ gameId, nodeKey, version, onChanged }: { gameId: string; nodeKey: string; version: number; onChanged: () => void }) {
   const { notify } = useUi();
-  const [data, setData] = useState<PassagesDto | null>(null);
+  // Запросы прохода команды уже есть у страницы команды: показываем их сразу, свежие подменят (ревизия скорости, этап 2).
+  const [data, setData] = useState<PassagesDto | null>(() => ready<PassagesDto>(`/api/games/${gameId}/my-passages`));
   const [message, setMessage] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const load = () => api<PassagesDto>(`/api/games/${gameId}/my-passages`).then(setData).catch(() => setData(null));
-  useEffect(() => { void load(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [gameId, version]);
+  const load = (join = false) => apiReady<PassagesDto>(`/api/games/${gameId}/my-passages`, { join }).then(setData).catch(() => {});
+  useEffect(() => { void load(true); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [gameId, version]);
   const mine = data?.outgoing.filter((r) => r.nodeKey === nodeKey) ?? [];
   const last = mine[0];
   async function request() {
@@ -74,13 +75,17 @@ export function PassageSection({ gameId, nodeKey, version, onChanged }: { gameId
  * Здесь запросы других команд через этот город: на открытые отвечают (посол, а без посла — капитан или заместитель),
  * выданные разрешения безотзывные; ниже — история ответов. Пока есть запрос без ответа, раздел раскрыт и помечен числом.
  */
-export function CityPassages({ gameId, nodeKey, version, onChanged }: { gameId: string; nodeKey: string; version: number; onChanged: () => void }) {
+export function CityPassages({ gameId, nodeKey, version, given, onChanged }: { gameId: string; nodeKey: string; version: number; /** Запросы прохода команды, которые уже держит страница команды: раздел их не запрашивает сам (ревизия скорости, этап 2). */ given?: PassagesDto | null; onChanged: () => void }) {
   const { notify } = useUi();
-  const [data, setData] = useState<PassagesDto | null>(null);
+  const [own, setOwn] = useState<PassagesDto | null>(() => ready<PassagesDto>(`/api/games/${gameId}/my-passages`));
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState<string | null>(null);
-  const load = () => api<PassagesDto>(`/api/games/${gameId}/my-passages`).then(setData).catch(() => setData(null));
-  useEffect(() => { void load(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [gameId, version]);
+  const load = (join = false) => apiReady<PassagesDto>(`/api/games/${gameId}/my-passages`, { join }).then(setOwn).catch(() => {});
+  // Сам раздел запрашивает данные, только если страница их не дала; после своего ответа — всегда (и страница обновится следом).
+  useEffect(() => { if (given === undefined) void load(true); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [gameId, version, given === undefined]);
+  // Страница обновила запросы (событие, свой ответ) — берём её данные.
+  useEffect(() => { if (given) setOwn(given); }, [given]);
+  const data = own;
   async function decide(r: PassageDto, approve: boolean) {
     setBusy(r.id);
     try { await api(`/api/games/${gameId}/passages/${r.id}/decide`, { method: "POST", body: JSON.stringify({ approve, answer: answers[r.id] ?? "" }) }); notify(approve ? t("Проход разрешён") : t("В проходе отказано"), "info"); await load(); onChanged(); }

@@ -219,6 +219,7 @@ describe("город на перекрёстке", () => {
     const progress = await app.inject({ method: "GET", url: `/api/games/${gameId}/progress`, headers: { cookie: adminCookie } });
     expect(progress.json().cities.some((x: { teamId: string; isCapital: boolean }) => x.teamId === team1 && x.isCapital)).toBe(true);
 
+    process.env.LOTW_MEASURE = "1";
     // Раздел «Поведение» (решение владельца 02.10): события ответов и выходов из приложения видит администратор, не игрок.
     expect((await app.inject({ method: "POST", url: `/api/games/${gameId}/my-city/${rutKey}/tasks/0/focus`, headers: { cookie: p1Cookie }, payload: { kind: "open" } })).statusCode).toBe(204);
     expect((await app.inject({ method: "POST", url: `/api/games/${gameId}/my-city/${rutKey}/tasks/order/focus`, headers: { cookie: p1Cookie }, payload: { kind: "away", awayMs: 12_000 } })).statusCode).toBe(204);
@@ -228,6 +229,10 @@ describe("город на перекрёстке", () => {
     expect(ev.filter((e) => e.kind === "wrong").length).toBeGreaterThanOrEqual(2);
     expect(ev.filter((e) => e.kind === "open").length).toBe(1);
     expect(ev.find((e) => e.kind === "away")?.awayMs).toBe(12_000);
+    // Сбор выключен (решение владельца 16.11): адрес отвечает «принято», но «открыл» и «выходил» не записываются.
+    delete process.env.LOTW_MEASURE;
+    expect((await app.inject({ method: "POST", url: `/api/games/${gameId}/my-city/${rutKey}/tasks/0/focus`, headers: { cookie: p1Cookie }, payload: { kind: "open" } })).statusCode).toBe(204);
+    expect(await prisma.taskEvent.count({ where: { gameId, nodeKey: rutKey, kind: "open" } })).toBe(1);
   });
 
   it("админ открывает узел команде для теста: сторона к нему одобрена, узел открыт", async () => {

@@ -52,6 +52,12 @@ jobs:
       - run: npm run typecheck
       - run: npm test
       - run: npm run build -w apps/web
+      # Настройки прокси проверяет сам Caddy с модулем ограничения запросов — тем же образом, что стоит на сервере. В рабочей
+      # среде разработки проверить их нечем; здесь ошибка в Caddyfile останавливает выкладку до сервера.
+      - name: Проверка настроек прокси (Caddyfile)
+        run: |
+          echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+          docker run --rm -e DOMAIN=example.org -v "$PWD/deploy/caddy/Caddyfile:/etc/caddy/Caddyfile:ro" ghcr.io/danikoptimus-hash/lotw-caddy:latest caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile
 
   build:
     needs: test

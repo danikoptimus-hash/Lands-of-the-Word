@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type React from "react";
-import { api, ApiError, type BookMapDto } from "../lib/api";
+import { ApiError, apiReady, ready, type BookMapDto } from "../lib/api";
 import { t } from "../lib/i18n";
 import { plural } from "../lib/format";
 import { Icon } from "../components/Icon";
@@ -20,15 +20,17 @@ const verses = (n: number) => plural(n, ["стих", "стиха", "стихов
 const weightOf = (role: string | null) => (role === "WARRIOR" ? 2 : 1);
 
 export function BookMap({ gameId, bookCode, battleId, version = 0, look = "bricks" }: { gameId: string; bookCode: string; battleId?: string; version?: number; look?: BookLook }) {
-  const [d, setD] = useState<BookMapDto | null>(null);
+  // Карта книги открывается сразу с прежним ответом (кто что выучил — подменится свежим): ревизия скорости, этап 2.
+  const url = `/api/games/${gameId}/book-map?book=${encodeURIComponent(bookCode)}${battleId ? `&battle=${encodeURIComponent(battleId)}` : ""}`;
+  const [d, setD] = useState<BookMapDto | null>(() => ready<BookMapDto>(url));
   const [error, setError] = useState<string | null>(null);
   const [range, setRange] = useState<[number, number] | null>(null);
   const [drag, setDrag] = useState<[number, number] | null>(null);
   const dragRef = useRef<{ start: number; end: number; moved: boolean } | null>(null);
-  const load = () => api<BookMapDto>(`/api/games/${gameId}/book-map?book=${encodeURIComponent(bookCode)}${battleId ? `&battle=${encodeURIComponent(battleId)}` : ""}`).then((x) => { setD(x); setError(null); }).catch((e) => setError(e instanceof ApiError ? e.message : t("Ошибка сети")));
+  const load = () => apiReady<BookMapDto>(url).then((x) => { setD(x); setError(null); }).catch((e) => setError(e instanceof ApiError ? e.message : t("Ошибка сети")));
   useEffect(() => { void load(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [gameId, bookCode, battleId, version]);
   const sets = useMemo(() => (d?.members ?? []).map((m) => ({ ...m, learnedSet: new Set(m.learned), markedSet: new Set(m.marked) })), [d]);
-  if (error) return <p className="error" role="alert">{error}</p>;
+  if (error && !d) return <p className="error" role="alert">{error}</p>;
   if (!d) return <p className="muted small mt-2">{t("Загружаем книгу…")}</p>;
   const offsets = d.book.verseCounts.reduce<number[]>((acc, n, i) => { acc.push(i === 0 ? 0 : acc[i - 1]! + d.book.verseCounts[i - 1]!); return acc; }, []);
   const classOf = (i: number) => {

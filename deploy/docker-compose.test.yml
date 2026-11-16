@@ -8,6 +8,11 @@ services:
     image: postgres:16-alpine
     container_name: lotw-db-test
     restart: unless-stopped
+    # Стенд живёт на одном сервере с игрой (ревизия скорости, этап 2). Когда процессора не хватает, игре достаётся вчетверо
+    # больше (вес 256 против обычных 1024); пока игра простаивает, стенд работает в полную силу — нагрузочный прогон и
+    # выкладка стенда больше не отнимают процессор у игроков. Память стенда ограничена: при её нехватке перезапустится он, а не игра.
+    cpu_shares: 256
+    mem_limit: 384m
     environment:
       POSTGRES_USER: lotw
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
@@ -24,6 +29,8 @@ services:
     image: ghcr.io/danikoptimus-hash/lotw-app:${APP_TAG:-test}
     container_name: lotw-app-test
     restart: unless-stopped
+    cpu_shares: 256
+    mem_limit: 512m
     # Журнал контейнера ограничен по размеру (ревизия 15.11): раньше он рос без предела, пока контейнер не пересоздан.
     logging:
       driver: json-file

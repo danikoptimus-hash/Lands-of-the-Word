@@ -1,12 +1,13 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { BOOKS } from "@lotw/domain";
-import { api, ApiError, type CityTaskDto, type MyCityDto, type SupportItemDto, type TaskLockDto, type VisitDto } from "../lib/api";
+import { MEASURE } from "../lib/measure";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { BOOKS, cityTasksOpen, dayLight } from "@lotw/domain";
+import { api, ApiError, apiReady, ready, type CityTaskDto, type MapCityDto, type MyCityDto, type SupportItemDto, type TaskLockDto, type VisitDto } from "../lib/api";
 import { useUi } from "../lib/ui";
 import { IMG } from "./MapLayers";
 import { BurntScroll, CipherSeal, Crossword, LockChoice, LockRings, PickCooling, ProphetCandle, WaxEnvelope, findGap, ChiasmBoard } from "./CityForms";
 import { WarSection, type ForMember } from "./BattlePanel";
 import { WallSection } from "./Wall";
-import { CityPassages, PassageSection } from "./Diplomacy";
+import { CityPassages, PassageSection, type PassagesDto } from "./Diplomacy";
 import { t } from "../lib/i18n";
 import { fmtDate, fmtPause, plural } from "../lib/format";
 import { SpiralCity, cityStyleFromQuery } from "./SpiralCity";
@@ -31,13 +32,52 @@ const BOOK_BY_CODE = new Map(BOOKS.map((b) => [b.code, b]));
  * Шаги оформлены как замок с кольцами (и для порядка, и для выбора ответа), районы с печатью шифра и конверт с сургучом (решения 18.09).
  */
 const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
+
+/** Что о городе известно из карты ещё до ответа сервера: по этому шапка рисуется сразу (ревизия скорости, этап 2). */
+export interface CityPreview { bookCode: string | null; cityType: string | null; city: Pick<MapCityDto, "owner" | "captured" | "isCapital" | "ruined"> | null }
+
+/** Разница часов сервера и устройства (мс) по последнему ответу любого города: по ней идут паузы, пока свежий ответ в пути. */
+let serverSkew = 0;
+/**
+ * Запомненный ответ города показывается сразу, свежий его подменяет. Но только если с тех пор не сменились ночь и «задания
+ * открыты»: ночью сервер не отдаёт задания, знаки шифра и адресата, и дневной ответ показал бы их на мгновение.
+ */
+function stillFits(c: MyCityDto | null): MyCityDto | null {
+  if (!c?.daytime?.timeZone) return c;
+  const at = new Date(Date.now() + serverSkew);
+  const night = dayLight(c.daytime.timeZone, at).phase === "night", open = cityTasksOpen(c.daytime.timeZone, at);
+  const wasNight = c.daytime.phase === "night";
+  return night === wasNight && open === (c.daytime.tasksOpen ?? !wasNight) ? c : null;
+}
+/** Начальная расстановка районов: черновик команды, если он содержит ровно эти районы; иначе порядок, в котором пришли районы.
+ *  Круглый город (06.11): черновик — участки с «-» на пустых местах; кольца замка — полная перестановка. */
+function orderDraftOf(c: MyCityDto): string[] | null {
+  if (!c.content || c.state.orderSolved) return null;
+  const ids = c.content.districts.map((d) => d.id);
+  return c.content.plan === "spiral" ? spiralDraft(c.state.orderDraft, ids) : validDraft(c.state.orderDraft, ids);
+}
+
+/**
+ * Свёрнутый раздел листа города. Содержимое создаётся при первом раскрытии — вместе с его запросом к серверу: раньше
+ * «Стена», «Проход» и «Испытание» запрашивали данные сразу, хотя раздел могли и не открыть (ревизия скорости, этап 2).
+ * Раскрытый однажды раздел живёт, пока открыт лист: повторное сворачивание ничего не сбрасывает.
+ */
+function Fold({ icon, title, children }: { icon: string; title: string; children: ReactNode }) {
+  const [seen, setSeen] = useState(false);
+  return (
+    <details className="disclose" onToggle={(e) => { if (e.currentTarget.open) setSeen(true); }}>
+      <summary><Icon name={icon} />{title}<Icon name="chevron-down" className="chev" /></summary>
+      {seen && children}
+    </details>
+  );
+}
 /**
  * Счётчик выходов (решение владельца 02.10): пока задание открыто, сворачивание приложения и возврат в него сообщаются
  * серверу (сколько отсутствовал); при открытии задания — одно событие «открыл». Ничего не блокирует, только считает.
  */
 function useAwayCounter(url: string | null) {
   useEffect(() => {
-    if (!url) return;
+    if (!url || !MEASURE) return;
     void api(url, { method: "POST", body: JSON.stringify({ kind: "open" }) }).catch(() => {});
     let hiddenAt: number | null = null;
     const onVis = () => {
@@ -51,15 +91,19 @@ function useAwayCounter(url: string | null) {
   }, [url]);
 }
 
-export function CityPopup({ gameId, nodeKey, teamId, isCaptain, canAlly, version, container, onClose, onChanged, onTrade, members, meId, canFor }: { /** Отметка стихов испытания за участника (решение владельца 07.11): состав команды, кто я, можно ли. */ members?: ForMember[]; meId?: string; canFor?: boolean; /** Послу: выставить этот свой город на обмен (решение владельца 04.11: обмен — из карточки города). */ onTrade?: () => void; gameId: string; nodeKey: string; teamId: string; isCaptain: boolean; /** Капитан, заместитель или посол: защитный союз. */ canAlly?: boolean; version: number; container?: HTMLElement | null; onClose: () => void; onChanged: () => void }) {
+export function CityPopup({ gameId, nodeKey, teamId, isCaptain, canAlly, version, container, onClose, onChanged, onTrade, members, meId, canFor, preview, passages }: { /** Название книги, вид города и владелец из данных карты: шапка видна сразу, до ответа сервера. */ preview?: CityPreview | null; /** Запросы прохода команды — их уже держит страница команды. */ passages?: PassagesDto | null; /** Отметка стихов испытания за участника (решение владельца 07.11): состав команды, кто я, можно ли. */ members?: ForMember[]; meId?: string; canFor?: boolean; /** Послу: выставить этот свой город на обмен (решение владельца 04.11: обмен — из карточки города). */ onTrade?: () => void; gameId: string; nodeKey: string; teamId: string; isCaptain: boolean; /** Капитан, заместитель или посол: защитный союз. */ canAlly?: boolean; version: number; container?: HTMLElement | null; onClose: () => void; onChanged: () => void }) {
   const { notify, confirm } = useUi();
 
   const confirmMove = () => confirm(t("Это единственный перенос за игру."), { title: t("Перенести столицу в этот город?"), okLabel: t("Перенести") });
-  const [city, setCity] = useState<MyCityDto | null>(null);
+  const url = `/api/games/${gameId}/my-city/${encodeURIComponent(nodeKey)}`;
+  // Повторное открытие города — сразу с прежним ответом; свежий подменит его через мгновение.
+  const [city, setCity] = useState<MyCityDto | null>(() => stillFits(ready<MyCityDto>(url)));
+  /** На экране прежний ответ, свежий ещё в пути; `touched` — игрок уже двигал районы (тогда его расстановку не трогаем). */
+  const stale = useRef(city !== null), touched = useRef(false);
   // Экран расстановки районов тоже считается заданием для счётчика выходов.
   useAwayCounter(city?.content && !city.state.orderSolved ? `/api/games/${gameId}/my-city/${nodeKey}/tasks/order/focus` : null);
   const [error, setError] = useState<string | null>(null);
-  const [order, setOrder] = useState<string[] | null>(null);
+  const [order, setOrder] = useState<string[] | null>(() => (city ? orderDraftOf(city) : null));
   const [orderResult, setOrderResult] = useState<number | null>(null);
   const [taskIndex, setTaskIndex] = useState<number | null>(null);
   useEffect(() => { setRevealOnce(null); }, [taskIndex]);
@@ -83,8 +127,8 @@ export function CityPopup({ gameId, nodeKey, teamId, isCaptain, canAlly, version
   const [key, setKey] = useState("");
   /** Разница часов сервера и устройства (мс): паузы отмычки и печати сравниваются по часам сервера (05.11: при сбитых часах
    *  телефона кнопка «Ответить» оживала раньше, чем сервер принимал ответ, а счётчик ошибок не рос — ответы отбивались как 429). */
-  const skew = useRef(0);
-  const [now, setNow] = useState(Date.now());
+  const skew = useRef(serverSkew);
+  const [now, setNow] = useState(() => Date.now() + serverSkew);
   /** Сцены форм: замок открылся/заклинило, районы только что встали по порядку, какой сектор печати выбит, сургуч. */
   const [lockState, setLockState] = useState<"idle" | "open" | "jam">("idle");
   const [justSolved, setJustSolved] = useState(false);
@@ -103,15 +147,23 @@ export function CityPopup({ gameId, nodeKey, teamId, isCaptain, canAlly, version
     } catch (e) { notify(e instanceof ApiError ? e.message : t("Ошибка сети"), "bad"); }
     finally { setBusy(false); }
   }
-  const load = useCallback(() => api<MyCityDto>(`/api/games/${gameId}/my-city/${encodeURIComponent(nodeKey)}`).then((c) => { if (typeof c.now === "number") skew.current = c.now - Date.now(); setCity(c); setNow(Date.now() + skew.current); setError(null); }).catch((e) => setError(e instanceof ApiError ? e.message : t("Ошибка сети"))), [gameId, nodeKey]);
+  const load = useCallback(() => apiReady<MyCityDto>(url).then((c) => {
+    if (typeof c.now === "number") serverSkew = skew.current = c.now - Date.now();
+    // На экране был прежний ответ: черновик расстановки команды мог измениться — берём свежий, если игрок ещё ничего не двигал.
+    if (stale.current && !touched.current) { const d = orderDraftOf(c); if (d) setOrder(d); }
+    stale.current = false;
+    setCity(c); setNow(Date.now() + skew.current); setError(null);
+  }).catch((e) => {
+    setError(e instanceof ApiError ? e.message : t("Ошибка сети"));
+    // Город больше не наш к показу (не дошли, нет такого): прежний ответ с экрана убираем.
+    if (e instanceof ApiError && (e.status === 403 || e.status === 404)) setCity(null);
+  }), [url]);
   useEffect(() => { void load(); }, [load, version]);
   useEffect(() => { const tm = setInterval(() => setNow(Date.now() + skew.current), 1000); return () => clearInterval(tm); }, []);
-  // Начальная расстановка — черновик команды, если он содержит ровно эти районы; иначе порядок, в котором пришли районы.
-  // Круглый город (06.11): черновик — участки с «-» на пустых местах; кольца замка — полная перестановка.
-  useEffect(() => { if (city?.content && !city.state.orderSolved && !order) setOrder(city.content.plan === "spiral" ? spiralDraft(city.state.orderDraft, city.content.districts.map((d) => d.id)) : validDraft(city.state.orderDraft, city.content.districts.map((d) => d.id))); }, [city, order]);
+  useEffect(() => { if (city && !order) { const d = orderDraftOf(city); if (d) setOrder(d); } }, [city, order]);
   const saveDraft = useDraftSaver(`/api/games/${gameId}/my-city/${encodeURIComponent(nodeKey)}/draft`);
 
-  const book = city ? BOOK_BY_CODE.get(city.node.bookCode) : undefined;
+  const book = BOOK_BY_CODE.get(city?.node.bookCode ?? preview?.bookCode ?? "");
   const districts = city?.content?.districts ?? [];
   const byId = useMemo(() => new Map(districts.map((d) => [d.id, d])), [districts]);
   const done = city?.state.doneTasks ?? [];
@@ -213,14 +265,18 @@ export function CityPopup({ gameId, nodeKey, teamId, isCaptain, canAlly, version
   // адресат и конверт спят до 7:00. С 0:00 до 7:00 город спит целиком.
   const tasksOpen = city?.daytime?.tasksOpen ?? !night;
   const sleeping = night && !tasksOpen;
-  const statusLine = !city ? "" : city.state.capturedAt ? t("Ваш город") : city.owner ? (city.owner.isCapital ? t("Столица команды «{team}»", { team: city.owner.name }) : t("Город команды «{team}»", { team: city.owner.name })) : city.node.ruined ? t("Опустевший город") : t("Свободный город");
+  // Пока ответа нет, то же самое известно из карты: чей город, столица ли, опустел ли.
+  const known = city ? { mine: Boolean(city.state.capturedAt), owner: city.owner ? { name: city.owner.name, isCapital: Boolean(city.owner.isCapital) } : null, ruined: city.node.ruined, myCapital: city.state.isCapital }
+    : preview?.city ? { mine: preview.city.captured, owner: preview.city.owner ? { name: preview.city.owner.name, isCapital: preview.city.isCapital } : null, ruined: preview.city.ruined, myCapital: preview.city.captured && preview.city.isCapital } : null;
+  const statusLine = !known ? "" : known.mine ? t("Ваш город") : known.owner ? (known.owner.isCapital ? t("Столица команды «{team}»", { team: known.owner.name }) : t("Город команды «{team}»", { team: known.owner.name })) : known.ruined ? t("Опустевший город") : t("Свободный город");
+  const cityType = city?.node.cityType ?? preview?.cityType;
 
   const head = (
-    <div className="city-head" style={{ ["--city-img" as string]: `url(${IMG.city(city?.node.cityType)})` }}>
-      <img src={IMG.city(city?.node.cityType)} alt="" />
+    <div className="city-head" style={{ ["--city-img" as string]: `url(${IMG.city(cityType)})` }}>
+      <img src={IMG.city(cityType)} alt="" />
       <div className="title">
         <h2 id="city-title">{book?.nameRu ?? t("Город")}</h2>
-        <div className="status">{statusLine}{city?.state.isCapital && <Chip tone="solid" icon="crown">{t("Столица")}</Chip>}
+        <div className="status">{statusLine}{known?.myCapital && <Chip tone="solid" icon="crown">{t("Столица")}</Chip>}
           {/* Городская стена: хранителям — толщина; чужим — что разведал разведчик (решение владельца 02.11), кнопка разведки — разведчику. */}
           {city?.wall?.verses != null && city.wall.exists && <Chip tone="solid" icon="wall" title={t("Городская стена: {n}", { n: plural(city.wall.verses, ["стих", "стиха", "стихов"]) })}>{city.wall.verses}</Chip>}
           {city?.wall?.scouted && <Chip tone="solid" icon={city.wall.exists ? "wall" : "telescope"} title={t("Разведано {d}", { d: city.wall.scoutedAt ? fmtDate(city.wall.scoutedAt, { time: false }) : "" })}>{city.wall.exists ? t("стена") : t("без стены")}</Chip>}
@@ -265,10 +321,10 @@ export function CityPopup({ gameId, nodeKey, teamId, isCaptain, canAlly, version
         <section className="step-body">
           <h3>{t("Расставьте районы по порядку книги")}</h3>
           {city.content.plan === "spiral" ? (
-            <SpiralCity districts={districts} slots={order.map((x) => (x === "-" ? null : x))} style={cityStyleFromQuery()} onChange={(s) => { const ids = s.map((x) => x ?? "-"); setOrder(ids); setOrderResult(null); saveDraft({ order: ids }); }} disabled={busy || lockState === "open"} state={lockState} pinsWrong={orderResult}
+            <SpiralCity districts={districts} slots={order.map((x) => (x === "-" ? null : x))} style={cityStyleFromQuery()} onChange={(s) => { const ids = s.map((x) => x ?? "-"); touched.current = true; setOrder(ids); setOrderResult(null); saveDraft({ order: ids }); }} disabled={busy || lockState === "open"} state={lockState} pinsWrong={orderResult}
               hint={olock && olock.wrong > 0 && !olocked ? t("Ошибок подряд: {n} · следующая пауза {t}", { n: olock.wrong, t: fmtPause(onext * 1000) }) : city.state.orderAttempts > 0 ? t("Попыток: {k}", { k: city.state.orderAttempts }) : t("Расставьте районы по порядку книги: нажмите участок и выберите для него район.")}
               help={t("Город можно приближать щипком или двойным нажатием и двигать пальцем. Когда все участки заняты — проверните замок: он скажет, сколько районов не на месте, но не каких.")} />
-          ) : <LockRings ids={order} labels={new Map(districts.map((d) => [d.id, d.title]))} sub={new Map(districts.map((d) => [d.id, d.summary]))} onChange={(ids) => { setOrder(ids); setOrderResult(null); saveDraft({ order: ids }); }} disabled={busy || lockState === "open"} state={lockState} pinsWrong={orderResult}
+          ) : <LockRings ids={order} labels={new Map(districts.map((d) => [d.id, d.title]))} sub={new Map(districts.map((d) => [d.id, d.summary]))} onChange={(ids) => { touched.current = true; setOrder(ids); setOrderResult(null); saveDraft({ order: ids }); }} disabled={busy || lockState === "open"} state={lockState} pinsWrong={orderResult}
             hint={olock && olock.wrong > 0 && !olocked ? t("Ошибок подряд: {n} · следующая пауза {t}", { n: olock.wrong, t: fmtPause(onext * 1000) }) : city.state.orderAttempts > 0 ? t("Попыток: {k}", { k: city.state.orderAttempts }) : t("Стрелки двигают район вверх и вниз. Готово — проверните замок.")}
             help={t("Замок скажет, сколько штифтов не село, но не каких.")} />}
           {olocked && olock && (
@@ -373,20 +429,18 @@ export function CityPopup({ gameId, nodeKey, teamId, isCaptain, canAlly, version
 
       {/* Проход и испытание — свёрнутые секции; в чужом городе «Проход» первой. Запросить проход можно ещё до решения районов. */}
       {city?.content && !task && foreign && (
-        <details className="disclose">
-          <summary><Icon name="handshake" />{t("Проход")}<Icon name="chevron-down" className="chev" /></summary>
+        <Fold icon="handshake" title={t("Проход")}>
           <PassageSection gameId={gameId} nodeKey={nodeKey} version={version} onChanged={onChanged} />
-        </details>
+        </Fold>
       )}
       {/* Стена своего города (решение владельца 01.11): кладка, кнопка «+» — сдать блок. */}
       {city?.content && !task && city.state.capturedAt && (
-        <details className="disclose">
-          <summary><Icon name="wall" />{t("Стена")}<Icon name="chevron-down" className="chev" /></summary>
+        <Fold icon="wall" title={t("Стена")}>
           <WallSection gameId={gameId} nodeKey={nodeKey} version={version} asleep={night || Boolean(city.daytime?.storm?.active)} onChanged={onChanged} />
-        </details>
+        </Fold>
       )}
       {/* Проходы через свой город — такой же свёрнутый раздел, как «Стена» (решение владельца 15.11): кто просил пройти и что ответили. */}
-      {city?.content && !task && city.state.capturedAt && <CityPassages gameId={gameId} nodeKey={nodeKey} version={version} onChanged={onChanged} />}
+      {city?.content && !task && city.state.capturedAt && <CityPassages gameId={gameId} nodeKey={nodeKey} version={version} given={passages} onChanged={onChanged} />}
       {/* Обмен городами — такая же свёрнутая секция, как «Стена» и «Испытание» (решение владельца 04.11: «перенести этот раздел в сами города… расположить именно в такую же штуку»); столицу не обменивают. */}
       {city?.content && !task && city.state.capturedAt && !city.state.isCapital && onTrade && (
         <details className="disclose">
@@ -396,10 +450,9 @@ export function CityPopup({ gameId, nodeKey, teamId, isCaptain, canAlly, version
         </details>
       )}
       {city?.content && !task && (city.owner || city.state.capturedAt) && (
-        <details className="disclose">
-          <summary><Icon name="wave" />{t("Испытание")}<Icon name="chevron-down" className="chev" /></summary>
+        <Fold icon="wave" title={t("Испытание")}>
           <WarSection gameId={gameId} nodeKey={nodeKey} teamId={teamId} isCaptain={isCaptain} canAlly={canAlly} version={version} onChanged={onChanged} members={members} meId={meId} canFor={canFor} />
-        </details>
+        </Fold>
       )}
       {/* «Перенести столицу сюда» — квадратная кнопка со значком, текст — за «?» в её углу, по образцу кнопок карточки дела;
           стоит ниже разделов «Стена», «Обмен», «Испытание» (решения владельца 15.11). */}

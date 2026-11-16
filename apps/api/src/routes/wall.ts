@@ -294,7 +294,9 @@ export async function wallRoutes(app: FastifyInstance): Promise<void> {
     } else {
       journal(id, "wall_block_returned", { personal: true, userId: row.userId, teamId: row.teamId, vars: { book: row.bookCode, ref: orig ? `${ref} (починка)` : ref, comment: body.comment ? `: ${body.comment}` : "" } });
       notifyUser(id, row.userId, orig ? "починка стены города {book} возвращена" : "блок стены города {book} возвращён", (locale) => msg(locale, orig ? "Администратор вернул починку блока городской стены ({ref}).{comment} Переснимите и сдайте заново." : "Администратор вернул блок городской стены ({ref}).{comment} Переснимите и сдайте заново.", { ref, comment: body.comment ? ` ${body.comment}` : "" }), { book: row.bookCode });
-      publish(id, { type: "cities", teamId: row.teamId });
+      // Блок, перешедший с городом при обмене, лежит в стене нового владельца: событие — ему.
+      publish(id, { type: "cities", teamId: row.holderId ?? row.teamId });
+      if (row.holderId && row.holderId !== row.teamId) publish(id, { type: "cities", teamId: row.teamId });
     }
     publish(id, { type: "submissions" });
     return { ok: true };

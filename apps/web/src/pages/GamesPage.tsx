@@ -1,3 +1,4 @@
+import { saveLastGame } from "../lib/persist";
 import { useEffect, useState, type FormEvent } from "react";
 import { SocialLinks } from "../components/SocialLinks";
 import { Link, Navigate, useLocation, useNavigate } from "react-router-dom";
@@ -8,6 +9,7 @@ import { useAuth } from "../lib/auth";
 import { useUi } from "../lib/ui";
 import { ActionMenu } from "../components/ActionMenu";
 import { t } from "../lib/i18n";
+import { hydrateMap } from "../lib/mapWire";
 import { plural } from "../lib/format";
 import { Icon } from "../components/Icon";
 import { Sheet } from "../components/Sheet";
@@ -77,7 +79,7 @@ export function GamesPage() {
       // Страница игры и карта команды открываются сразу (решение владельца 24.10): их данные запрашиваются заранее, пока человек на главной.
       prefetch([...g.flatMap((x) => [`/api/games/${x.id}`, `/api/games/${x.id}/progress`]), ...tm.map((x) => `/api/games/${x.game.id}/teams`)]);
       // Карта команды: ответ заранее и заготовка геометрии в простое (решение владельца 24.10, уровень 1).
-      for (const x of tm) { const u = `/api/games/${x.game.id}/my-map`; const have = ready<MyMapDto>(u); if (have) warmTeamMap(have); else void apiReady<MyMapDto>(u, { join: true }).then(warmTeamMap).catch(() => {}); }
+      for (const x of tm) { const u = `/api/games/${x.game.id}/my-map`; const have = ready<MyMapDto>(u); if (have) warmTeamMap(hydrateMap(have)); else void apiReady<MyMapDto>(u, { join: true }).then((m) => warmTeamMap(hydrateMap(m))).catch(() => {}); }
     }).catch(() => { if (alive) setFailed(true); });
     return () => { alive = false; };
   }, [attempt]);
@@ -85,7 +87,11 @@ export function GamesPage() {
   // Ошибка обновления не прячет прежние списки, если они есть.
   if (failed && (!games || !teams)) return <ErrorState onRetry={() => setAttempt((n) => n + 1)} />;
   if (!games || !teams) return <HomeSkeleton />;
-  if (entry && teams.length === 1 && games.length === 0) return <Navigate to={`/games/${teams[0]!.game.id}/team`} replace />;
+  // Игра, в которую главная переводит сама, запоминается: в следующий раз её состав и карта запрашиваются ещё до запуска
+  // программы (index.html), а не третьим кругом.
+  const auto = teams.length === 1 && games.length === 0 ? teams[0]!.game.id : null;
+  saveLastGame(auto);
+  if (entry && auto) return <Navigate to={`/games/${auto}/team`} replace />;
 
   return (
     <>
