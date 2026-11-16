@@ -1,0 +1,211 @@
+машина генератора: us-east-1
+
+=== Подготовка стенда (учётки, сессии, партия) ===
+users removed: 0
+seeded: game cmwjqekml008dmw5667f8lnb0, teams 6, users 300, sessions -> /tmp/lt-sessions.txt
+
+=== Железо и нагрузка сервера во время прогона ===
+== сервер ==
+1
+               total        used        free      shared  buff/cache   available
+Mem:            1914         849         199          58        1115        1065
+Swap:           2047          19        2028
+ 20:44:19 up 68 days, 11:23,  1 user,  load average: 0.10, 0.17, 0.14
+lotw-app cpu=0.01% mem=61.32MiB / 1.87GiB
+lotw-app-test cpu=0.12% mem=57.06MiB / 512MiB
+lotw-db-test cpu=0.03% mem=127.3MiB / 384MiB
+lotw-caddy cpu=0.35% mem=53.82MiB / 1.87GiB
+lotw-db cpu=0.00% mem=85.71MiB / 1.87GiB
+
+=== Нагрузка ===
+стенд https://test.landsoftheword.com, участников 300, разгон 120 с, нагрузка 300 с, решений/мин 6, сдач/мин 10
+30 с · SSE 74 · событий 0 · запросов 606 (20.2/с) · ошибок 0 · карта p95 332 мс · сдано 0 · принято 0
+60 с · SSE 149 · событий 0 · запросов 1227 (20.7/с) · ошибок 0 · карта p95 331 мс · сдано 0 · принято 0
+90 с · SSE 225 · событий 452 · запросов 2328 (36.7/с) · ошибок 0 · карта p95 322 мс · сдано 5 · принято 0
+120 с · SSE 300 · событий 857 · запросов 3390 (35.4/с) · ошибок 0 · карта p95 322 мс · сдано 8 · принято 0
+150 с · SSE 300 · событий 2807 · запросов 4521 (37.7/с) · ошибок 0 · карта p95 318 мс · сдано 12 · принято 3
+180 с · SSE 300 · событий 4607 · запросов 5536 (33.8/с) · ошибок 0 · карта p95 511 мс · сдано 15 · принято 6
+210 с · SSE 300 · событий 6707 · запросов 6810 (42.5/с) · ошибок 0 · карта p95 498 мс · сдано 20 · принято 9
+240 с · SSE 300 · событий 8657 · запросов 7773 (32.1/с) · ошибок 0 · карта p95 490 мс · сдано 24 · принято 12
+270 с · SSE 300 · событий 10757 · запросов 9044 (42.4/с) · ошибок 0 · карта p95 478 мс · сдано 29 · принято 15
+300 с · SSE 300 · событий 12857 · запросов 10018 (32.5/с) · ошибок 0 · карта p95 465 мс · сдано 34 · принято 18
+330 с · SSE 300 · событий 14957 · запросов 11304 (42.9/с) · ошибок 0 · карта p95 465 мс · сдано 39 · принято 21
+360 с · SSE 300 · событий 17057 · запросов 12574 (42.3/с) · ошибок 0 · карта p95 450 мс · сдано 44 · принято 24
+390 с · SSE 300 · событий 19157 · запросов 13405 (27.7/с) · ошибок 0 · карта p95 386 мс · сдано 49 · принято 27
+
+## Нагрузочный прогон: 300 участников, 300 с
+
+Запросов 14367, в среднем 34.2/с, ошибок 0 (0.00 %). Событий получено 20957, перечитываний по событиям 16343. Потоков SSE открыто за прогон 300. Разниц карты получено 3936 (в среднем 1938 байт), «перечитай карту» 0. Сдач 54, решений администратора 30, ответов 409 (ожидаемых) 0. Запросов карты: «карта та же» — 618, целиком — 365.
+
+| Запрос | Всего | Ошибок | p50, мс | p95, мс | p99, мс | макс, мс |
+|---|---:|---:|---:|---:|---:|---:|
+| /api/games/:id/teams | 4285 | 0 | 115 | 446 | 955 | 1376 |
+| /api/games/:id/feed | 3986 | 0 | 113 | 471 | 920 | 1045 |
+| /api/games/:id/my-battles | 3985 | 0 | 116 | 587 | 1192 | 2222 |
+| /api/games/:id/my-map | 1043 | 0 | 128 | 375 | 655 | 1256 |
+| /api/games/:id/my-passages | 300 | 0 | 154 | 183 | 438 | 679 |
+| /api/games/:id/peace | 300 | 0 | 148 | 186 | 408 | 853 |
+| /api/games/:id/standings | 300 | 0 | 158 | 188 | 403 | 1115 |
+| /api/games/:id/edge-tasks/:t/take | 54 | 0 | 132 | 181 | 227 | 227 |
+| /api/games/:id/edge-tasks/:t/submit | 54 | 0 | 138 | 151 | 180 | 180 |
+| /api/games/:id/submissions | 30 | 0 | 123 | 146 | 152 | 152 |
+| /api/games/:id/edge-tasks/:t/decide | 30 | 0 | 171 | 219 | 262 | 262 |
+
+
+=== Сервер во время прогона ===
+== docker stats каждые 15 с ==
+20:44:23
+lotw-app-test cpu=15.38% mem=59.8MiB / 512MiB
+lotw-db-test cpu=8.18% mem=88.34MiB / 384MiB
+lotw-app cpu=0.01% mem=61.32MiB / 1.87GiB
+lotw-db cpu=0.00% mem=85.71MiB / 1.87GiB
+ 20:44:25 up 68 days, 11:23,  1 user,  load average: 0.73, 0.30, 0.18
+20:44:40
+lotw-app-test cpu=13.17% mem=64.19MiB / 512MiB
+lotw-db-test cpu=3.46% mem=97.47MiB / 384MiB
+lotw-app cpu=0.00% mem=61.32MiB / 1.87GiB
+lotw-db cpu=0.00% mem=85.71MiB / 1.87GiB
+ 20:44:42 up 68 days, 11:23,  1 user,  load average: 0.86, 0.35, 0.20
+20:44:57
+lotw-app-test cpu=12.37% mem=65.55MiB / 512MiB
+lotw-db-test cpu=2.96% mem=99.71MiB / 384MiB
+lotw-app cpu=0.00% mem=61.38MiB / 1.87GiB
+lotw-db cpu=0.00% mem=85.02MiB / 1.87GiB
+ 20:44:59 up 68 days, 11:23,  1 user,  load average: 0.62, 0.33, 0.20
+20:45:14
+lotw-app-test cpu=10.18% mem=66.06MiB / 512MiB
+lotw-db-test cpu=4.82% mem=103.1MiB / 384MiB
+lotw-app cpu=0.00% mem=61.33MiB / 1.87GiB
+lotw-db cpu=4.06% mem=85.02MiB / 1.87GiB
+ 20:45:16 up 68 days, 11:24,  1 user,  load average: 0.48, 0.31, 0.19
+20:45:31
+lotw-app-test cpu=12.55% mem=67.08MiB / 512MiB
+lotw-db-test cpu=2.63% mem=111.7MiB / 384MiB
+lotw-app cpu=0.00% mem=61.38MiB / 1.87GiB
+lotw-db cpu=0.00% mem=85.02MiB / 1.87GiB
+ 20:45:33 up 68 days, 11:24,  1 user,  load average: 0.76, 0.39, 0.22
+20:45:48
+lotw-app-test cpu=36.52% mem=69.11MiB / 512MiB
+lotw-db-test cpu=8.43% mem=116.6MiB / 384MiB
+lotw-app cpu=0.00% mem=61.38MiB / 1.87GiB
+lotw-db cpu=0.00% mem=85.02MiB / 1.87GiB
+ 20:45:50 up 68 days, 11:24,  1 user,  load average: 0.59, 0.37, 0.21
+20:46:05
+lotw-app-test cpu=28.16% mem=69.21MiB / 512MiB
+lotw-db-test cpu=8.12% mem=117.9MiB / 384MiB
+lotw-app cpu=0.00% mem=61.37MiB / 1.87GiB
+lotw-db cpu=3.26% mem=85.55MiB / 1.87GiB
+ 20:46:07 up 68 days, 11:24,  1 user,  load average: 0.42, 0.34, 0.21
+20:46:22
+lotw-app-test cpu=6.22% mem=70.24MiB / 512MiB
+lotw-db-test cpu=0.56% mem=122.7MiB / 384MiB
+lotw-app cpu=0.00% mem=61.37MiB / 1.87GiB
+lotw-db cpu=0.01% mem=85.55MiB / 1.87GiB
+ 20:46:24 up 68 days, 11:25,  1 user,  load average: 0.33, 0.32, 0.20
+20:46:39
+lotw-app-test cpu=2.08% mem=71.41MiB / 512MiB
+lotw-db-test cpu=0.36% mem=126.9MiB / 384MiB
+lotw-app cpu=0.00% mem=61.37MiB / 1.87GiB
+lotw-db cpu=0.00% mem=85.55MiB / 1.87GiB
+ 20:46:41 up 68 days, 11:25,  1 user,  load average: 0.47, 0.36, 0.22
+20:46:56
+lotw-app-test cpu=14.60% mem=71.91MiB / 512MiB
+lotw-db-test cpu=5.91% mem=130.5MiB / 384MiB
+lotw-app cpu=0.13% mem=61.37MiB / 1.87GiB
+lotw-db cpu=0.00% mem=86.13MiB / 1.87GiB
+ 20:46:58 up 68 days, 11:25,  1 user,  load average: 0.65, 0.40, 0.23
+20:47:13
+lotw-app-test cpu=39.67% mem=72.53MiB / 512MiB
+lotw-db-test cpu=8.09% mem=132.2MiB / 384MiB
+lotw-app cpu=0.00% mem=61.37MiB / 1.87GiB
+lotw-db cpu=0.02% mem=86.13MiB / 1.87GiB
+ 20:47:15 up 68 days, 11:26,  1 user,  load average: 0.58, 0.40, 0.23
+20:47:30
+lotw-app-test cpu=22.90% mem=73.69MiB / 512MiB
+lotw-db-test cpu=6.21% mem=135.5MiB / 384MiB
+lotw-app cpu=0.00% mem=61.38MiB / 1.87GiB
+lotw-db cpu=0.00% mem=86.13MiB / 1.87GiB
+ 20:47:32 up 68 days, 11:26,  1 user,  load average: 0.55, 0.40, 0.24
+20:47:47
+lotw-app-test cpu=36.64% mem=73.73MiB / 512MiB
+lotw-db-test cpu=9.23% mem=134.3MiB / 384MiB
+lotw-app cpu=0.00% mem=61.38MiB / 1.87GiB
+lotw-db cpu=0.00% mem=86.13MiB / 1.87GiB
+ 20:47:49 up 68 days, 11:26,  1 user,  load average: 0.64, 0.43, 0.25
+20:48:04
+lotw-app-test cpu=26.61% mem=73.82MiB / 512MiB
+lotw-db-test cpu=4.31% mem=137.3MiB / 384MiB
+lotw-app cpu=0.00% mem=61.42MiB / 1.87GiB
+lotw-db cpu=0.00% mem=86.14MiB / 1.87GiB
+ 20:48:07 up 68 days, 11:26,  1 user,  load average: 1.06, 0.53, 0.29
+20:48:22
+lotw-app-test cpu=1.82% mem=73.83MiB / 512MiB
+lotw-db-test cpu=4.05% mem=139.9MiB / 384MiB
+lotw-app cpu=0.00% mem=61.42MiB / 1.87GiB
+lotw-db cpu=2.76% mem=86.14MiB / 1.87GiB
+ 20:48:24 up 68 days, 11:27,  1 user,  load average: 0.89, 0.52, 0.29
+20:48:39
+lotw-app-test cpu=6.31% mem=73.74MiB / 512MiB
+lotw-db-test cpu=1.41% mem=141.3MiB / 384MiB
+lotw-app cpu=0.00% mem=61.42MiB / 1.87GiB
+lotw-db cpu=0.00% mem=86.14MiB / 1.87GiB
+ 20:48:41 up 68 days, 11:27,  1 user,  load average: 0.69, 0.50, 0.28
+20:48:56
+lotw-app-test cpu=9.52% mem=74.1MiB / 512MiB
+lotw-db-test cpu=1.99% mem=142.2MiB / 384MiB
+lotw-app cpu=0.00% mem=61.42MiB / 1.87GiB
+lotw-db cpu=0.01% mem=86.23MiB / 1.87GiB
+ 20:48:58 up 68 days, 11:27,  1 user,  load average: 0.90, 0.56, 0.31
+20:49:13
+lotw-app-test cpu=7.23% mem=74.08MiB / 512MiB
+lotw-db-test cpu=3.75% mem=143MiB / 384MiB
+lotw-app cpu=0.00% mem=61.42MiB / 1.87GiB
+lotw-db cpu=1.15% mem=86.23MiB / 1.87GiB
+ 20:49:15 up 68 days, 11:28,  1 user,  load average: 0.86, 0.57, 0.32
+20:49:30
+lotw-app-test cpu=33.50% mem=74.51MiB / 512MiB
+lotw-db-test cpu=9.81% mem=90.38MiB / 384MiB
+lotw-app cpu=0.00% mem=61.42MiB / 1.87GiB
+lotw-db cpu=0.00% mem=86.23MiB / 1.87GiB
+ 20:49:32 up 68 days, 11:28,  1 user,  load average: 1.17, 0.66, 0.35
+20:49:47
+lotw-app-test cpu=28.12% mem=74.96MiB / 512MiB
+lotw-db-test cpu=6.46% mem=99.5MiB / 384MiB
+lotw-app cpu=0.02% mem=61.42MiB / 1.87GiB
+lotw-db cpu=0.00% mem=86.23MiB / 1.87GiB
+ 20:49:49 up 68 days, 11:28,  1 user,  load average: 1.27, 0.71, 0.37
+20:50:04
+lotw-app-test cpu=25.18% mem=75.23MiB / 512MiB
+lotw-db-test cpu=5.23% mem=107.9MiB / 384MiB
+lotw-app cpu=0.00% mem=61.48MiB / 1.87GiB
+lotw-db cpu=0.02% mem=85.25MiB / 1.87GiB
+ 20:50:06 up 68 days, 11:28,  1 user,  load average: 1.29, 0.74, 0.39
+20:50:21
+lotw-app-test cpu=3.87% mem=75.46MiB / 512MiB
+lotw-db-test cpu=0.85% mem=112.6MiB / 384MiB
+lotw-app cpu=0.00% mem=61.48MiB / 1.87GiB
+lotw-db cpu=0.00% mem=85.25MiB / 1.87GiB
+ 20:50:23 up 68 days, 11:29,  1 user,  load average: 1.06, 0.72, 0.39
+20:50:38
+lotw-app-test cpu=16.92% mem=75.46MiB / 512MiB
+lotw-db-test cpu=4.01% mem=116.4MiB / 384MiB
+lotw-app cpu=0.00% mem=61.48MiB / 1.87GiB
+lotw-db cpu=3.20% mem=85.25MiB / 1.87GiB
+ 20:50:40 up 68 days, 11:29,  1 user,  load average: 0.97, 0.72, 0.39
+20:50:55
+lotw-app-test cpu=1.84% mem=75.52MiB / 512MiB
+lotw-db-test cpu=0.30% mem=119.2MiB / 384MiB
+lotw-app cpu=0.00% mem=61.53MiB / 1.87GiB
+lotw-db cpu=0.01% mem=85.27MiB / 1.87GiB
+ 20:50:57 up 68 days, 11:29,  1 user,  load average: 0.76, 0.69, 0.39
+20:51:12
+lotw-app-test cpu=15.57% mem=75.46MiB / 512MiB
+lotw-db-test cpu=2.85% mem=124.6MiB / 384MiB
+lotw-app cpu=0.00% mem=61.49MiB / 1.87GiB
+lotw-db cpu=0.00% mem=85.27MiB / 1.87GiB
+ 20:51:14 up 68 days, 11:30,  1 user,  load average: 0.98, 0.74, 0.41
+20:51:29
+
+=== Уборка на стенде ===
+games removed: 1
+users removed: 301
