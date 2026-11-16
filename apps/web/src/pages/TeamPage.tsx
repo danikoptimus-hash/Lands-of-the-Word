@@ -806,7 +806,7 @@ export function TeamPage() {
   const phase = previewPhase() ?? dayRules.phase;
   const canTakeNow = phase !== "night" || Boolean(dayRules.tasksOpen);
   const landingTask = landingId ? map.tasks.find((tk) => tk.id === landingId && tk.landing) ?? null : null;
-  // Запросы прохода через наши города. Отвечает посол, а без посла — капитан или заместитель (canSpeak): им в строке
+  // Запросы прохода через наши города. Отвечают капитан, заместитель и посол (canSpeak, решение владельца 16.11): им в строке
   // «Внимания» — кнопки «отказать» и «разрешить» (решение владельца 16.11: «прям из уведомлений пропуск или отказ»).
   // Остальным запрос — известие: кнопка «Очистить всё» убирает его из их списка.
   const canAnswer = Boolean(passages?.canSpeak);
