@@ -66,7 +66,8 @@ async function loadGameForAdmin(request: FastifyRequest, reply: FastifyReply, ga
 }
 
 /** Положение команд — один готовый ответ на партию (services/views.ts), сбрасывается взятиями, испытаниями и составом. */
-const standingsView = defineView("standings", { scope: "game", events: ["cities", "battles", "teams", "map", "quarry"], compute: async (gameId) => ({ rows: await standings(gameId), leaderTeamId: (await leader(gameId))?.teamId ?? null }) });
+// Принятое дело меняет «Принятых дел» и «Открытых перекрёстков», поэтому в списке есть и события дел (ревизия, этап 2).
+const standingsView = defineView("standings", { scope: "game", events: ["cities", "battles", "teams", "map", "quarry", "tasks", "submissions"], compute: async (gameId) => ({ rows: await standings(gameId), leaderTeamId: (await leader(gameId))?.teamId ?? null }) });
 
 export async function gameRoutes(app: FastifyInstance): Promise<void> {
   app.addHook("preHandler", requireUser);

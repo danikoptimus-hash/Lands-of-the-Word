@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from "react";
-import { dayLight, dayLightAt, stormState, type DayLight, type DayPhase, type StormSlot, phaseAt } from "@lotw/domain";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { cityTasksOpen, dayLight, dayLightAt, stormState, type DayLight, type DayPhase, type StormSlot, phaseAt } from "@lotw/domain";
 
 /**
  * Освещение карты по времени суток (решение владельца 03.10): утро 7–9, день 9–18, вечер 18–22, ночь 22–7 по поясу игры.
@@ -131,6 +131,28 @@ function useClockOffset(serverNow: number | undefined): number {
     if (Math.abs(o - last.current) >= 2000) last.current = o;
     return last.current;
   }, [serverNow]);
+}
+
+/**
+ * Фаза суток по правилам и «задания городов открыты» — по поясу игры и часам сервера, без опроса сервера (ревизия скорости,
+ * этап 2). Раньше оба значения приходили с картой раз в минуту; теперь карта по таймеру не качается, и граница (22:00,
+ * 0:00, 7:00) наступает на экране сама. Состояние меняется только на границе — экран не перерисовывается зря.
+ */
+export function useDayRules(timeZone: string | undefined, serverNow: number | undefined, given?: { phase?: DayPhase; tasksOpen?: boolean } | null): { phase: DayPhase | undefined; tasksOpen: boolean | undefined } {
+  const offset = useClockOffset(serverNow);
+  const calc = useCallback(() => {
+    if (!timeZone) return null;
+    const at = new Date(Date.now() + offset);
+    return { phase: dayLight(timeZone, at).phase, tasksOpen: cityTasksOpen(timeZone, at) };
+  }, [timeZone, offset]);
+  const [v, setV] = useState(calc);
+  useEffect(() => {
+    const upd = () => { const n = calc(); setV((p) => (p && n && p.phase === n.phase && p.tasksOpen === n.tasksOpen ? p : n)); };
+    upd();
+    const tm = setInterval(upd, 15_000);
+    return () => clearInterval(tm);
+  }, [calc]);
+  return v ?? { phase: given?.phase, tasksOpen: given?.tasksOpen };
 }
 
 export function useDaytime(timeZone: string | undefined, serverNow?: number): Daytime {

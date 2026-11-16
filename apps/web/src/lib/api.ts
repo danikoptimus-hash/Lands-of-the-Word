@@ -1,4 +1,5 @@
 import { t } from "./i18n";
+import { loadSnap, purgeSnaps, saveSnap } from "./persist";
 export class ApiError extends Error {
   constructor(public status: number, message: string, public issues?: Array<{ path: string; message: string }>) { super(message); }
 }
@@ -9,16 +10,32 @@ const WAIT_READ = 20_000, WAIT_SEND = 30_000;
 const RETRY_STATUS = new Set([429, 502, 503, 504]);
 const pause = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
+/**
+ * Запросы первого круга уходят из index.html сразу, пока программа ещё качается и разбирается (ревизия скорости, этап 2):
+ * «кто я», игры, команды, состав и карта последней игры. Здесь программа забирает их ответы — каждый один раз.
+ */
+function takeEarly(url: string): Promise<Response> | null {
+  const box = (window as unknown as { __lotwBoot?: Record<string, Promise<Response> | undefined> }).__lotwBoot;
+  const p = box?.[url];
+  if (!box || !p) return null;
+  delete box[url];
+  return p;
+}
+function dropEarly(): void { try { (window as unknown as { __lotwBoot?: unknown }).__lotwBoot = undefined; } catch { /* нет окна */ } }
+
 async function once<T>(url: string, init: RequestInit, read: boolean): Promise<T> {
   const ctl = new AbortController();
   const timer = setTimeout(() => ctl.abort(), read ? WAIT_READ : WAIT_SEND);
   try {
-    const res = await fetch(url, {
+    // Запрос, отправленный ещё до запуска программы (index.html): берём его ответ, а не шлём второй такой же.
+    const early = read && !init.signal ? takeEarly(url) : null;
+    const send = () => fetch(url, {
       ...init,
       credentials: "same-origin",
       signal: init.signal ?? ctl.signal,
       headers: { ...(init.body ? { "Content-Type": "application/json" } : {}), ...(init.headers ?? {}) },
     });
+    const res = early ? await early.catch(send) : await send();
     const text = await res.text();
     // Прокси при отказе отдаёт не JSON (пустой ответ или страницу): это не повод падать на разборе.
     let data: { message?: string; issues?: Array<{ path: string; message: string }> } = {};
@@ -54,26 +71,53 @@ export async function api<T>(url: string, init: RequestInit = {}): Promise<T> {
 const READY = new Map<string, unknown>();
 /** Запросы «в пути»: кто просит то же самое и готов взять уже идущий ответ (первый показ, предзагрузка), второй запрос не шлёт. */
 const INFLIGHT = new Map<string, Promise<unknown>>();
+/** Когда ответ пришёл с сервера (а не из снимка с прошлого запуска): по этому видно, что он свежий. */
+const FRESH = new Map<string, number>();
 /** Поколение памяти: растёт при входе и выходе. Ответ, запрошенный до смены учётки, в память уже не пишется. */
 let generation = 0;
-export function ready<T>(url: string): T | null { return (READY.get(url) as T | undefined) ?? null; }
+/** Учётка, чьи ответы лежат в памяти и запоминаются между запусками (ставит AuthProvider). */
+let owner: string | null = null;
+/** Адреса, для которых снимка нет: хранилище второй раз не читаем (ready вызывается при каждой отрисовке). */
+const NO_SNAP = new Set<string>();
+export function setOwner(userId: string | null): void { if (owner !== userId) NO_SNAP.clear(); owner = userId; }
+/**
+ * Прежний ответ: из памяти этого сеанса, а если его там нет — снимок с прошлого запуска (lib/persist.ts). Так экран
+ * показывается сразу и между запусками тоже; свежий ответ придёт следом и подменит.
+ */
+export function ready<T>(url: string): T | null {
+  const have = READY.get(url) as T | undefined;
+  if (have !== undefined) return have ?? null;
+  if (!owner || NO_SNAP.has(url)) return null;
+  const snap = loadSnap<T>(url, owner);
+  if (snap !== null) READY.set(url, snap); else NO_SNAP.add(url);
+  return snap;
+}
+/** Положить в память готовое значение (карта после «разницы» от сервера) и запомнить его между запусками. */
+export function setReady(url: string, value: unknown): void {
+  READY.set(url, value);
+  if (owner) saveSnap(url, owner, value, 20_000);
+}
 /**
  * Запрос с записью ответа в память. `join` — взять ответ, который уже в пути (главная запрашивает карту заранее и тут же
  * открывает страницу команды — раньше самый тяжёлый ответ качался дважды). После своего действия `join` не ставят:
  * нужен ответ, начатый после действия.
  */
-export function apiReady<T>(url: string, opts: { join?: boolean } = {}): Promise<T> {
+export function apiReady<T>(url: string, opts: { join?: boolean; /** не класть ответ в память (сверка «карта та же») */ keep?: boolean } = {}): Promise<T> {
   const going = INFLIGHT.get(url);
   if (going && opts.join) return going as Promise<T>;
+  // «Взять тот, что в пути» годится и для ответа, пришедшего только что: главная запросила состав заранее, ответ успел прийти,
+  // а страница команды открылась секундой позже — второй такой же запрос не нужен.
+  const at = FRESH.get(url);
+  if (opts.join && at !== undefined && Date.now() - at < 5000 && READY.has(url)) return Promise.resolve(READY.get(url) as T);
   const gen = generation;
-  const p: Promise<T> = api<T>(url).then((r) => { if (gen === generation) READY.set(url, r); return r; }).finally(() => { if (INFLIGHT.get(url) === p) INFLIGHT.delete(url); });
+  const p: Promise<T> = api<T>(url).then((r) => { if (gen === generation && opts.keep !== false) { READY.set(url, r); FRESH.set(url, Date.now()); if (owner) saveSnap(url, owner, r); } return r; }).finally(() => { if (INFLIGHT.get(url) === p) INFLIGHT.delete(url); });
   INFLIGHT.set(url, p);
   return p;
 }
 /** Запросить заранее то, чего ещё нет в памяти и что ещё не в пути; ошибки молча (раздел запросит сам при открытии). */
 export function prefetch(urls: string[]): void { for (const u of urls) if (!READY.has(u) && !INFLIGHT.has(u)) void apiReady(u).catch(() => {}); }
 /** При входе и выходе память очищается: ответы принадлежат учётке. */
-export function clearReady(): void { generation++; READY.clear(); INFLIGHT.clear(); }
+export function clearReady(): void { generation++; READY.clear(); INFLIGHT.clear(); FRESH.clear(); NO_SNAP.clear(); owner = null; purgeSnaps(); dropEarly(); }
 
 export interface User { id: string; nickname: string; displayName: string | null; email: string | null; emailVerified: boolean; locale: string; platformRole: "USER" | "SUPERADMIN"; /** К учётке привязан вход через Google. */ googleLinked?: boolean; /** Аватарка: код картинки из набора игры (решение владельца 14.11). */ avatarId?: string | null }
 /** Какие способы входа включены на сервере (GET /api/auth/providers). */

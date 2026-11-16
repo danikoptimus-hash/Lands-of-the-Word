@@ -1,3 +1,4 @@
+import { saveLastGame } from "../lib/persist";
 import { useEffect, useState, type FormEvent } from "react";
 import { SocialLinks } from "../components/SocialLinks";
 import { Link, Navigate, useLocation, useNavigate } from "react-router-dom";
@@ -85,7 +86,11 @@ export function GamesPage() {
   // Ошибка обновления не прячет прежние списки, если они есть.
   if (failed && (!games || !teams)) return <ErrorState onRetry={() => setAttempt((n) => n + 1)} />;
   if (!games || !teams) return <HomeSkeleton />;
-  if (entry && teams.length === 1 && games.length === 0) return <Navigate to={`/games/${teams[0]!.game.id}/team`} replace />;
+  // Игра, в которую главная переводит сама, запоминается: в следующий раз её состав и карта запрашиваются ещё до запуска
+  // программы (index.html), а не третьим кругом.
+  const auto = teams.length === 1 && games.length === 0 ? teams[0]!.game.id : null;
+  saveLastGame(auto);
+  if (entry && auto) return <Navigate to={`/games/${auto}/team`} replace />;
 
   return (
     <>

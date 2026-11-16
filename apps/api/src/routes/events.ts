@@ -27,7 +27,9 @@ export async function eventRoutes(app: FastifyInstance): Promise<void> {
     // после перезапуска сервера возвращались одновременно и разом перечитывали всё на ещё «холодный» сервер.
     reply.raw.write(`retry: ${2000 + Math.floor(Math.random() * 8000)}\nevent: hello\ndata: {}\n\n`);
     const unsubscribe = subscribe(id, reply, admin || request.user!.platformRole === "SUPERADMIN" ? null : member?.teamId ?? null);
-    const heartbeat = setInterval(() => { try { reply.raw.write(`: ping\n\n`); } catch { /* закрыто */ } }, 25000);
+    // Биение — именованным событием (ревизия скорости, этап 2): приложение видит, что канал жив, и пока он жив, не опрашивает
+    // сервер по таймеру. Прежние версии приложения незнакомое событие просто пропускают.
+    const heartbeat = setInterval(() => { try { reply.raw.write(`event: hb\ndata: {}\n\n`); } catch { /* закрыто */ } }, 25000);
     request.raw.on("close", () => { clearInterval(heartbeat); unsubscribe(); });
     // Ответ отдаём вручную, Fastify его не завершает.
     return reply;
