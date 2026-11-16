@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Picker } from "../components/Picker";
-import { api, ApiError, type WallBlockDto, type WallBrickDto, type WallDto } from "../lib/api";
+import { api, ApiError, apiReady, ready, type WallBlockDto, type WallBrickDto, type WallDto } from "../lib/api";
 import { useUi } from "../lib/ui";
 import { t } from "../lib/i18n";
 import { fmtDate, plural } from "../lib/format";
@@ -138,13 +138,16 @@ function Masonry({ blocks, fresh }: { blocks: WallBlockDto[]; fresh: Set<string>
 
 export function WallSection({ gameId, nodeKey, version, asleep = false, onChanged }: { gameId: string; nodeKey: string; version: number; /** Ночь или шторм: сдать блок нельзя (сервер всё равно откажет), кнопка выключена. */ asleep?: boolean; onChanged: () => void }) {
   const { notify, confirm } = useUi();
-  const [d, setD] = useState<WallDto | null>(null);
+  // Стена открывается сразу с прежним ответом, свежий его подменит (ревизия скорости, этап 2).
+  const url = `/api/games/${gameId}/my-city/${encodeURIComponent(nodeKey)}/wall`;
+  const [d, setD] = useState<WallDto | null>(() => ready<WallDto>(url));
   const [error, setError] = useState<string | null>(null);
   const [build, setBuild] = useState(false);
   const [list, setList] = useState(false);
-  const known = useRef<Set<string> | null>(null);
+  const [bookSeen, setBookSeen] = useState(false);
+  const known = useRef<Set<string> | null>(d ? new Set(d.blocks.map((b) => b.id)) : null);
   const [fresh, setFresh] = useState<Set<string>>(new Set());
-  const load = () => api<WallDto>(`/api/games/${gameId}/my-city/${encodeURIComponent(nodeKey)}/wall`).then((w) => {
+  const load = () => apiReady<WallDto>(url).then((w) => {
     // Новый блок в кладке появляется с анимацией: помним, какие уже видели.
     const ids = new Set(w.blocks.map((b) => b.id));
     if (known.current) setFresh(new Set([...ids].filter((id) => !known.current!.has(id)))); else setFresh(new Set());
@@ -203,9 +206,10 @@ export function WallSection({ gameId, nodeKey, version, asleep = false, onChange
         </ul>
       )}
       {/* Карта книги (решение владельца 02.11: «и в блоках города, чтобы капитан понимал, кому что»). */}
-      <details className="disclose sm book-map-fold">
+      {/* Карта книги создаётся и запрашивается при первом раскрытии (ревизия скорости, этап 2). */}
+      <details className="disclose sm book-map-fold" onToggle={(e) => { if (e.currentTarget.open) setBookSeen(true); }}>
         <summary><Icon name="book" />{t("Книга")}<Icon name="chevron-down" className="chev" /></summary>
-        <BookMap gameId={gameId} bookCode={d.bookCode} version={version + d.blocks.length} look="bricks" />
+        {bookSeen && <BookMap gameId={gameId} bookCode={d.bookCode} version={version + d.blocks.length} look="bricks" />}
       </details>
       {build && <BuildSheet gameId={gameId} nodeKey={nodeKey} bookCode={d.bookCode} bricks={d.bricks} members={d.members} canPlan={d.canPlan} canFor={Boolean(d.canSubmitFor)} me={d.me ?? ""} n={d.blockVerses} mineCount={mine.length} onClose={() => setBuild(false)} onDone={() => { setBuild(false); void load(); onChanged(); }} />}
     </div>

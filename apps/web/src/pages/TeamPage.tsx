@@ -14,7 +14,7 @@ import { AWARD_BY_CODE } from "@lotw/domain";
 import { previewPhase, useDayRules, useStorm } from "../lib/daytime";
 import { TimelineClock } from "./Timeline";
 import { mapAt, teamMoves } from "./TeamHistory";
-import { CityPopup } from "./CityPopup";
+import { CityPopup, type CityPreview } from "./CityPopup";
 import { QuarrySheet } from "./QuarrySheet";
 import { WreckSheet } from "./WreckSheet";
 import { BATTLE_STATUS, BattleCard, battleTone, isLaunching, isMyTurn, leftText } from "./BattlePanel";
@@ -808,6 +808,9 @@ export function TeamPage() {
     if (!ok) return;
     if (await act(`/api/games/${id}/edge-tasks/${taskId}/pave`)) { notify(t("Дорога вымощена: перекрёсток открыт")); setSelectedId(null); }
   }
+  // Шапка города рисуется сразу — из того, что о нём уже знает карта (ревизия скорости, этап 2).
+  const cityNode = cityKey ? map.revealed.find((x) => x.key === cityKey) : undefined;
+  const cityPreview: CityPreview | null = cityNode ? { bookCode: cityNode.bookCode, cityType: cityNode.cityType, city: map.cities.find((c) => c.nodeKey === cityKey) ?? null } : null;
   const openCity = (key: string) => { setCityKey(key); setSelectedId(null); setFrontierKey(null); setMenu(false); };
   // На телефоне открытие дела прячет панель раздела: карта и лист дела должны быть видны (владелец 30.10: «нажимаю на
   // «посмотреть на карте» и ничего не происходит!!! нужно, чтобы все менюшки прятались и на карте показалось дело»).
@@ -1185,7 +1188,7 @@ export function TeamPage() {
             </Sheet>
           );
         })()}
-        {cityKey && <CityPopup gameId={id} nodeKey={cityKey} teamId={team.id} onTrade={me?.gameRole === "AMBASSADOR" && map.status === "ACTIVE" ? () => setTradeCity(cityKey) : undefined} isCaptain={isCaptain || me?.role === "DEPUTY"} canAlly={isLeader || me?.gameRole === "AMBASSADOR"} members={forMembers} meId={user?.id} canFor={canMarkFor} version={cityVersion} container={mapEl} onClose={() => setCityKey(null)} onChanged={() => { void loadMap(); void loadBattles(); void loadPassages(); }} />}
+        {cityKey && <CityPopup key={cityKey} gameId={id} nodeKey={cityKey} teamId={team.id} preview={cityPreview} passages={passages} onTrade={me?.gameRole === "AMBASSADOR" && map.status === "ACTIVE" ? () => setTradeCity(cityKey) : undefined} isCaptain={isCaptain || me?.role === "DEPUTY"} canAlly={isLeader || me?.gameRole === "AMBASSADOR"} members={forMembers} meId={user?.id} canFor={canMarkFor} version={cityVersion} container={mapEl} onClose={() => setCityKey(null)} onChanged={() => { void loadMap(); void loadBattles(); void loadPassages(); }} />}
         {tradeCity && <TradeProposeSheet gameId={id} offerKey={tradeCity} container={mapEl} onClose={() => setTradeCity(null)} onDone={() => { void loadMap(); void loadStandings(); }} />}
 
         {task && (() => {

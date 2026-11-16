@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Picker } from "../components/Picker";
-import { api, ApiError, type BattleDto, type BattleStatus, type BookTextDto, type DaytimeDto, type PassageDto, type WarDto } from "../lib/api";
+import { api, ApiError, apiReady, ready, type BattleDto, type BattleStatus, type BookTextDto, type DaytimeDto, type PassageDto, type WarDto } from "../lib/api";
 import { useUi } from "../lib/ui";
 import { t } from "../lib/i18n";
 import { fmtDate, fmtLeft, plural } from "../lib/format";
@@ -44,8 +44,12 @@ const verses = (n: number) => plural(n, ["стих", "стиха", "стихов
  */
 export function WarSection({ gameId, nodeKey, teamId, isCaptain, canAlly = isCaptain, version, onChanged, members, meId, canFor }: { gameId: string; nodeKey: string; teamId: string; isCaptain: boolean; /** Отметка стихов за участника (07.11): состав команды, кто я, можно ли (капитан, заместитель, летописец). */ members?: ForMember[]; meId?: string; canFor?: boolean; /** Кто просит о защитном союзе и отвечает на просьбу: капитан, заместитель, посол. */ canAlly?: boolean; version: number; onChanged: () => void }) {
   const { confirm, notify } = useUi();
-  const [war, setWar] = useState<WarDto | null>(null);
-  const [bid, setBid] = useState<number | "">("");
+  // Раздел открывается сразу с прежним ответом, свежий его подменит (ревизия скорости, этап 2).
+  const warUrl = `/api/games/${gameId}/my-city/${encodeURIComponent(nodeKey)}/war`;
+  const [war, setWar] = useState<WarDto | null>(() => ready<WarDto>(warUrl));
+  const [bid, setBid] = useState<number | "">(() => ready<WarDto>(warUrl)?.minBid ?? "");
+  /** Ставку из прежнего ответа игрок не менял: свежий минимум её подменит. */
+  const bidTouched = useRef(false);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [now, setNow] = useState(Date.now());
@@ -53,7 +57,7 @@ export function WarSection({ gameId, nodeKey, teamId, isCaptain, canAlly = isCap
   // секунду, таймер каждую секунду заводился заново и не срабатывал никогда (ревизия 15.11).
   const loadRef = useRef<() => unknown>(() => undefined);
   useEffect(() => { const tm = setInterval(() => void loadRef.current(), 60_000); return () => clearInterval(tm); }, []);
-  const load = () => api<WarDto>(`/api/games/${gameId}/my-city/${encodeURIComponent(nodeKey)}/war`).then((w) => { setWar(w); setError(null); if (bid === "") setBid(w.minBid); }).catch((e) => setError(e instanceof ApiError ? e.message : t("Ошибка сети")));
+  const load = () => apiReady<WarDto>(warUrl).then((w) => { setWar(w); setError(null); if (!bidTouched.current) setBid(w.minBid); }).catch((e) => setError(e instanceof ApiError ? e.message : t("Ошибка сети")));
   loadRef.current = load;
   useEffect(() => { void load(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [gameId, nodeKey, version]);
   useEffect(() => { const tm = setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(tm); }, []);
@@ -99,7 +103,7 @@ export function WarSection({ gameId, nodeKey, teamId, isCaptain, canAlly = isCap
           <div className="field">
             <label htmlFor="war-bid">{t("Ставка, стихов")}</label>
             <div className="row nowrap">
-              <input id="war-bid" type="number" inputMode="numeric" min={war.minBid} max={war.maxBid ?? undefined} value={bid} onChange={(e) => setBid(e.target.value === "" ? "" : Number(e.target.value))} />
+              <input id="war-bid" type="number" inputMode="numeric" min={war.minBid} max={war.maxBid ?? undefined} value={bid} onChange={(e) => { bidTouched.current = true; setBid(e.target.value === "" ? "" : Number(e.target.value)); }} />
               <button type="button" disabled={busy || bid === "" || bid < war.minBid || (war.maxBid != null && bid > war.maxBid)} onClick={() => void declare()}><Icon name="wave" />{t("Сделать вызов")}</button>
             </div>
             <p className="hint">{t("минимум {n}", { n: war.minBid })}{war.maxBid != null ? ` · ${t("максимум {n}: хранители ({m}) не ответят больше", { n: war.maxBid, m: plural(war.ownerMembers ?? 0, ["участник", "участника", "участников"]) })}` : ""}{war.penalty ? ` · ${t("включая штраф {n} за незавершённые вызовы", { n: war.penalty })}` : ""}{war.queue > 0 ? ` · ${t("в очереди уже {n}", { n: war.queue })}` : ""}</p>
@@ -400,12 +404,14 @@ function VerseChecklist({ gameId, b, passage, locked, onChanged, members = [], m
 /** Капитан хранителей выбирает последовательный отрывок из всей книги: нажатие на первый и последний стих. */
 function PassagePicker({ gameId, battleId, need, onChosen }: { gameId: string; battleId: string; need: number; onChosen: () => void }) {
   const { notify } = useUi();
-  const [book, setBook] = useState<BookTextDto | null>(null);
+  // Текст книги не меняется: однажды полученный лежит в памяти до закрытия вкладки и второй раз не запрашивается (ревизия скорости, этап 2).
+  const bookUrl = `/api/games/${gameId}/battles/${battleId}/book`;
+  const [book, setBook] = useState<BookTextDto | null>(() => ready<BookTextDto>(bookUrl));
   const [chapter, setChapter] = useState(0);
   const [a, setA] = useState<{ c: number; v: number } | null>(null);
   const [z, setZ] = useState<{ c: number; v: number } | null>(null);
   const [error, setError] = useState<string | null>(null);
-  useEffect(() => { api<BookTextDto>(`/api/games/${gameId}/battles/${battleId}/book`).then(setBook).catch((e) => setError(e instanceof ApiError ? e.message : t("Ошибка сети"))); }, [gameId, battleId]);
+  useEffect(() => { const have = ready<BookTextDto>(bookUrl); if (have) { setBook(have); return; } apiReady<BookTextDto>(bookUrl, { join: true }).then(setBook).catch((e) => setError(e instanceof ApiError ? e.message : t("Ошибка сети"))); }, [bookUrl]);
   if (error) return <p className="error" role="alert">{error}</p>;
   if (!book) return <p className="muted small mt-2">{t("Загружаем книгу…")}</p>;
   const lin = (c: number, v: number) => book.verseCounts.slice(0, c).reduce((s, n) => s + n, 0) + v;
