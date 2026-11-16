@@ -7,6 +7,7 @@ import { notifyTeam, notifyUser } from "./notify.js";
 import { createHash } from "node:crypto";
 import { publish, onPublish, hasTeamSubscribers, pushToTeam, teamFormats, type GameEventType } from "./events.js";
 import { wireTasks } from "./mapWire.js";
+import { staticMap } from "./gameMap.js";
 import jsonPatch from "fast-json-patch";
 const { compare } = jsonPatch;
 import { days, rulesOf, type Rules } from "./rules.js";
@@ -195,7 +196,8 @@ export async function ensureFrontier(gameId: string, teamId: string): Promise<vo
 
   const revealed = new Set((await prisma.teamNodeState.findMany({ where: { teamId }, select: { nodeKey: true } })).map((n) => n.nodeKey));
   await dropOpenedMarks(teamId, revealed);
-  const edges = await prisma.mapEdge.findMany({ where: { gameId }, select: { aKey: true, bKey: true } });
+  // Дороги, книги городов и порты — из памяти партии (services/gameMap.ts): после генерации карты они не меняются.
+  const geo = await staticMap(gameId), edges = geo.edges;
   const existingTasks = await prisma.teamEdgeTask.findMany({ where: { teamId }, select: { fromKey: true, toKey: true, sea: true, createdAt: true } });
   const existing = new Set(existingTasks.map((t) => `${t.fromKey}>${t.toKey}`));
   const blocked = await blockedCities(gameId, teamId);
@@ -203,7 +205,7 @@ export async function ensureFrontier(gameId: string, teamId: string): Promise<vo
   const ownedBooks = new Map([...owned].map(([k, v]) => [k, v.bookCode]));
   // Тематика по книге города задаётся в момент появления стороны — из любого города, не только взятого (решение владельца 29.09:
   // дело, которое уже видно на карте, не подменяется; раньше стороны из взятого города пересчитывались при взятии).
-  const cityBooks = new Map((await prisma.mapNode.findMany({ where: { gameId, kind: "CITY", bookCode: { not: null } }, select: { key: true, bookCode: true } })).map((n) => [n.key, n.bookCode!]));
+  const cityBooks = new Map(geo.nodes.filter((n) => n.kind === "CITY" && n.bookCode).map((n) => [n.key, n.bookCode!]));
   // Из одного порта — один рейс за взятие: после высадки toKey становится узлом высадки, но дело остаётся.
   // Рейс, начатый до нынешнего взятия порта (порт теряли и вернули), не мешает новому (решение владельца 18.09).
   const sailed = new Set(existingTasks.filter((t) => t.sea && (owned.get(t.fromKey)?.capturedAt.getTime() ?? 0) - 5_000 <= t.createdAt.getTime()).map((t) => t.fromKey));
@@ -233,12 +235,12 @@ export async function ensureFrontier(gameId: string, teamId: string): Promise<vo
   await ensureRemoteDeed(gameId, teamId, created);
   // Морская сторона: из каждого взятого командой порта (береговой город) — одно дело; после его одобрения
   // капитан выбирает пустой береговой узел другого острова и высаживается там (2.3a).
-  const ports = await prisma.mapNode.findMany({ where: { gameId, kind: "CITY", coastal: true, key: { in: [...ownedBooks.keys()] } }, select: { key: true, island: true, bookCode: true } });
+  const ports = geo.nodes.filter((n) => n.kind === "CITY" && n.coastal && ownedBooks.has(n.key));
   for (const port of ports) {
     if (sailed.has(port.key)) continue;
     // Плыть есть куда, только если на другом острове ещё остались свободные береговые развилки.
-    const free = await prisma.mapNode.count({ where: { gameId, kind: "EMPTY", coastal: true, island: { not: port.island } } });
-    if (free === 0) continue;
+    const free = geo.nodes.some((n) => n.kind === "EMPTY" && n.coastal && n.island !== port.island);
+    if (!free) continue;
     const deedId = await pickDeed(gameId, teamId, port.bookCode, undefined, false, { fromKey: port.key, toKey: port.key });
     if (!deedId) return;
     await prisma.teamEdgeTask.create({ data: { teamId, gameId, fromKey: port.key, toKey: seaKey(port.key), deedId, sea: true } }).catch((e: unknown) => { if (!isUniqueViolation(e)) throw e; });
@@ -681,18 +683,20 @@ export function getTeamMap(gameId: string, teamId: string): Promise<TeamMap> {
 
 async function computeTeamMap(gameId: string, teamId: string) {
   await ensureFrontier(gameId, teamId);
-  const [revealedRows, rawTasks, hexes, nodes, edges, teamRow] = await Promise.all([
+  // Гексы, перекрёстки и дороги — из памяти партии (services/gameMap.ts); из базы — только то, что меняется: какие города разорены.
+  const [revealedRows, rawTasks, geo, ruinedRows, teamRow] = await Promise.all([
     prisma.teamNodeState.findMany({ where: { teamId }, select: { nodeKey: true, revealedAt: true } }),
     prisma.teamEdgeTask.findMany({
       where: { teamId },
       include: { deed: { select: { id: true, title: true, description: true, direction: true, proofType: true, secret: true, remote: true } }, person: { select: { id: true, name: true } } },
       orderBy: { createdAt: "asc" },
     }),
-    prisma.mapHex.findMany({ where: { gameId }, select: { q: true, r: true, terrain: true, rotation: true, island: true } }),
-    prisma.mapNode.findMany({ where: { gameId }, select: { key: true, corner: true, q: true, r: true, kind: true, bookCode: true, cityType: true, teamIndex: true, ruined: true, island: true, coastal: true } }),
-    prisma.mapEdge.findMany({ where: { gameId }, select: { aKey: true, bKey: true } }),
+    staticMap(gameId),
+    prisma.mapNode.findMany({ where: { gameId, ruined: true }, select: { key: true } }),
     prisma.team.findUnique({ where: { id: teamId }, select: { startNodeKey: true } }),
   ]);
+  const ruinedKeys = new Set(ruinedRows.map((n) => n.key));
+  const hexes = geo.hexes, edges = geo.edges, nodes = geo.nodes.map((n) => ({ ...n, ruined: ruinedKeys.has(n.key) }));
   // Чужие проходы там, где у команды открыт туман: пройденные другими командами стороны, касающиеся открытых
   // перекрёстков (решение владельца 18.09: команда должна понимать, где противник).
   // Чужие пройденные стороны: сухопутные и морские с выбранной высадкой (toKey уже узел, а не «sea:…»). По ним на

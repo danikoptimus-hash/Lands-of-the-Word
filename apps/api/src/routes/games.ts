@@ -5,6 +5,7 @@ import { generateMap, MapGenError } from "@lotw/domain";
 import { prisma } from "../db.js";
 import { defineView } from "../services/views.js";
 import { publish } from "../services/events.js";
+import { dropStaticMap } from "../services/gameMap.js";
 import { requireUser } from "../auth.js";
 import { err } from "../services/i18n.js";
 import { effectiveNodeCount, recommendedDeedCount } from "./deeds.js";
@@ -222,6 +223,7 @@ export async function gameRoutes(app: FastifyInstance): Promise<void> {
       // Сводка карты хранится в настройках, чтобы шаг «Карта» показывал её и после перезагрузки страницы.
       prisma.game.update({ where: { id }, data: { mapSeed: seed, settings: { ...(game.settings as object), mapStats: { startDistances: map.stats.startDistances, minCityGap: map.stats.minCityGap, avgCityGap: map.stats.avgCityGap } } } }),
     ]);
+    dropStaticMap(id);
     publish(id, { type: "map" });
     return { seed, stats: map.stats };
   });
