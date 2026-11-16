@@ -12,7 +12,7 @@ import { applyPatch } from "fast-json-patch";
 import { TeamMap, type MarkPoint } from "./TeamMap";
 import { AwardRating, FlameIcon, MilestoneCard, StreakBanner, TeamAwardsBlock, awardsCached, preloadAllAwardImages, preloadAwardImages } from "./Awards";
 import { AWARD_BY_CODE } from "@lotw/domain";
-import { previewPhase, useDayRules, useStorm } from "../lib/daytime";
+import { previewPhase, useClockOffset, useDayRules, useStorm } from "../lib/daytime";
 import { TimelineClock } from "./Timeline";
 import { mapAt, teamMoves } from "./TeamHistory";
 import { CityPopup, type CityPreview } from "./CityPopup";
@@ -107,6 +107,7 @@ export function finishReasonLabel(reason: string | null): string {
 
 /** Разделы меню команды (решение владельца 21.09): на главном экране меню — только то, что требует внимания, и значки разделов. Состав, проходы и мир — внутри «Команд»; лента событий называется «Летопись». */
 type MenuView = "home" | "attention" | "deeds" | "battles" | "standings" | "feed" | "service";
+const MENU_VIEWS: readonly MenuView[] = ["attention", "deeds", "battles", "standings", "feed", "service"];
 /** Поля ответа карты, которые меняются сами по себе и в сравнении «изменилась ли карта» не участвуют: часы сервера и номер версии. */
 const MAP_VOLATILE = ["now", "rev"] as const;
 /**
@@ -227,7 +228,9 @@ export function TeamPage() {
   const landingTasks = map?.tasks;
   const landing = useMemo(() => { const tk = landingId ? landingTasks?.find((x) => x.id === landingId && x.landing) : undefined; return tk ? { taskId: tk.id, candidates: tk.candidates ?? [] } : null; }, [landingId, landingTasks]);
   const [menu, setMenu] = useState(false);
-  const [cityKey, setCityKey] = useState<string | null>(null);
+  // Открытый город и раздел стоят в адресе (?city=, ?view=): после перезагрузки страницы — своей или на новую версию —
+  // игра открывается на том же месте (ревизия скорости, этап 2). Город из адреса открывается, когда карта готова.
+  const [cityKey, setCityKey] = useState<string | null>(() => new URLSearchParams(window.location.search).get("city"));
   /** Каменоломня (решение владельца 04.10): лист общих дел и камней. */
   const [quarryOpen, setQuarryOpen] = useState(false);
   /** Открытый лист разбитого корабля (решение владельца 04.11). */
@@ -305,10 +308,14 @@ export function TeamPage() {
   // минуте, а после окна полёта — момент следующего полёта. Так в ответе карты нет координат города в тумане.
   const [bird, setBird] = useState<DailyBirdDto | null>(null);
   const birdOf = map?.dailyBird;
+  // Часы сервера — по разнице, снятой в момент ответа (как у шторма и времени суток). Раньше разница считалась заново от
+  // `map.now` при каждом срабатывании: карта теперь не перечитывается раз в минуту, её `now` стареет, и вылет клина
+  // запрашивался бы с опозданием на возраст карты.
+  const birdClock = useClockOffset(map?.daytime?.now ?? map?.now);
   useEffect(() => {
     setBird(birdOf ?? null);
     if (!birdOf || !id) return;
-    const offset = map?.now ? map.now - Date.now() : 0;
+    const offset = birdClock;
     const serverNow = () => Date.now() + offset;
     const PERIOD = 2 * 3_600_000, AFTER = 300_000;
     const fetchBird = () => api<{ bird: DailyBirdDto | null }>(`/api/games/${id}/my-map/bird`).then((r) => setBird(r.bird)).catch(() => undefined);
@@ -318,11 +325,11 @@ export function TeamPage() {
     else delay = birdOf.at + AFTER - serverNow() + 3_000;
     const timer = window.setTimeout(() => void fetchBird(), Math.min(delay, 2_147_000_000));
     return () => window.clearTimeout(timer);
-  }, [birdOf, id, map?.now]);
+  }, [birdOf, id, birdClock]);
   useEffect(() => { setDescOpen(false); }, [selectedId]);
   /** Положение команд: подробности (испытания, города) раскрыты у одной команды; по умолчанию — у нашей. */
   const [openStanding, setOpenStanding] = useState<string | null>(null);
-  const [menuView, setMenuView] = useState<MenuView>("home");
+  const [menuView, setMenuView] = useState<MenuView>(() => { const v = new URLSearchParams(window.location.search).get("view"); return MENU_VIEWS.includes(v as MenuView) ? (v as MenuView) : "home"; });
   /**
    * Дело открыто из списка меню (просьба участников 25.10: «посмотрел дело, нажал назад и вернулся в список туда, где листал»):
    * запоминаем раздел и прокрутку меню; закрытие листа дела возвращает в меню на то же место. На компьютере панель и так не закрывается.
@@ -559,6 +566,17 @@ export function TeamPage() {
   const task = useMemo(() => (map?.tasks ?? []).find((tk) => tk.id === selectedId) ?? null, [map, selectedId]);
   // Ссылка на дело (решение владельца 14.11): уведомление о поручении ведёт на «…/team?task=…» — открывается карточка именно
   // этого дела, карта показывает его сторону. Параметр сразу убирается из адреса, чтобы дело не открывалось снова.
+  // Место в игре — в адрес, без новой записи в истории браузера.
+  useEffect(() => {
+    const cur = new URLSearchParams(window.location.search), next = new URLSearchParams(cur);
+    if (menuView === "home") next.delete("view"); else next.set("view", menuView);
+    if (cityKey) next.set("city", cityKey); else next.delete("city");
+    if (next.toString() !== cur.toString()) setSearchParams(next, { replace: true });
+  }, [menuView, cityKey]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Город из адреса, до которого команда не дошла (чужая или старая ссылка), не открывается.
+  useEffect(() => {
+    if (cityKey && map && !map.revealed.some((n) => n.key === cityKey && n.kind === "CITY")) setCityKey(null);
+  }, [cityKey, map]);
   const linkTask = searchParams.get("task");
   const mapReady = Boolean(map);
   useEffect(() => {
@@ -1108,11 +1126,11 @@ export function TeamPage() {
         {storm.active ? (
           /* Шторм: карта без действий — ни дел, ни городов, ни меток, ни высадки (решение владельца 24.10). Единственная кнопка — назад в «Мои игры». */
           <>
-            <TeamMap map={map} bird={bird} teamIndex={team.index} selectedTaskId={null} onSelect={NOOP} onSelectCity={NOOP} storm={storm} />
+            <TeamMap map={map} bird={bird} teamIndex={team.index} selectedTaskId={null} onSelect={NOOP} onSelectCity={NOOP} storm={storm} rememberView={id} />
             <Link to="/" className="secondary icon hud-btn storm-back" aria-label={t("Мои игры")} title={t("Мои игры")}><Icon name="back" /></Link>
           </>
         ) : (
-        <TeamMap myId={user?.id} map={shownMap ?? map} bird={historyAt ? null : bird} teamIndex={team.index} selectedTaskId={selectedId} onSelect={mapOn.select} onSelectCity={mapOn.city} focusTask={focusTask} storm={storm}
+        <TeamMap myId={user?.id} rememberView={id} map={shownMap ?? map} bird={historyAt ? null : bird} teamIndex={team.index} selectedTaskId={selectedId} onSelect={mapOn.select} onSelectCity={mapOn.city} focusTask={focusTask} storm={storm}
           landing={landing} onLand={mapOn.land}
           onMark={mapOn.mark} onMarkTap={mapOn.markTap}
           onFrontierTap={/* серые точки края тумана видит только разведчик (решение владельца 05.10): остальным они не нужны и мешают */ me?.gameRole === "SCOUT" ? mapOn.frontier : undefined}
