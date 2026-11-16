@@ -1,0 +1,10 @@
+первый запуск: карта на экране через 3809 мс · первый запрос через 146 мс · запросов 16 · повторы: нет · ответ карты: {"my-map":298240,"my-map?have":798}
+   порядок первых: auth/me@146 games@573 me/teams@574 auth/accounts@574 games/:id/teams@991 games/:id/my-map@991 games/:id/awards@1012
+   в памяти телефона: lotw.s:/api/games/cmucujbgq0008s301ran0fnt4/teams:7037 lotw.s:/api/games/cmucujbgq0008s301ran0fnt4/my-map:279592 lotw.me:199 lotw.game:25 lotw.rev:cmucujbgq0008s301ran0fnt4:39 lotw.s:/api/games:74 lotw.s:/api/me/teams:283
+второй запуск: карта на экране через 2714 мс · первый запрос через 49 мс · запросов 16 · повторы: /api/games/:id/my-map?…×2 · ответ карты: {"my-map?have":798}
+   порядок первых: auth/me@49 games@49 me/teams@50 games/:id/teams@51 games/:id/my-map?…@51 auth/accounts@119 games/:id/awards@160
+   в памяти телефона: lotw.s:/api/games/cmucujbgq0008s301ran0fnt4/teams:7037 lotw.s:/api/games/cmucujbgq0008s301ran0fnt4/my-map:279592 lotw.me:199 lotw.game:25 lotw.rev:cmucujbgq0008s301ran0fnt4:39 lotw.s:/api/games:74 lotw.s:/api/me/teams:283
+третий запуск: карта на экране через 2881 мс · первый запрос через 57 мс · запросов 16 · повторы: /api/games/:id/my-map?…×2 · ответ карты: {"my-map?have":798}
+   порядок первых: auth/me@57 games@57 me/teams@58 games/:id/teams@58 games/:id/my-map?…@59 auth/accounts@146 games/:id/awards@198
+   в памяти телефона: lotw.s:/api/games/cmucujbgq0008s301ran0fnt4/teams:7037 lotw.s:/api/games/cmucujbgq0008s301ran0fnt4/my-map:279592 lotw.me:199 lotw.game:25 lotw.rev:cmucujbgq0008s301ran0fnt4:39 lotw.s:/api/games:74 lotw.s:/api/me/teams:283
+после выхода на сервере: адрес /login · в памяти: пусто

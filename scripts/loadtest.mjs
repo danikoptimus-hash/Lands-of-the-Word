@@ -29,7 +29,7 @@ if (!users.length) throw new Error("нет участников в файле с
 
 // ---- метрики ----
 const stats = new Map(); // ключ запроса → { n, err, lat[] }
-const counters = { sse: 0, sseOpened: 0, events: 0, reloads: 0, approved: 0, submitted: 0, expected409: 0, patches: 0, patchBytes: 0, stale: 0 };
+const counters = { sse: 0, sseOpened: 0, events: 0, reloads: 0, approved: 0, submitted: 0, expected409: 0, patches: 0, patchBytes: 0, stale: 0, same: 0, full: 0 };
 const keyOf = (path) => path.replace(gameId, ":id").replace(/edge-tasks\/[^/]+/, "edge-tasks/:t").replace(/\?.*$/, "");
 function record(key, ms, ok) {
   let s = stats.get(key);
@@ -43,7 +43,7 @@ async function req(cookie, method, path, body) {
   const t0 = performance.now();
   let ok = false, status = 0, json = null;
   try {
-    const r = await fetch(BASE + path, { method, headers: { cookie, "content-type": "application/json", accept: "application/json" }, body: body ? JSON.stringify(body) : undefined, signal: AbortSignal.timeout(30_000) });
+    const r = await fetch(BASE + path, { method, headers: { cookie, "content-type": "application/json", accept: "application/json", "x-lotw-wire": "2" }, body: body ? JSON.stringify(body) : undefined, signal: AbortSignal.timeout(30_000) });
     status = r.status;
     const text = await r.text();
     try { json = text ? JSON.parse(text) : null; } catch { json = null; }
@@ -71,7 +71,16 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 const COALESCE_MS = Number(process.env.LT_COALESCE_MS ?? 2500);
 async function runUser(u) {
-  const g = (path) => req(u.cookie, "GET", `/api/games/${gameId}${path}`);
+  // Как приложение с этапа 2 ревизии скорости: карта запрашивается с номером версии, которая уже есть («карта та же» —
+  // около килобайта), номер версии идёт вперёд вместе с «разницами» из канала событий; страховочная сверка — раз в три минуты.
+  let rev = null;
+  const g = async (path) => {
+    if (path !== "/my-map") return req(u.cookie, "GET", `/api/games/${gameId}${path}`);
+    const r = await req(u.cookie, "GET", `/api/games/${gameId}/my-map${rev === null ? "" : `?have=${rev}`}`);
+    if (r.json?.same) counters.same++; else if (r.json) counters.full++;
+    if (typeof r.json?.rev === "number") rev = r.json.rev;
+    return r;
+  };
   // Склейка как в клиенте: по каждому пути один таймер; событие внутри окна новых запросов не добавляет.
   const timers = new Map();
   const later = (path) => { if (timers.has(path)) return; timers.set(path, setTimeout(() => { timers.delete(path); void g(path); }, COALESCE_MS + Math.random() * 1500)); };
@@ -85,7 +94,7 @@ async function runUser(u) {
       const ctrl = new AbortController();
       const stop = setTimeout(() => ctrl.abort(), Math.max(1000, DURATION + RAMP + 60_000));
       try {
-        const r = await fetch(`${BASE}/api/games/${gameId}/events`, { headers: { cookie: u.cookie, accept: "text/event-stream" }, signal: ctrl.signal });
+        const r = await fetch(`${BASE}/api/games/${gameId}/events?w=2`, { headers: { cookie: u.cookie, accept: "text/event-stream" }, signal: ctrl.signal });
         if (!r.ok || !r.body) { record("/api/games/:id/events", 0, false); await sleep(3000); continue; }
         counters.sse++; counters.sseOpened++;
         const reader = r.body.getReader(); const dec = new TextDecoder(); let buf = "";
@@ -97,13 +106,19 @@ async function runUser(u) {
           while ((i = buf.indexOf("\n\n")) >= 0) {
             const chunk = buf.slice(0, i); buf = buf.slice(i + 2);
             const ev = /^event: ([\w-]+)/m.exec(chunk)?.[1]; const data = /^data: (.*)$/m.exec(chunk)?.[1];
-            if (ev === "map-patch") { counters.patches++; counters.patchBytes += data?.length ?? 0; continue; }
+            if (ev === "map-patch") {
+              counters.patches++; counters.patchBytes += data?.length ?? 0;
+              // «Разница» подходит только к своей версии: иначе приложение перечитывает карту (одним запросом после паузы).
+              try { const m = JSON.parse(data); if (rev !== null && m.base === rev) rev = m.rev; else if (m.rev !== rev) later("/my-map"); } catch { /* как есть */ }
+              continue;
+            }
             if (ev === "map-stale") { counters.stale++; later("/my-map"); continue; }
             if (ev === "change" && data) {
               counters.events++;
               let ev = { type: "game" }; try { ev = JSON.parse(data); } catch { /* как есть */ }
               if (ev.teamId && (ev.type === "tasks" || ev.type === "submissions" || ev.type === "journal") && ev.teamId !== u.teamId) continue;
-              const paths = reloadsFor(ev.type); counters.reloads += paths.length;
+              const paths = reloadsFor(ev.type); if (ev.type === "map" && (!ev.teamId || ev.teamId === u.teamId)) paths.push("/my-map", "/my-passages");
+              counters.reloads += paths.length;
               for (const p of paths) later(p);
             }
           }
@@ -113,9 +128,10 @@ async function runUser(u) {
       if (running) await sleep(3000);
     }
   })();
-  // Карта раз в минуту (как на странице команды), со сдвигом, чтобы участники не били одновременно.
-  await sleep(Math.random() * 60_000);
-  while (running) { await g("/my-map"); await sleep(60_000); }
+  // Страховочная сверка карты раз в три минуты (как на странице команды с этапа 2; раньше — карта целиком раз в минуту),
+  // со сдвигом, чтобы участники не били одновременно.
+  await sleep(Math.random() * 170_000);
+  while (running) { await g("/my-map"); await sleep(170_000); }
   await sse;
 }
 
@@ -168,7 +184,7 @@ const total = [...stats.values()].reduce((a, s) => a + s.n, 0), errs = [...stats
 const md = [
   `## Нагрузочный прогон: ${users.length} участников, ${DURATION / 1000} с`,
   "",
-  `Запросов ${total}, в среднем ${(total / ((RAMP + DURATION) / 1000)).toFixed(1)}/с, ошибок ${errs} (${total ? ((100 * errs) / total).toFixed(2) : 0} %). Событий получено ${counters.events}, перечитываний по событиям ${counters.reloads}. Потоков SSE открыто за прогон ${counters.sseOpened}. Разниц карты получено ${counters.patches} (в среднем ${counters.patches ? Math.round(counters.patchBytes / counters.patches) : 0} байт), «перечитай карту» ${counters.stale}. Сдач ${counters.submitted}, решений администратора ${counters.approved}, ответов 409 (ожидаемых) ${counters.expected409}.`,
+  `Запросов ${total}, в среднем ${(total / ((RAMP + DURATION) / 1000)).toFixed(1)}/с, ошибок ${errs} (${total ? ((100 * errs) / total).toFixed(2) : 0} %). Событий получено ${counters.events}, перечитываний по событиям ${counters.reloads}. Потоков SSE открыто за прогон ${counters.sseOpened}. Разниц карты получено ${counters.patches} (в среднем ${counters.patches ? Math.round(counters.patchBytes / counters.patches) : 0} байт), «перечитай карту» ${counters.stale}. Сдач ${counters.submitted}, решений администратора ${counters.approved}, ответов 409 (ожидаемых) ${counters.expected409}. Запросов карты: «карта та же» — ${counters.same}, целиком — ${counters.full}.`,
   "",
   "| Запрос | Всего | Ошибок | p50, мс | p95, мс | p99, мс | макс, мс |",
   "|---|---:|---:|---:|---:|---:|---:|",
