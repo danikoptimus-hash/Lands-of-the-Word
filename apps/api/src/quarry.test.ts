@@ -65,6 +65,14 @@ describe("Каменоломня", () => {
     expect((await get(`/api/games/${gameId}/my-map`, memCookie)).json().quarryNew.some((d: { id: string }) => d.id === deedId)).toBe(true);
     expect((await post(`/api/games/${gameId}/attention/seen`, capCookie, { kind: "wreck", refId: "w-test" })).statusCode).toBe(200);
     expect((await get(`/api/games/${gameId}/my-map`, capCookie)).json().seenWrecks).toContain("w-test");
+    // «Очистить всё» (решение владельца 16.11): список пунктов одним запросом; уже отмеченное повторно — не ошибка;
+    // убранные запросы прохода возвращаются списком seenPassages только тому, кто их убрал.
+    expect((await post(`/api/games/${gameId}/attention/seen`, capCookie, { items: [{ kind: "wreck", refId: "w-test" }, { kind: "wreck", refId: "w-two" }, { kind: "passage", refId: "p-one" }, { kind: "quarry", refId: deedId }] })).statusCode).toBe(200);
+    { const mine = (await get(`/api/games/${gameId}/my-map`, capCookie)).json(); expect(mine.seenWrecks).toEqual(expect.arrayContaining(["w-test", "w-two"])); expect(mine.seenPassages).toEqual(["p-one"]); }
+    expect((await get(`/api/games/${gameId}/my-map`, memCookie)).json().seenPassages).toEqual([]);
+    expect(await prisma.attentionSeen.count({ where: { gameId, kind: "wreck", refId: "w-test" } })).toBe(1);
+    expect((await post(`/api/games/${gameId}/attention/seen`, capCookie, { items: [] })).statusCode).toBe(400);
+    expect((await post(`/api/games/${gameId}/attention/seen`, capCookie, { items: [{ kind: "task", refId: "x" }] })).statusCode).toBe(400);
     await prisma.attentionSeen.deleteMany({ where: { gameId } });
     // Команда сдала — для неё дело уже не новое.
     const cap = (await get("/api/auth/me", capCookie)).json().user.id as string;

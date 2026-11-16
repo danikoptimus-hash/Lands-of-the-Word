@@ -100,6 +100,8 @@ h1 .ico .i, h2 .ico .i, h3 .ico .i { width: 16px; height: 16px; }
 /* Вкладки стоят на месте, листается только сам набор: иначе картинки при прокрутке выглядывали
    над вкладками (общее правило листов держит вкладки «липкими» внутри прокрутки, а у прокрутки есть поля). */
 .avatar-pick-sheet .overlay-body { display: flex; flex-direction: column; overflow: hidden; min-height: 0; }
+/* «Ручка» листа не сжимается под длинным набором: иначе шапка прыгала на 2 px между набором и крупным просмотром. */
+.avatar-pick-sheet .grabber { flex: none; }
 .avatar-pick-sheet .tabs { position: static; flex: none; margin-bottom: var(--sp-3); }
 .avatar-pick-sheet .avatar-pick-scroll { flex: 1 1 auto; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; }
 .avatar-opt { display: block; aspect-ratio: 1; width: 100%; padding: 0; min-height: 0; border: 0; border-radius: 50%; background: var(--surface-2, var(--accent-soft)); cursor: pointer; overflow: hidden; box-shadow: 0 0 0 1px var(--paper-edge, var(--border)); }
@@ -109,6 +111,16 @@ h1 .ico .i, h2 .ico .i, h3 .ico .i { width: 16px; height: 16px; }
 .avatar-opt.on { box-shadow: 0 0 0 3px var(--surface), 0 0 0 6px var(--accent); }
 .avatar-opt:disabled { opacity: .6; cursor: default; }
 .avatar-opt:focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }
+/* Крупный просмотр картинки набора (решение владельца 16.11): картинка во всю ширину листа (до 320), под ней ряд —
+   «предыдущая», «выбрать», «следующая». Ставит картинку только кнопка «Выбрать»; к набору возвращает стрелка в шапке листа. */
+.avatar-look { flex: 1 1 auto; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; align-items: center; gap: var(--sp-4); padding: var(--sp-2) 0 var(--sp-3); touch-action: pan-y; }
+.avatar-look .big { display: block; width: min(100%, 320px, 46dvh); height: auto; aspect-ratio: 1; border-radius: 50%; object-fit: cover; background: var(--surface-2, var(--accent-soft)); box-shadow: 0 0 0 4px var(--surface), 0 0 0 5px var(--paper-edge, var(--border)), 0 10px 28px rgba(59, 36, 21, .28); }
+.avatar-look .look-row { display: flex; align-items: center; gap: var(--sp-2); width: min(100%, 360px); }
+.avatar-look .look-nav { flex: none; width: 48px; height: 48px; min-height: 0; padding: 0; display: inline-grid; place-items: center; border-radius: var(--r-md); }
+.avatar-look .look-nav.prev .i { transform: rotate(180deg); }
+.avatar-look .look-pick { flex: 1 1 auto; min-width: 0; min-height: 48px; justify-content: center; }
+.avatar-look .look-where { margin: calc(-1 * var(--sp-2)) 0; color: var(--muted); font-size: var(--fs-sm); }
+.avatar-look .look-now { flex: 1 1 auto; min-width: 0; text-align: center; font-weight: 600; color: var(--text); }
 .person { display: flex; align-items: center; gap: var(--sp-2); min-width: 0; }
 /* Значок лимита дел у участника в составе (решение владельца 04.10): песочные часы с отсчётом или свиток с ячейками. */
 .deed-badge { display: inline-flex; align-items: center; gap: 4px; padding: 2px 7px 2px 5px; border-radius: 999px; font-size: 12px; line-height: 1; font-variant-numeric: tabular-nums; flex: none; }

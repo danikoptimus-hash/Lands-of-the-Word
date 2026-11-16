@@ -107,13 +107,19 @@ export async function teamMapRoutes(app: FastifyInstance): Promise<void> {
   });
 
   /** Карта моей команды: открытые узлы, туман, рёбра, дела. */
-  /** Пункт «Внимание» прочитан (решение владельца 07.11): отметка своя у каждого участника. */
+  /**
+   * Пункт «Внимание» прочитан (решение владельца 07.11): отметка своя у каждого участника. Один пункт — { kind, refId };
+   * кнопка «Очистить всё» (решение владельца 16.11) шлёт сразу список — { items: [...] }. Вид passage — запрос прохода:
+   * его убирает из своего списка только тот, кто на запрос ответить не вправе (для него это известие, а не дело).
+   */
   app.post("/api/games/:id/attention/seen", async (request, reply) => {
     const { id } = request.params as { id: string };
     const m = await requireMember(request, reply, id);
     if (!m) return;
-    const body = z.object({ kind: z.enum(["quarry", "wreck", "arrival"]), refId: z.string().min(1).max(64) }).parse(request.body);
-    await prisma.attentionSeen.upsert({ where: { userId_kind_refId: { userId: request.user!.id, kind: body.kind, refId: body.refId } }, update: {}, create: { userId: request.user!.id, gameId: id, kind: body.kind, refId: body.refId } });
+    const one = z.object({ kind: z.enum(["quarry", "wreck", "arrival", "passage"]), refId: z.string().min(1).max(64) });
+    const body = z.union([one, z.object({ items: z.array(one).min(1).max(300) })]).parse(request.body);
+    const items = "items" in body ? body.items : [body];
+    await prisma.attentionSeen.createMany({ data: items.map((x) => ({ userId: request.user!.id, gameId: id, kind: x.kind, refId: x.refId })), skipDuplicates: true });
     return { ok: true };
   });
 
@@ -147,6 +153,8 @@ export async function teamMapRoutes(app: FastifyInstance): Promise<void> {
     const visits = visitRows.filter((v) => v.status !== "PENDING" || v.dueAt.getTime() > Date.now());
     const seenQuarry = new Set(seen.filter((x) => x.kind === "quarry").map((x) => x.refId));
     const seenWrecks = seen.filter((x) => x.kind === "wreck").map((x) => x.refId);
+    // Запросы прохода, которые участник убрал из «Внимания» кнопкой «Очистить всё»: приложение прячет их, только пока он не вправе отвечать.
+    const seenPassages = seen.filter((x) => x.kind === "passage").map((x) => x.refId);
     // К своему городу подошла чужая команда (решение владельца 07.11: вместо шатров на карте — push, уведомление и пункт
     // «Внимание»): чужие одобренные дела, ведущие в наш взятый город, за трое суток; прочитанный пункт исчезает у прочитавшего.
     const seenArrivals = new Set(seen.filter((x) => x.kind === "arrival").map((x) => x.refId));
@@ -165,7 +173,7 @@ export async function teamMapRoutes(app: FastifyInstance): Promise<void> {
     }
     // То, что маршрут добавляет к общей карте команды: личное и по часам (лимит дел, заморозка, «Внимание», время суток).
     // Камни и груз команды — из уже прочитанного членства (раньше команда читалась из базы второй раз).
-    const own = { returnedBlocks, quarryNew, seenWrecks, arrivals, status: game.status, startedAt: game.startedAt, gameName: game.name, deedLimit, deedsFrozenUntil, visits, deedsFrozenReason: deedsFrozenUntil ? m.deedsFrozenReason : null, daytime, team: { id: m.team.id, name: m.team.name, color: m.team.color, avatarId: m.team.avatarId, startNodeKey: m.team.startNodeKey, stones: m.team.stones, cargoBlocks: m.team.cargoBlocks } };
+    const own = { returnedBlocks, quarryNew, seenWrecks, seenPassages, arrivals, status: game.status, startedAt: game.startedAt, gameName: game.name, deedLimit, deedsFrozenUntil, visits, deedsFrozenReason: deedsFrozenUntil ? m.deedsFrozenReason : null, daytime, team: { id: m.team.id, name: m.team.name, color: m.team.color, avatarId: m.team.avatarId, startNodeKey: m.team.startNodeKey, stones: m.team.stones, cargoBlocks: m.team.cargoBlocks } };
     // У приложения уже эта версия карты (ревизия скорости, этап 2): отдаём только добавки — около килобайта вместо всей
     // карты. Так приложение сверяется с сервером без скачивания карты; саму карту оно получает «разницей» по событиям.
     const have = Number((request.query as { have?: string }).have);
