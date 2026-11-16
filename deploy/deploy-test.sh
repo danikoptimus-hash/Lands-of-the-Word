@@ -58,6 +58,10 @@ $C run --rm --no-deps app-test npm run db:migrate || { MIGRATED=0; echo "миг�
 
 echo "==> Запуск"
 $C up -d --remove-orphans
+
+# Те же настройки базы, что на проде (deploy/db-settings.sh): стенд проверяет их первым.
+echo "==> Настройки базы"
+bash deploy/db-settings.sh lotw-db-test || echo "настройки базы не применены (см. выше) — база работает на прежних"
 # Чистка старых образов не должна ронять выкладку: контейнер уже поднят, а параллельная чистка отвечает «a prune operation is already running».
 docker image prune -f >/dev/null 2>&1 || true
 # Что за сервер (для решений о нагрузке; раньше это приходилось спрашивать у владельца): ядра, память, часы.
