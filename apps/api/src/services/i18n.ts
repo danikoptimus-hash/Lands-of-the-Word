@@ -313,7 +313,7 @@ const EN: Record<string, string> = {
   "Себе дело не поручают: возьмите его сами": "You cannot assign a deed to yourself: just take it",
   "Такого участника в команде нет": "There is no such member in the team",
   "Это дело вам не поручено": "This deed is not assigned to you",
-  "Дело поручено: {name}. Пока держится бронь, взять его может только он": "The deed is assigned to {name}. While the reservation holds, only they can take it",
+  "Дело поручено: {name}. Пока держится бронь, другим его не взять": "The deed is assigned to {name}. While the reservation holds, only they can take it",
   "вам поручили дело": "a deed has been assigned to you",
   "{who} поручил(а) вам дело «{deed}». Возьмите его в течение суток: до тех пор его не возьмёт никто другой.": "{who} assigned you the deed “{deed}”. Take it within a day: until then nobody else can take it.",
   "Открыть дело": "Open the deed",

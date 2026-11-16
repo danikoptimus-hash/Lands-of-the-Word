@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { Picker } from "../components/Picker";
 import { api, ApiError, type WallBlockDto, type WallBrickDto, type WallDto } from "../lib/api";
 import { useUi } from "../lib/ui";
@@ -39,10 +40,36 @@ const crackLine = (x: number, y: number, w: number, h: number, frac: number) => 
  * Кладка: ряды по 8 кирпичей снизу вверх с перевязкой, зубцы над верхним рядом принятых блоков; блоки на проверке —
  * пунктирные камни, сложенные рядом со стеной (в кладку они лягут после проверки). Нажатие на камень — подсказка со
  * стихами (решение владельца 02.11: «при нажатии на блок в стене должно показываться количество стихов»).
+ * Подсказка — окошко поверх экрана, как у «?» (замечание участника 16.11): раньше она рисовалась внутри картинки стены,
+ * и у низкой стены (один-два ряда) ей не хватало места над камнем — она уходила вниз, под следующий раздел листа.
  */
 function Masonry({ blocks, fresh }: { blocks: WallBlockDto[]; fresh: Set<string> }) {
   const PER = 8, BW = 40, BH = 18, GAP = 2, MAXROWS = 10, PILE = 2;
   const [pick, setPick] = useState<string | null>(null);
+  // Где на экране стоит выбранный камень и где встало окошко подсказки (над камнем; если сверху нет места — под ним).
+  const [anchor, setAnchor] = useState<DOMRect | null>(null);
+  const [tipAt, setTipAt] = useState<{ left: number; top: number } | null>(null);
+  const tipEl = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    if (!pick || !anchor || !tipEl.current) return;
+    // Край — 16 px, как поля листа: у крайних камней окошко не выступает за колонку содержимого.
+    const EDGE = 16, GAP_TIP = 6, w = tipEl.current.offsetWidth, h = tipEl.current.offsetHeight;
+    const left = Math.max(EDGE, Math.min(window.innerWidth - w - EDGE, anchor.left + anchor.width / 2 - w / 2));
+    const above = anchor.top - GAP_TIP - h;
+    setTipAt({ left, top: above >= EDGE ? above : anchor.bottom + GAP_TIP });
+  }, [pick, anchor]);
+  // Закрывается нажатием мимо, клавишей Esc и любой прокруткой: окошко не должно уезжать от камня.
+  useEffect(() => {
+    if (!pick) return;
+    const close = () => setPick(null);
+    const away = (e: Event) => { if (!(e.target as Element | null)?.closest?.(".masonry .brick")) close(); };
+    const key = (e: KeyboardEvent) => { if (e.key === "Escape") close(); };
+    document.addEventListener("pointerdown", away, true);
+    document.addEventListener("keydown", key);
+    document.addEventListener("scroll", close, true);
+    window.addEventListener("resize", close);
+    return () => { document.removeEventListener("pointerdown", away, true); document.removeEventListener("keydown", key); document.removeEventListener("scroll", close, true); window.removeEventListener("resize", close); };
+  }, [pick]);
   // Блок воина — два кирпича (решение владельца 02.11): раскладываем по весу, ключ — id блока и номер кирпича.
   const bricksOf = (st: WallBlockDto["status"]): Brick[] => blocks.filter((b) => b.status === st && !b.used).flatMap((b) => Array.from({ length: Math.max(1, b.weight) }, (_, i) => ({ ...b, key: `${b.id}:${i}` })));
   const approved = bricksOf("APPROVED"), pending = bricksOf("SUBMITTED");
@@ -66,11 +93,14 @@ function Masonry({ blocks, fresh }: { blocks: WallBlockDto[]; fresh: Set<string>
     const what = b.missing > 0 ? `${t("{n} из {m} стихов", { n: intact, m: total })} · ${t("не хватает {n}", { n: b.missing })}` : b.status === "SUBMITTED" ? `${verses(total)} · ${t("на проверке")}` : b.repairPending ? `${verses(total)} · ${t("починка на проверке")}` : verses(total);
     return [who, what];
   };
-  const toggle = (key: string) => setPick((v) => (v === key ? null : key));
+  const toggle = (key: string, el: Element) => {
+    if (pick === key) { setPick(null); return; }
+    setAnchor(el.getBoundingClientRect()); setTipAt(null); setPick(key);
+  };
   const brick = (b: Brick, x: number, y: number, cls: string) => {
     const on = pick === b.key;
     const [l1, l2] = lines(b);
-    const common = { tabIndex: 0, role: "button", "aria-label": `${l1}, ${l2}`, onClick: (e: React.MouseEvent) => { e.stopPropagation(); toggle(b.key); }, onKeyDown: (e: React.KeyboardEvent) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggle(b.key); } } };
+    const common = { tabIndex: 0, role: "button", "aria-label": `${l1}, ${l2}`, onClick: (e: React.MouseEvent) => { e.stopPropagation(); toggle(b.key, e.currentTarget); }, onKeyDown: (e: React.KeyboardEvent) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggle(b.key, e.currentTarget); } } };
     if (b.missing > 0) {
       const frac = b.missing / Math.max(1, b.verses);
       return <g key={b.key} className={cls + " cracked" + (on ? " pick" : "")} {...common}><title>{`${l1} · ${l2}`}</title><path className="shape" d={crackedShape(x, y, BW, BH, frac)} /><path className="crack" d={crackLine(x, y, BW, BH, frac)} /></g>;
@@ -78,15 +108,9 @@ function Masonry({ blocks, fresh }: { blocks: WallBlockDto[]; fresh: Set<string>
     return <rect key={b.key} className={cls + (on ? " pick" : "")} x={x} y={y} width={BW} height={BH} rx={1.5} {...common}><title>{`${l1} · ${l2}`}</title></rect>;
   };
   const picked = [...placed, ...pile].find((p) => p.b.key === pick) ?? null;
-  const tip = picked ? (() => {
-    const [l1, l2] = lines(picked.b);
-    const tw = Math.min(W - 2, Math.max(l1.length, l2.length) * 5.1 + 12), th = 26;
-    const tx = Math.max(1, Math.min(W - tw - 1, picked.x + BW / 2 - tw / 2));
-    const above = picked.y - th - 4 >= -merlon;
-    const ty = above ? picked.y - th - 4 : picked.y + BH + 4;
-    return { l1, l2, tx, ty, tw, th };
-  })() : null;
+  const tip = picked ? lines(picked.b) : null;
   return (
+    <>
     <svg className="masonry" viewBox={`0 0 ${W} ${H}`} role="img" aria-label={approved.length ? t("Стена: {n}", { n: blocksWord(approved.length) }) : t("Стены ещё нет")} onClick={() => setPick(null)}>
       {/* Текстуры кирпичей (решение владельца 02.11: «на стену в городе тоже нужно сгенерить текстуры»): узор на каждый камень по его рамке. */}
       <defs>
@@ -101,14 +125,14 @@ function Masonry({ blocks, fresh }: { blocks: WallBlockDto[]; fresh: Set<string>
       <line className="ground" x1={0} x2={W} y1={H - ground + 1} y2={H - ground + 1} />
       {approved.length > shown.length && <text className="more" x={wallW - 4} y={merlon + 14} textAnchor="end">+{approved.length - shown.length}</text>}
       {pending.length > pileShown.length && <text className="more" x={W - 2} y={H - ground - pileRows * (BH + GAP) - 3} textAnchor="end">+{pending.length - pileShown.length}</text>}
-      {tip && (
-        <g className="tip" pointerEvents="none">
-          <rect x={tip.tx} y={tip.ty} width={tip.tw} height={tip.th} rx={4} />
-          <text x={tip.tx + 6} y={tip.ty + 10.5}>{tip.l1}</text>
-          <text x={tip.tx + 6} y={tip.ty + 21}>{tip.l2}</text>
-        </g>
-      )}
     </svg>
+    {tip && createPortal(
+      <div ref={tipEl} className="brick-tip" role="tooltip" style={tipAt ? { left: tipAt.left, top: tipAt.top } : { left: 16, top: 16, visibility: "hidden" }}>
+        <b>{tip[0]}</b><span>{tip[1]}</span>
+      </div>,
+      document.body,
+    )}
+    </>
   );
 }
 
