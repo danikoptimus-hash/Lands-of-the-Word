@@ -51,6 +51,9 @@ export function GamePage() {
   const tab: Tab = (TABS as string[]).includes(location.hash.slice(1)) ? (location.hash.slice(1) as Tab) : "map";
   const setTab = (next: Tab) => navigate({ hash: next === "map" ? "" : next }, { replace: true });
   const [screenEl, setScreenEl] = useState<HTMLDivElement | null>(null);
+  // Панель разделов работает как у участников (решение владельца 16.11): из открытого раздела сразу переходят в другой,
+  // лист при этом остаётся тем же — значит, прокрутку прежнего раздела надо сбросить, иначе новый откроется с середины.
+  useEffect(() => { screenEl?.querySelector(".overlay.admin-popup .overlay-body")?.scrollTo({ top: 0 }); }, [tab, screenEl]);
 
   // Готовый ответ с главной (решение владельца 24.10): игра и карта рисуются сразу, свежий ответ придёт следом.
   type GameResp = { game: GameDto; hexes: MapHexDto[]; nodes: MapNodeDto[]; edges: MapEdgeDto[]; observer?: boolean };
@@ -185,7 +188,8 @@ export function GamePage() {
   const titleOf = sections.find((s) => s.key === open);
 
   return (
-    <div className="admin-screen" ref={setScreenEl}>
+    // with-popup: раздел открыт — панель разделов, шапка и шестерёнка стоят выше листа и затемнения (admin.css).
+    <div className={"admin-screen" + (open ? " with-popup" : "")} ref={setScreenEl}>
       <div className="admin-map-area">
         {hasMap ? (
           <AdminMap fullscreen at={at} gameId={game.id} timeZone={(game.settings as { rules?: { timeZone?: string } }).rules?.timeZone} storms={(game.settings as { rules?: { storms?: StormSlot[] } }).rules?.storms} hexes={hexes} nodes={nodes} edges={edges} progress={shown} cities={shownCities} battles={at ? [] : progress?.battles ?? null} version={version} onReview={() => setTab("review")} focus={mapFocus} />
