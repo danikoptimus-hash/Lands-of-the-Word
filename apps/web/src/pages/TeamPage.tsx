@@ -8,6 +8,7 @@ import { useAuth } from "../lib/auth";
 import { reopenStream, streamAlive, useCoalesced, useGameEvents, type MapPush } from "../lib/useGameEvents";
 import { keepSame, useNow } from "../lib/stable";
 import { hydrateMap, slimMap } from "../lib/mapWire";
+import { useMapCover } from "../lib/mapCover";
 import { applyPatch } from "fast-json-patch";
 import { TeamMap, type MarkPoint } from "./TeamMap";
 import { AwardRating, FlameIcon, MilestoneCard, StreakBanner, TeamAwardsBlock, awardsCached, preloadAllAwardImages, preloadAwardImages } from "./Awards";
@@ -289,6 +290,8 @@ export function TeamPage() {
   const [assignBusy, setAssignBusy] = useState(false);
   const [searchParams, setSearchParams] = useSearchParams();
   const [mapEl, setMapEl] = useState<HTMLDivElement | null>(null);
+  // Закрыта ли карта большим листом: слои карты под листом можно не рисовать (lib/mapCover.ts; режим выбирает владелец по образцу).
+  useMapCover(mapEl);
   const [markAt, setMarkAt] = useState<MarkPoint | null>(null);
   /** Своя метка по нажатию (решение владельца 16.10): лист с подписью — изменить или убрать. */
   const [editMark, setEditMark] = useState<MapMarkDto | null>(null);

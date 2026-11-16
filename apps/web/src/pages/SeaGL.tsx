@@ -1,3 +1,4 @@
+import { coverGate } from "../lib/mapCover";
 import { useEffect, useRef, useState } from "react";
 import type { Viewport } from "./MapLayers";
 import { SEA_DEEP, SEA_MID, SEA_SHALLOW, type Seabed } from "./Seabed";
@@ -178,9 +179,11 @@ export function SeaGL({ vp, bed, light = DAY_LIGHT, storm = 0, onUnsupported }: 
       gl.uniform1f(uStorm, stormCur);
       gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
     };
+    const under = coverGate();
     const loop = (now: number) => {
       raf = requestAnimationFrame(loop);
       if (document.hidden) return;
+      if (!dirty && under(now)) return; // карта под листом — lib/mapCover.ts (кадр после смены размера или вида рисуется и под листом)
       // В покое (reduced motion) кадр рисуется по изменению вида; пока доля шторма ещё идёт к цели — тоже.
       if (!dirty && (still ? Math.abs(stormRef.current - stormCur) < 0.002 : now - last < 33)) return;
       dirty = false; last = now; const t0 = performance.now(); draw(now); perfMark("море (cpu)", performance.now() - t0);

@@ -1,5 +1,6 @@
+import { coverGate, mapCovered } from "../lib/mapCover";
 import { useEffect, useMemo, useRef, type ReactNode } from "react";
-import { perfMark } from "../lib/perfHud";
+import { perfExpose, perfMark } from "../lib/perfHud";
 import { DAY_LIGHT, type Light } from "../lib/daytime";
 import { HEX_SIZE, hexCenter } from "../lib/hexmap";
 import type { MapHexDto } from "../lib/api";
@@ -2141,14 +2142,28 @@ export function FaunaLayer({ vp, hexes, between = null, islets = NO_ISLETS, size
       WRECKS = wrecksRef.current; if (document.hidden || sync(12)) { catching = false; dirty = true; return; }
       timer = window.setTimeout(catchUp, 0);
     };
+    // Карта под листом (lib/mapCover.ts): слой не рисует (или рисует редко), но мир живности продолжает идти по часам сервера —
+    // четыре раза в секунду, а пока отстаёт — каждый кадр. Когда лист закрывается, мир уже в текущей секунде, и звери сразу
+    // стоят на своих местах: догона с пустым слоем нет (условие владельца 16.11).
+    const under = coverGate();
+    let coverSync = 0, behind = false;
     const loop = (t: number) => {
       raf = requestAnimationFrame(loop);
       if (document.hidden || catching) return;
+      if (mapCovered()) {
+        if (behind || t - coverSync > 250) { coverSync = t; WRECKS = wrecksRef.current; behind = !sync(8); }
+        // Кадр после смены размера или вида рисуется и под листом: иначе слой остался бы пустым до закрытия листа.
+        if (behind || (!dirty && under(t))) return;
+        dirty = false; lastDraw = t; draw();
+        return;
+      }
       WRECKS = wrecksRef.current; if (!sync(8)) { catching = true; clear(); catchUp(); return; }
       if (!dirty && t - lastDraw < 1000 / 24) return;
       dirty = false; lastDraw = t; const t0 = performance.now(); draw(); perfMark("живность кадр", performance.now() - t0);
     };
     raf = requestAnimationFrame(loop);
+    // Для проверок (?perf=1): насколько мир живности отстаёт от часов сервера и идёт ли догон с пустым слоем.
+    perfExpose("fauna", () => { const now = clockRef.current() / 1000, epoch = Math.floor(now / EPOCH); return { lag: cur && cur.epoch === epoch ? now - epoch * EPOCH - cur.w.T : null, catching, covered: mapCovered(), drawnAt: lastDraw }; });
     return () => { cancelAnimationFrame(raf); clearTimeout(timer); ro.disconnect(); unsub(); };
   }, [profile, size, seed]); // eslint-disable-line react-hooks/exhaustive-deps
 
