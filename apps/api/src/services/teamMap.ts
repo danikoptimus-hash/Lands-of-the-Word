@@ -5,7 +5,8 @@ import { hexCorners, vertexKey, vertexHexes, parseVertexKey, BOOKS, localMinutes
 import { loadCityContent } from "./cities.js";
 import { notifyTeam, notifyUser } from "./notify.js";
 import { createHash } from "node:crypto";
-import { publish, onPublish, hasTeamSubscribers, pushToTeam, type GameEventType } from "./events.js";
+import { publish, onPublish, hasTeamSubscribers, pushToTeam, teamFormats, type GameEventType } from "./events.js";
+import { wireTasks } from "./mapWire.js";
 import jsonPatch from "fast-json-patch";
 const { compare } = jsonPatch;
 import { days, rulesOf, type Rules } from "./rules.js";
@@ -631,14 +632,27 @@ async function pushMapUpdate(gameId: string, teamId: string, captured: TeamMap |
     sent.set(teamId, next);
     if (!prev || prev.rev === next.rev) { if (!prev) pushToTeam(gameId, teamId, "map-stale", { rev: next.rev }); return; }
     // Тайные дела: ссылки и текст сдачи видит только сдавший — в разнице их нет (сравниваются обезличенные карты).
-    const patch = compare(publicMap(prev), publicMap(next));
-    if (patch.length) pushToTeam(gameId, teamId, "map-patch", { base: prev.rev, rev: next.rev, patch });
+    // «Разница» считается в том виде, в каком карту держит приложение: со справочником текстов дел — новым, с вложенными
+    // текстами — тем, что ещё не обновились после выкладки (их через несколько минут не остаётся, и второй расчёт пропадает).
+    const who = teamFormats(gameId, teamId), a = publicMap(prev), b = publicMap(next);
+    if (who.wire) {
+      const patch = compare(wireMap(a), wireMap(b));
+      if (patch.length) pushToTeam(gameId, teamId, "map-patch", { base: prev.rev, rev: next.rev, patch }, true);
+    }
+    if (who.legacy) {
+      const patch = compare(a, b);
+      if (patch.length) pushToTeam(gameId, teamId, "map-patch", { base: prev.rev, rev: next.rev, patch }, false);
+    }
   } catch (e) { console.error("map push failed", e); }
 }
 /** Карта в том виде, в каком её получает клиент (даты — строками, как в JSON), без тайных ссылок и без номера версии. */
 function publicMap(m: TeamMap): Record<string, unknown> {
   const { rev: _rev, ...rest } = m;
   return JSON.parse(JSON.stringify({ ...rest, tasks: m.tasks.map((t) => (t.deed.secret ? { ...t, links: [], note: "" } : t)) }));
+}
+/** Карта со справочником текстов дел вместо текста в каждой стороне (services/mapWire.ts). */
+function wireMap(m: Record<string, unknown>): Record<string, unknown> {
+  return { ...m, ...wireTasks(m.tasks as Array<{ deed: unknown }>) };
 }
 // Награды и мир в карту команды не входят: их события карты не сбрасывают (раньше каждая выданная награда заставляла
 // пересчитать карты всех команд партии).
@@ -651,6 +665,10 @@ export function getTeamMap(gameId: string, teamId: string): Promise<TeamMap> {
   if (hit && hit.gameId === gameId && Date.now() - hit.at < MAP_TTL_MS) return hit.value;
   const entry = { gameId, at: Date.now(), last: hit?.last ?? null, value: undefined as unknown as Promise<TeamMap> };
   entry.value = computeTeamMap(gameId, teamId).then((m) => {
+    // Пока шёл расчёт, карту сбросили (событие) или начали считать заново: этот результат уже устарел. Раньше он всё равно
+    // записывался как последняя карта и получал номер версии — если старый расчёт кончался позже нового, старое содержимое
+    // оказывалось «новее» (находка независимого разбора 16.11). Отдаём свежий расчёт.
+    if (mapCache.get(teamId) !== entry) return getTeamMap(gameId, teamId);
     const sig = mapSignature(m), was = lastRev.get(teamId);
     const rev = was && was.gameId === gameId && was.sig === sig ? was.rev : ++mapRev;
     lastRev.set(teamId, { gameId, sig, rev });

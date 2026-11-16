@@ -7,8 +7,12 @@ import type { FastifyReply } from "fastify";
 export type GameEventType = "game" | "map" | "teams" | "deeds" | "tasks" | "submissions" | "cities" | "battles" | "journal" | "peace" | "quarry" | "trades" | "awards" | "wrecks";
 export interface GameEvent { type: GameEventType; teamId?: string; at: number }
 
-/** Кто слушает: команда участника (null — администратор или наблюдатель, им нужно всё). */
-interface Subscriber { reply: FastifyReply; teamId: string | null }
+/**
+ * Кто слушает: команда участника (null — не состоит ни в одной) и признак «нужно всё» — администратор или наблюдатель.
+ * Администратор, который сам играет в команде, — и то и другое: раньше он числился только «тем, кому нужно всё», и
+ * «разница» карты его команды до него не доходила (выручало скачивание карты раз в минуту, которого больше нет).
+ */
+interface Subscriber { reply: FastifyReply; teamId: string | null; all: boolean; /** Приложение понимает карту со справочником текстов дел (services/mapWire.ts). */ wire: boolean }
 const subscribers = new Map<string, Set<Subscriber>>();
 /**
  * Адресная рассылка (ревизия скорости, этап 2). Событие с `teamId` получают только подписчики этой команды и те, кому
@@ -30,10 +34,10 @@ type Listener = (gameId: string, event: Omit<GameEvent, "at">) => void;
 const listeners: Listener[] = [];
 export function onPublish(fn: Listener): void { listeners.push(fn); }
 
-export function subscribe(gameId: string, reply: FastifyReply, teamId: string | null = null): () => void {
+export function subscribe(gameId: string, reply: FastifyReply, teamId: string | null = null, all = teamId === null, wire = false): () => void {
   let set = subscribers.get(gameId);
   if (!set) { set = new Set(); subscribers.set(gameId, set); }
-  const sub: Subscriber = { reply, teamId };
+  const sub: Subscriber = { reply, teamId, all, wire };
   set.add(sub);
   return () => { set!.delete(sub); if (set!.size === 0) subscribers.delete(gameId); };
 }
@@ -41,13 +45,16 @@ export function subscribe(gameId: string, reply: FastifyReply, teamId: string | 
 function notify(gameId: string, event: Omit<GameEvent, "at">): void {
   for (const fn of listeners) { try { fn(gameId, event); } catch { /* слушатель не должен ломать публикацию */ } }
 }
-/** Отправка подписчикам: `only` — одной команде (и тем, кому нужно всё, если `watchers`), null — всем. */
+/**
+ * Отправка подписчикам: `only` — одной команде (и тем, кому нужно всё, если `watchers`), null — всем. Тот, кому нужно всё,
+ * получает адресное событие ровно один раз — первой рассылкой (`watchers`), а досылку сторонам испытания пропускает.
+ */
 function send(gameId: string, event: Omit<GameEvent, "at">, only: string | null, watchers: boolean): void {
   const set = subscribers.get(gameId);
   if (!set) return;
   const data = `event: change\ndata: ${JSON.stringify({ ...event, at: Date.now() })}\n\n`;
   for (const sub of set) {
-    if (only && (sub.teamId ? sub.teamId !== only : !watchers)) continue;
+    if (only && (sub.all ? !watchers : sub.teamId !== only)) continue;
     try { sub.reply.raw.write(data); } catch { set.delete(sub); }
   }
 }
@@ -69,23 +76,27 @@ export function publish(gameId: string, event: Omit<GameEvent, "at">): void {
 }
 
 export function subscriberCount(gameId: string): number { return subscribers.get(gameId)?.size ?? 0; }
-/** Слушает ли карту кто-то из этой команды (администраторы и наблюдатели не считаются: им карта команды не рассылается). */
+/** Слушает ли карту кто-то из этой команды (наблюдатели без команды не считаются: им карта команды не рассылается). */
 export function hasTeamSubscribers(gameId: string, teamId: string): boolean {
-  const set = subscribers.get(gameId);
-  if (!set) return false;
-  for (const sub of set) if (sub.teamId === teamId) return true;
-  return false;
+  const k = teamFormats(gameId, teamId);
+  return k.wire || k.legacy;
+}
+/** Какие приложения команды слушают карту: нового формата (со справочником текстов дел) и прежнего. */
+export function teamFormats(gameId: string, teamId: string): { wire: boolean; legacy: boolean } {
+  const out = { wire: false, legacy: false };
+  for (const sub of subscribers.get(gameId) ?? []) if (sub.teamId === teamId) { if (sub.wire) out.wire = true; else out.legacy = true; }
+  return out;
 }
 /**
  * Именованное событие только подписчикам команды — так рассылаются изменения карты (решение владельца 24.10:
  * «пункт 2 тоже делай»): клиент правит карту у себя, не перечитывая её.
  */
-export function pushToTeam(gameId: string, teamId: string, name: string, payload: unknown): void {
+export function pushToTeam(gameId: string, teamId: string, name: string, payload: unknown, /** только приложениям нового (true) или прежнего (false) формата карты; не задано — всем */ wire?: boolean): void {
   const set = subscribers.get(gameId);
   if (!set) return;
   const data = `event: ${name}\ndata: ${JSON.stringify(payload)}\n\n`;
   for (const sub of set) {
-    if (sub.teamId !== teamId) continue;
+    if (sub.teamId !== teamId || (wire !== undefined && sub.wire !== wire)) continue;
     try { sub.reply.raw.write(data); } catch { set.delete(sub); }
   }
 }

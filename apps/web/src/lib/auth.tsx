@@ -37,12 +37,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(() => { const was = savedUser<User>(); if (was) setOwner(was.id); return was; });
   const [loading, setLoading] = useState(() => user === null);
   /** Принять ответ сервера «кто я». */
+  /** Чьи ответы сейчас в памяти этой вкладки (null — ничьи: не вошёл, только что вышел или входит заново). */
+  const current = useRef<string | null>(user?.id ?? null);
   const accept = useCallback((u: User | null) => {
-    if (!u) { clearReady(); setUser(null); return; }
+    if (!u) { clearReady(); current.current = null; setUser(null); return; }
     const was = savedUser<User>();
-    // На устройстве остались снимки другой учётки (аккаунт сменили в соседней вкладке): стираем и начинаем с чистого листа.
-    if (was && was.id !== u.id) { clearReady(); setOwner(u.id); saveUser(u); window.location.reload(); return; }
-    setOwner(u.id); saveUser(u); setUser(u);
+    // Сервер назвал другую учётку: аккаунт сменили в соседней вкладке. На устройстве лежат снимки прежней, а в памяти этой
+    // вкладки — её ответы: стираем и начинаем с чистого листа. Владельца снимков до перезагрузки не назначаем — иначе ответ
+    // прежней учётки, пришедший в эти мгновения, записался бы под именем новой (находка независимого разбора 16.11).
+    if ((was && was.id !== u.id) || (current.current && current.current !== u.id)) { clearReady(); saveUser(u); window.location.reload(); return; }
+    current.current = u.id; setOwner(u.id); saveUser(u); setUser(u);
   }, []);
   const [offline, setOffline] = useState(false);
   const [guestLocale, setGuest] = useState<Locale>(readGuestLocale());
@@ -91,7 +95,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const login = useCallback(async (nickname: string, password: string, add = false) => {
     const r = await api<{ user: User }>("/api/auth/login", { method: "POST", body: JSON.stringify({ nickname, password, add }) });
-    answered.current++; clearReady(); accept(r.user); setOffline(false); setLoading(false);
+    answered.current++; clearReady(); current.current = null; accept(r.user); setOffline(false); setLoading(false);
     void syncPush();
   }, []);
   const switchAccount = useCallback(async (userId: string) => {
@@ -102,12 +106,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
   const logoutAll = useCallback(async () => {
     await api("/api/auth/logout-all", { method: "POST" });
-    clearReady(); setUser(null);
+    clearReady(); current.current = null; setUser(null);
   }, []);
   // Язык, выбранный гостем на странице входа, становится языком новой учётки.
   const register = useCallback(async (nickname: string, password: string, email: string) => {
     const r = await api<{ user: User }>("/api/auth/register", { method: "POST", body: JSON.stringify({ nickname, password, email, locale: guestLocale }) });
-    answered.current++; clearReady(); accept(r.user); setOffline(false); setLoading(false);
+    answered.current++; clearReady(); current.current = null; accept(r.user); setOffline(false); setLoading(false);
   }, [guestLocale, accept]);
   const refresh = useCallback(async () => {
     // Сбой связи пользователя не сбрасывает: только ответ сервера «не вошёл».
@@ -117,7 +121,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const r = await api<{ ok: boolean; user: User | null }>("/api/auth/logout", { method: "POST" });
     clearReady();
     if (r.user) { window.location.assign("/"); return; }
-    setUser(null);
+    current.current = null; setUser(null);
   }, []);
 
   const value = useMemo(() => ({ user, loading, offline, login, register, logout, logoutAll, refresh, accounts, switchAccount, locale, setGuestLocale }), [user, loading, offline, login, register, logout, logoutAll, refresh, accounts, switchAccount, locale, setGuestLocale]);

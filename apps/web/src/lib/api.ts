@@ -1,5 +1,5 @@
 import { t } from "./i18n";
-import { loadSnap, purgeSnaps, saveSnap } from "./persist";
+import { dropSnap, loadSnap, purgeSnaps, saveSnap } from "./persist";
 export class ApiError extends Error {
   constructor(public status: number, message: string, public issues?: Array<{ path: string; message: string }>) { super(message); }
 }
@@ -22,6 +22,9 @@ function takeEarly(url: string): Promise<Response> | null {
   return p;
 }
 function dropEarly(): void { try { (window as unknown as { __lotwBoot?: unknown }).__lotwBoot = undefined; } catch { /* нет окна */ } }
+// Ответ, который никто не забрал за десять секунд работы программы, уже не «свежий»: открытая позже страница запросит сама
+// (иначе через минуты ей достались бы «карта та же» и часы сервера из прошлого — находка независимого разбора 16.11).
+if (typeof window !== "undefined") setTimeout(dropEarly, 10_000);
 
 async function once<T>(url: string, init: RequestInit, read: boolean): Promise<T> {
   const ctl = new AbortController();
@@ -33,7 +36,8 @@ async function once<T>(url: string, init: RequestInit, read: boolean): Promise<T
       ...init,
       credentials: "same-origin",
       signal: init.signal ?? ctl.signal,
-      headers: { ...(init.body ? { "Content-Type": "application/json" } : {}), ...(init.headers ?? {}) },
+      // X-Lotw-Wire: карта команды приходит со справочником текстов дел (lib/mapWire.ts); то же шлёт запрос из index.html.
+      headers: { "X-Lotw-Wire": "2", ...(init.body ? { "Content-Type": "application/json" } : {}), ...(init.headers ?? {}) },
     });
     const res = early ? await early.catch(send) : await send();
     const text = await res.text();
@@ -92,11 +96,20 @@ export function ready<T>(url: string): T | null {
   if (snap !== null) READY.set(url, snap); else NO_SNAP.add(url);
   return snap;
 }
-/** Положить в память готовое значение (карта после «разницы» от сервера) и запомнить его между запусками. */
-export function setReady(url: string, value: unknown): void {
+/**
+ * Положить в память готовое значение (карта после «разницы» от сервера) и запомнить его между запусками.
+ * `epoch` — номер «поколения» памяти на момент, когда экран начал работу (readyEpoch): после выхода или смены аккаунта он
+ * другой, и запоздалый ответ прежней учётки не записывается под именем новой. `persist: false` — только в память (на экране
+ * сменились одни часы и добавки, переводить всю карту в текст ради них незачем).
+ */
+export function setReady(url: string, value: unknown, opts: { epoch?: number; persist?: boolean } = {}): void {
+  if (opts.epoch !== undefined && opts.epoch !== generation) return;
   READY.set(url, value);
-  if (owner) saveSnap(url, owner, value, 20_000);
+  if (owner && opts.persist !== false) saveSnap(url, owner, value, 20_000);
 }
+export const readyEpoch = (): number => generation;
+/** Забыть ответ: сервер сказал, что его больше нет или он не наш (исключили из команды, игру удалили). */
+export function forgetReady(url: string): void { READY.delete(url); FRESH.delete(url); NO_SNAP.add(url); dropSnap(url); }
 /**
  * Запрос с записью ответа в память. `join` — взять ответ, который уже в пути (главная запрашивает карту заранее и тут же
  * открывает страницу команды — раньше самый тяжёлый ответ качался дважды). После своего действия `join` не ставят:

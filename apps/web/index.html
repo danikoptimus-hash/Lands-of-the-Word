@@ -27,7 +27,12 @@
           var ls = window.localStorage, me = ls.getItem("lotw.me");
           if (!me) return;
           var uid = JSON.parse(me).id, box = (window.__lotwBoot = {});
-          var get = function (u) { var p = fetch(u, { credentials: "same-origin" }); p.catch(function () {}); box[u] = p; };
+          // Предел ожидания ответа — 20 секунд, как у запросов самой программы: на «зависшей» связи первый круг не висит минутами.
+          var get = function (u) {
+            var c = window.AbortController ? new AbortController() : null, tm = c ? setTimeout(function () { c.abort(); }, 20000) : 0;
+            var p = fetch(u, { credentials: "same-origin", signal: c ? c.signal : undefined, headers: { "X-Lotw-Wire": "2" } });
+            p.then(function () { clearTimeout(tm); }, function () {}); box[u] = p;
+          };
           var game = function (g) {
             get("/api/games/" + g + "/teams");
             var rev = (ls.getItem("lotw.rev:" + g) || "").split(":");

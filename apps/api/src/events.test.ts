@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { FastifyReply } from "fastify";
-import { onPublish, publish, setBattlePartners, subscribe } from "./services/events.js";
+import { hasTeamSubscribers, onPublish, publish, pushToTeam, setBattlePartners, subscribe } from "./services/events.js";
 
 /** Подписчик-заглушка: запоминает, какие события ему записали в поток. */
 function listener() {
@@ -54,6 +54,27 @@ describe("адресная рассылка событий", () => {
     publish(game, { type: "cities", teamId: "A" });
     await tick();
     expect(b.types()).toEqual(["battles:A"]);
+    off.forEach((f) => f());
+    setBattlePartners(async () => []);
+  });
+
+  it("администратор, играющий в команде, получает события всех команд по одному разу и «разницу» карты своей команды", async () => {
+    const game = "g-" + Math.random();
+    const a = listener(), adminInA = listener(), watcher = listener();
+    const raw: string[] = [];
+    const adminReply = { raw: { write: (data: string) => { raw.push(data); return (adminInA.reply as unknown as { raw: { write: (d: string) => boolean } }).raw.write(data); } } } as unknown as FastifyReply;
+    const off = [subscribe(game, a.reply, "A"), subscribe(game, adminReply, "A", true), subscribe(game, watcher.reply, null)];
+    setBattlePartners(async (_g, teamId) => (teamId === "B" ? ["A"] : []));
+    publish(game, { type: "tasks", teamId: "A" });
+    publish(game, { type: "cities", teamId: "B" });
+    publish(game, { type: "battles", teamId: "B" });
+    await tick();
+    expect(a.types()).toEqual(["tasks:A", "battles:B"]);
+    expect(adminInA.types()).toEqual(["tasks:A", "cities:B", "battles:B"]);
+    expect(watcher.types()).toEqual(["tasks:A", "cities:B", "battles:B"]);
+    expect(hasTeamSubscribers(game, "A")).toBe(true);
+    pushToTeam(game, "A", "map-patch", { rev: 1 });
+    expect(raw.some((d) => d.startsWith("event: map-patch"))).toBe(true);
     off.forEach((f) => f());
     setBattlePartners(async () => []);
   });
