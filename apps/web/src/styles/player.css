@@ -1020,9 +1020,11 @@ label > .help-pop-wrap.req-star { margin-left: 2px; vertical-align: baseline; }
 .masonry .brick.cracked .shape { fill: inherit; stroke: inherit; stroke-width: inherit; }
 .masonry .brick.cracked .crack { fill: none; stroke: var(--mortar); stroke-width: .9; stroke-linejoin: round; stroke-linecap: round; }
 .masonry .brick.pick, .masonry .brick:focus-visible { stroke: var(--accent-ink, var(--accent)); stroke-width: 1.8; }
-.masonry .tip rect { fill: var(--surface, #fff); stroke: var(--border-strong, var(--muted)); stroke-width: .8; filter: drop-shadow(0 2px 3px rgba(0,0,0,.25)); }
-.masonry .tip text { font-size: 8.5px; font-weight: 600; fill: var(--ink, #222); }
-.masonry .tip text + text { font-weight: 400; fill: var(--muted); }
+/* Подсказка камня — окошко поверх экрана, как у «?» (тот же слой 1200: выше листов и их разделов). Нажатия пропускает:
+   под ней могут быть соседние камни. */
+.brick-tip { position: fixed; z-index: 1200; pointer-events: none; max-width: min(300px, calc(100vw - 32px)); padding: 6px 10px; border: 1px solid var(--bronze-light); border-radius: var(--r-sm); background: var(--paper-light); color: var(--ink); box-shadow: var(--shadow-2); font-size: var(--fs-sm); line-height: 1.3; animation: fade var(--dur-fast) var(--ease-out); }
+.brick-tip b { display: block; font-weight: 600; }
+.brick-tip span { display: block; color: var(--muted); font-size: var(--fs-xs); }
 .masonry .ground { stroke: var(--mortar); stroke-width: 1.5; }
 .masonry .more { fill: var(--muted); font-size: 11px; font-weight: 700; }
 @keyframes brick-in { from { transform: translateY(-18px) scale(.6); opacity: 0; } to { transform: none; opacity: 1; } }
