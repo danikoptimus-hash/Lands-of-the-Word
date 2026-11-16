@@ -179,6 +179,7 @@ export const ADMIN: Record<string, string> = {
   "Новая команда": "New team", "Цвет назначится сам; ссылки для приглашения — после добавления.": "The colour is assigned automatically; invite links come after adding.",
   // Интерфейс (замеры)
   "Интерфейс": "Interface", "Замеры с устройств игроков за период: скорость открытия страницы и плавность карты за первые 6 секунд. Без привязки к людям.": "Measurements from players' devices for the period: page load speed and map smoothness during the first 6 seconds. Not tied to people.",
+  "Сбор замеров приостановлен с 16.11: новых не поступает, ниже — накопленные раньше.": "Measurement collection has been paused since 16 Nov: nothing new arrives; the figures below were collected earlier.",
   "Замеров пока нет: они появляются после открытия карты на устройствах.": "No measurements yet: they appear after the map is opened on devices.",
   "замеров": "samples", "первый байт": "first byte", "первая отрисовка": "first paint", "крупная отрисовка": "largest paint", "страница загружена": "page loaded", "p75 {p}": "p75 {p}",
   "кадров в секунду": "frames per second", "худшая четверть {p} · замеров {n}": "worst quarter {p} · samples {n}", "долгих кадров": "slow frames", "замеров с рывками {p}": "samples with stutter {p}",

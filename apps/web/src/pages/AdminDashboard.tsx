@@ -1,3 +1,4 @@
+import { MEASURE } from "../lib/measure";
 import { useEffect, useRef, useState } from "react";
 import { Navigate } from "react-router-dom";
 import { api, ApiError } from "../lib/api";
@@ -140,6 +141,7 @@ export function AdminDashboard() {
           {tab === "ui" && (<>
           <div className="card"><h2>{t("Интерфейс")}</h2>
             <p className="muted small mt-2">{t("Замеры с устройств игроков за период: скорость открытия страницы и плавность карты за первые 6 секунд. Без привязки к людям.")}</p>
+            {!MEASURE && <p className="muted small mt-2">{t("Сбор замеров приостановлен с 16.11: новых не поступает, ниже — накопленные раньше.")}</p>}
             {m.ui.samples === 0 ? <p className="muted small mt-2">{t("Замеров пока нет: они появляются после открытия карты на устройствах.")}</p> : (
               <>
                 <div className="tiles mt-3">

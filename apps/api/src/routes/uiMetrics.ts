@@ -2,6 +2,7 @@ import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { prisma } from "../db.js";
 import { requireUser } from "../auth.js";
+import { measuring } from "../services/measure.js";
 
 const Body = z.object({
   page: z.enum(["map", "admin-map", "other"]),
@@ -27,12 +28,14 @@ export async function uiMetricRoutes(app: FastifyInstance) {
   app.addContentTypeParser("text/plain", { parseAs: "string" }, (_req, body, done) => { try { done(null, JSON.parse(body as string)); } catch (e) { done(e as Error); } });
   app.post("/api/metrics/ui", { preHandler: requireUser, config: { rateLimit: { max: 30, timeWindow: "1 minute" } } }, async (request, reply) => {
     const b = Body.parse(request.body);
+    if (!measuring()) return reply.code(204).send();
     await prisma.uiMetric.create({ data: { ...b, ttfb: b.ttfb ?? null, fcp: b.fcp ?? null, lcp: b.lcp ?? null, load: b.load ?? null, fps: b.fps ?? null, jank: b.jank ?? null, longTasks: b.longTasks ?? null, memoryMb: b.memoryMb ?? null } });
     return reply.code(204).send();
   });
   /** Нажатие кнопки карты: действие, страница, тип устройства. Без пользователя. */
   app.post("/api/metrics/action", { preHandler: requireUser, config: { rateLimit: { max: 60, timeWindow: "1 minute" } } }, async (request, reply) => {
     const b = ActionBody.parse(request.body);
+    if (!measuring()) return reply.code(204).send();
     await prisma.uiAction.create({ data: b });
     return reply.code(204).send();
   });

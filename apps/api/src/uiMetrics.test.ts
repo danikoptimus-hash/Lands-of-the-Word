@@ -9,6 +9,8 @@ const stamp = Date.now();
 let cookie = "";
 
 beforeAll(async () => {
+  // Сбор замеров по умолчанию выключен (решение владельца 16.11); в этих тестах он включён, кроме проверки ниже.
+  process.env.LOTW_MEASURE = "1";
   await app.ready();
   const res = await registerVerified(app, { nickname: `ui_${stamp}`, password: "secret123", locale: "ru" });
   cookie = res.headers["set-cookie"] as string;
@@ -26,6 +28,16 @@ describe("замеры интерфейса", () => {
     expect(b.statusCode).toBe(204);
     const bad = await app.inject({ method: "POST", url: "/api/metrics/ui", headers: { cookie }, payload: { ...sample, fps: 999 } });
     expect(bad.statusCode).toBe(400);
+  });
+
+  it("при выключенном сборе адрес отвечает «принято» и ничего не записывает", async () => {
+    const before = await prisma.uiMetric.count();
+    delete process.env.LOTW_MEASURE;
+    try {
+      expect((await app.inject({ method: "POST", url: "/api/metrics/ui", headers: { cookie }, payload: sample })).statusCode).toBe(204);
+      expect((await app.inject({ method: "POST", url: "/api/metrics/action", headers: { cookie }, payload: { action: "map-fit", page: "map", device: "phone" } })).statusCode).toBe(204);
+    } finally { process.env.LOTW_MEASURE = "1"; }
+    expect(await prisma.uiMetric.count()).toBe(before);
   });
 
   it("сводка считает медианы, среднее fps и разбивку по устройствам", async () => {
