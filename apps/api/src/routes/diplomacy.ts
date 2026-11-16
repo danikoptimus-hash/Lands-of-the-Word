@@ -93,7 +93,7 @@ async function bookOf(gameId: string, keys: string[]) {
 /** Проходы команды — готовый ответ (services/views.ts); кто может говорить — отдельно, это зависит от участника. */
 const passagesView = defineView("passages", { scope: "team", events: ["map", "cities", "teams", "battles", "peace"], compute: async (gameId, teamId) => {
   await expirePassages(gameId);
-  const rows = await prisma.passageRequest.findMany({ where: { gameId, OR: [{ requesterId: teamId }, { ownerId: teamId }] }, orderBy: { createdAt: "desc" }, include: { requester: teamSelect, owner: teamSelect }, take: 50 });
+  const rows = await prisma.passageRequest.findMany({ where: { gameId, OR: [{ requesterId: teamId }, { ownerId: teamId }] }, orderBy: [{ createdAt: "desc" }, { id: "asc" }], include: { requester: teamSelect, owner: teamSelect }, take: 50 });
   const books = await bookOf(gameId, rows.map((r) => r.nodeKey));
   return { outgoing: rows.filter((r) => r.requesterId === teamId).map((r) => view(r, books)), incoming: rows.filter((r) => r.ownerId === teamId).map((r) => view(r, books)) };
 } });

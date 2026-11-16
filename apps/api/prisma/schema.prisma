@@ -1489,7 +1489,8 @@ model AttentionSeen {
   gameId String
   game   Game     @relation(fields: [gameId], references: [id], onDelete: Cascade)
   /**
-   * Вид пункта: quarry — дело Каменоломни, wreck — разбитый корабль.
+   * Вид пункта: quarry — дело Каменоломни, wreck — разбитый корабль, arrival — к нашему городу подошла команда,
+   * passage — запрос прохода (у того, кто ответить на него не вправе).
    */
   kind   String
   refId  String
