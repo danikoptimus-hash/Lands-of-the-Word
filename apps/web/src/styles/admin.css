@@ -308,6 +308,8 @@ details.legend .items span { display: inline-flex; align-items: center; gap: var
    На телефоне лист кончается над панелью, под ней — фон самого листа; на компьютере окно раздела стоит по центру
    и не заходит ни под колонку плиток, ни под шапку. Размеры — те же, что у листа участника (player.css). */
 .admin-screen.with-popup .admin-dock, .admin-screen.with-popup .admin-top, .admin-screen.with-popup .admin-gear { z-index: calc(var(--z-dialog) + 1); }
+/* «Ручка» листа не сжимается под длинным разделом: иначе шапка листа прыгала на 2 px при переходе между разделами. */
+.overlay.admin-popup .grabber { flex: none; }
 @media (max-width: 767px) {
   .overlay-backdrop:has(> .overlay.admin-popup) { align-items: flex-end; padding: 0; }
   .overlay.admin-popup { box-sizing: border-box; max-width: none; height: calc(100% - var(--safe-top) - 64px); max-height: calc(100% - var(--safe-top) - 64px); border-radius: var(--r-lg) var(--r-lg) 0 0; padding-bottom: calc(52px + 2 * var(--sp-2) + var(--safe-bottom)); }
