@@ -8,8 +8,6 @@ import { ErrorBoundary } from "./components/ErrorBoundary";
 import { Layout } from "./pages/Layout";
 import { LoginPage } from "./pages/LoginPage";
 import { GamesPage } from "./pages/GamesPage";
-import { GamePage } from "./pages/GamePage";
-import { LabelsPage } from "./pages/LabelsPage";
 import { SeasonBookPage } from "./pages/Journal";
 import { TeamPage } from "./pages/TeamPage";
 import { JoinPage } from "./pages/JoinPage";
@@ -19,16 +17,21 @@ import { ResetPage } from "./pages/ResetPage";
 import { VerifyPage, VerifyPendingPage } from "./pages/VerifyPage";
 /** Аналитика грузится отдельно: графики (ECharts) нужны только администратору платформы. */
 const AdminDashboard = lazy(() => import("./pages/AdminDashboard").then((m) => ({ default: m.AdminDashboard })));
-import { SupportPage } from "./pages/SupportPage";
-import { AllGamesPage } from "./pages/AllGamesPage";
-import { AdminUsersPage } from "./pages/AdminUsersPage";
-import { NewGamePage } from "./pages/NewGamePage";
+// Экраны администратора и «Что нового» — отдельными файлами (ревизия скорости, этап 2): игроку на карте они не нужны,
+// а вместе с английским словарём занимали больше половины главного файла программы. Грузятся, когда их открывают.
+const GamePage = lazy(() => import("./pages/GamePage").then((m) => ({ default: m.GamePage })));
+const LabelsPage = lazy(() => import("./pages/LabelsPage").then((m) => ({ default: m.LabelsPage })));
+const SupportPage = lazy(() => import("./pages/SupportPage").then((m) => ({ default: m.SupportPage })));
+const AllGamesPage = lazy(() => import("./pages/AllGamesPage").then((m) => ({ default: m.AllGamesPage })));
+const AdminUsersPage = lazy(() => import("./pages/AdminUsersPage").then((m) => ({ default: m.AdminUsersPage })));
+const NewGamePage = lazy(() => import("./pages/NewGamePage").then((m) => ({ default: m.NewGamePage })));
+const WhatsNewPage = lazy(() => import("./pages/WhatsNewPage").then((m) => ({ default: m.WhatsNewPage })));
 import { HowToPlayPage } from "./pages/HowToPlayPage";
-import { WhatsNewPage } from "./pages/WhatsNewPage";
 import { GoogleNicknamePage } from "./pages/GoogleNicknamePage";
 import { PrivacyPage } from "./pages/PrivacyPage";
 import "./styles/index.css";
-import { t } from "./lib/i18n";
+import { loadEnglish, readGuestLocale, t } from "./lib/i18n";
+import { savedUser } from "./lib/persist";
 
 /** Только для вошедших. Пока почта не подтверждена, вместо любой страницы — «Подтвердите почту». */
 function Private({ children }: { children: React.ReactElement }) {
@@ -38,12 +41,16 @@ function Private({ children }: { children: React.ReactElement }) {
   return user.emailVerified ? children : <VerifyPendingPage />;
 }
 
-ReactDOM.createRoot(document.getElementById("root")!).render(
+/** Пока кусок программы в пути: та же строка, что при проверке входа. */
+const Wait = () => <p className="container muted">{t("Загрузка…")}</p>;
+
+const start = () => ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
     <ErrorBoundary>
     <BrowserRouter>
       <AuthProvider>
         <UiProvider>
+        <Suspense fallback={<Wait />}>
         <Routes>
           <Route element={<Layout />}>
             <Route path="/login" element={<LoginPage />} />
@@ -62,19 +69,24 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
             <Route path="/games/:id/team" element={<Private><TeamPage /></Private>} />
             <Route path="/join/:token" element={<JoinPage />} />
             <Route path="/account" element={<Private><AccountPage /></Private>} />
-            <Route path="/admin" element={<Private><Suspense fallback={null}><AdminDashboard /></Suspense></Private>} />
+            <Route path="/admin" element={<Private><AdminDashboard /></Private>} />
             <Route path="/admin/support" element={<Private><SupportPage /></Private>} />
             <Route path="/admin/games" element={<Private><AllGamesPage /></Private>} />
             <Route path="/admin/users" element={<Private><AdminUsersPage /></Private>} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Route>
         </Routes>
+        </Suspense>
         </UiProvider>
       </AuthProvider>
     </BrowserRouter>
     </ErrorBoundary>
   </React.StrictMode>,
 );
+// Англоязычному игроку словарь нужен до первой отрисовки, иначе экран мигнул бы русским. Язык известен сразу: из
+// запомненной учётки или из выбора гостя. Словарь не пришёл (нет связи) — запускаемся как есть, AuthProvider повторит.
+if ((savedUser<{ id: string; locale?: string }>()?.locale ?? readGuestLocale()) === "en") void loadEnglish().catch(() => {}).finally(start);
+else start();
 
 // Кусок программы не загрузился. Если на сервере уже другая сборка (открытая вкладка просит файл прежней, которого нет) —
 // страница обновляется; если сборка та же, дело в связи: страницу не трогаем, ошибку обрабатывает тот, кто просил кусок

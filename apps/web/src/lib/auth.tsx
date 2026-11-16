@@ -1,7 +1,7 @@
 import { Fragment, createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { api, ApiError, type User, clearReady, setOwner } from "./api";
 import { savedUser, saveUser } from "./persist";
-import { readGuestLocale, saveGuestLocale, setLocale, type Locale } from "./i18n";
+import { englishReady, loadEnglish, readGuestLocale, saveGuestLocale, setLocale, type Locale } from "./i18n";
 import { syncPush } from "./push";
 
 /** Аккаунт на этом устройстве (решение владельца 05.10: несколько аккаунтов с быстрым переключением). */
@@ -46,7 +46,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
   const [offline, setOffline] = useState(false);
   const [guestLocale, setGuest] = useState<Locale>(readGuestLocale());
-  const locale: Locale = user ? (user.locale === "en" ? "en" : "ru") : guestLocale;
+  const want: Locale = user ? (user.locale === "en" ? "en" : "ru") : guestLocale;
+  // Английский словарь — отдельный файл (ревизия скорости, этап 2). Пока он в пути, экран остаётся на русском и
+  // переключается, когда словарь пришёл; при сбое связи — повтор с растущей паузой. При запуске словарь ждут ещё до первой
+  // отрисовки (main.tsx), так что сюда попадает только смена языка на ходу: вход англоязычной учётки, выбор на странице входа.
+  const [, dictCame] = useState(0);
+  useEffect(() => {
+    if (want !== "en" || englishReady()) return;
+    let live = true, tm: ReturnType<typeof setTimeout> | undefined, tries = 0;
+    const go = () => { loadEnglish().then(() => { if (live) dictCame((n) => n + 1); }).catch(() => { if (live) tm = setTimeout(go, Math.min(30_000, 2000 * 2 ** tries++)); }); };
+    go();
+    return () => { live = false; clearTimeout(tm); };
+  }, [want]);
+  const locale: Locale = want === "en" && !englishReady() ? "ru" : want;
   // Синхронно перед отрисовкой детей: t() читает текущий язык при рендере.
   setLocale(locale);
   const setGuestLocale = useCallback((l: Locale) => { saveGuestLocale(l); setGuest(l); }, []);
