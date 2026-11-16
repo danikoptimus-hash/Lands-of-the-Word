@@ -76,6 +76,14 @@ export function publish(gameId: string, event: Omit<GameEvent, "at">): void {
 }
 
 export function subscriberCount(gameId: string): number { return subscribers.get(gameId)?.size ?? 0; }
+/**
+ * Закрыть все потоки событий: сервер останавливается (выкладка). Открытые потоки иначе держали бы его до принудительной
+ * остановки; приложения переподключатся сами — через случайную паузу, уже к новому серверу.
+ */
+export function closeAllStreams(): void {
+  for (const set of subscribers.values()) for (const sub of set) { try { sub.reply.raw.end(); } catch { /* уже закрыт */ } }
+  subscribers.clear();
+}
 /** Слушает ли карту кто-то из этой команды (наблюдатели без команды не считаются: им карта команды не рассылается). */
 export function hasTeamSubscribers(gameId: string, teamId: string): boolean {
   const k = teamFormats(gameId, teamId);
