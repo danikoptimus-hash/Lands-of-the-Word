@@ -18,7 +18,9 @@ export default defineConfig({
         globPatterns: ["**/*.{js,css,html,ico,webmanifest}", "favicon-32.png", "icon-192.png", "apple-touch-icon.png", "img/brand/logo-64.png", "img/brand/logo-256.png"],
         // Экраны и графики администратора платформы (ECharts, 618 КБ) игрокам не нужны: заранее они не качаются, а
         // загружаются, когда их откроют (ревизия скорости 15.11: раньше лежали в предзагрузке у каждого телефона).
-        globIgnores: ["**/Chart-*.js", "**/AdminDashboard-*.js", "**/GameAnalytics-*.js"],
+        // Этап 2: так же — английский словарь, перевод и записи «Что нового», экраны администратора. Они грузятся по
+        // требованию и после первого раза лежат в кэше «lotw-chunks» (правило ниже).
+        globIgnores: ["**/Chart-*.js", "**/AdminDashboard-*.js", "**/GameAnalytics-*.js", "**/i18n.en-*.js", "**/changelog-*.js", "**/WhatsNewPage-*.js", "**/GamePage-*.js", "**/LabelsPage-*.js", "**/SupportPage-*.js", "**/AllGamesPage-*.js", "**/AdminUsersPage-*.js", "**/NewGamePage-*.js"],
         runtimeCaching: [
           // Аватарки и гербы из готового набора (решение владельца 14.11) — в своём кэше, чтобы полтораста мелких картинок не вытесняли картинки карты.
           { urlPattern: /\/img\/(avatars|crests)\/.*\.webp(\?.*)?$/, handler: "CacheFirst", options: { cacheName: "lotw-avatars", expiration: { maxEntries: 320, maxAgeSeconds: 30 * 24 * 3600 } } },
@@ -27,7 +29,7 @@ export default defineConfig({
           // перепроверялись при каждом запуске, и текст «перещёлкивался» с запасного шрифта (ревизия скорости 15.11).
           { urlPattern: /\/fonts\/.*\.woff2$/, handler: "CacheFirst", options: { cacheName: "lotw-fonts", expiration: { maxEntries: 30, maxAgeSeconds: 90 * 24 * 3600 } } },
           // Ленивые куски программы (их нет в предзагрузке): имя с меткой сборки, содержимое не меняется.
-          { urlPattern: /\/assets\/.*\.js$/, handler: "CacheFirst", options: { cacheName: "lotw-chunks", expiration: { maxEntries: 12, maxAgeSeconds: 30 * 24 * 3600 } } },
+          { urlPattern: /\/assets\/.*\.js$/, handler: "CacheFirst", options: { cacheName: "lotw-chunks", expiration: { maxEntries: 40, maxAgeSeconds: 30 * 24 * 3600 } } },
         ],
         // Обработчики push и клика по уведомлению — в public/push-sw.js.
         importScripts: ["push-sw.js"],
@@ -38,5 +40,12 @@ export default defineConfig({
     }),
   ],
   server: { port: 5173, proxy: { "/api": "http://localhost:3000" } },
-  build: { outDir: "dist", sourcemap: false },
+  build: {
+    outDir: "dist", sourcemap: false,
+    rollupOptions: { output: {
+      // Библиотеки — отдельным файлом (ревизия скорости, этап 2): он не меняется от выкладки к выкладке, и телефон после
+      // обновления игры его не перекачивает. Раньше всё лежало в одном файле, имя которого менялось при каждой выкладке.
+      manualChunks(id) { if (/node_modules\/(react|react-dom|react-router|react-router-dom|scheduler|fast-json-patch|cookie|set-cookie-parser)\//.test(id)) return "vendor"; },
+    } },
+  },
 });
