@@ -290,8 +290,19 @@ describe("дипломатия, роли, столица, руины, сдача
     const inbox = await app.inject({ method: "GET", url: `/api/games/${gameId}/my-passages`, headers: { cookie: p1Cookie } });
     expect(inbox.json().incoming).toHaveLength(1);
     const reqId = inbox.json().incoming[0].id as string;
+    // Решение владельца 16.11: с другими командами говорят капитан, заместитель и посол. Назначенный посол больше не
+    // отнимает это право у капитана; участник без этих ролей ответить на запрос не может.
+    const extraCookie = await register(`${p1Nick}_amb`);
+    const extraId = (await app.inject({ method: "GET", url: "/api/auth/me", headers: { cookie: extraCookie } })).json().user.id as string;
+    await prisma.membership.create({ data: { teamId: team1, userId: extraId, role: "MEMBER" } });
+    const speaks = async (cookie: string) => (await app.inject({ method: "GET", url: `/api/games/${gameId}/my-passages`, headers: { cookie } })).json().canSpeak as boolean;
+    expect(await speaks(extraCookie)).toBe(false);
+    expect((await app.inject({ method: "POST", url: `/api/games/${gameId}/passages/${reqId}/decide`, headers: { cookie: extraCookie }, payload: { approve: true } })).statusCode).toBe(403);
+    await prisma.membership.update({ where: { teamId_userId: { teamId: team1, userId: extraId } }, data: { gameRole: "AMBASSADOR" } });
+    expect([await speaks(extraCookie), await speaks(p1Cookie)]).toEqual([true, true]);
     const ok = await app.inject({ method: "POST", url: `/api/games/${gameId}/passages/${reqId}/decide`, headers: { cookie: p1Cookie }, payload: { approve: true, answer: "Проходите" } });
     expect(ok.statusCode).toBe(200);
+    await prisma.membership.delete({ where: { teamId_userId: { teamId: team1, userId: extraId } } });
     const map1 = await app.inject({ method: "GET", url: `/api/games/${gameId}/my-map`, headers: { cookie: p2Cookie } });
     const city1 = (map1.json().cities as Array<{ nodeKey: string; blocked: boolean; passage: string | null }>).find((c) => c.nodeKey === rutKey)!;
     expect(city1).toMatchObject({ blocked: false, passage: "APPROVED" });

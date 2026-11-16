@@ -20,13 +20,16 @@ const BOOK_BY_CODE = new Map(BOOKS.map((b) => [b.code, b]));
 const teamSelect = { select: { id: true, name: true, color: true, avatarId: true } } as const;
 
 /** Кто говорит от команды с другими командами: посол, если назначен, иначе капитан. */
+/**
+ * Кто говорит за команду с другими командами (запрос прохода и ответ на него): капитан, заместитель и посол.
+ * Решение владельца 16.11 («дать капитану, заместителю и послу!»): раньше при назначенном после говорил только он, и
+ * капитан не мог ни попросить проход, ни ответить на запрос. Так же давно устроен мир (routes/journal.ts). Обмен
+ * городами остаётся делом послов (решение 04.10).
+ */
 async function canSpeak(teamId: string, userId: string): Promise<{ ok: boolean; why: string }> {
-  const members = await prisma.membership.findMany({ where: { teamId }, select: { userId: true, role: true, gameRole: true } });
-  const ambassador = members.find((m) => m.gameRole === "AMBASSADOR");
-  const me = members.find((m) => m.userId === userId);
+  const me = await prisma.membership.findUnique({ where: { teamId_userId: { teamId, userId } }, select: { role: true, gameRole: true } });
   if (!me) return { ok: false, why: "Вы не состоите в команде" };
-  if (ambassador) return ambassador.userId === userId ? { ok: true, why: "" } : { ok: false, why: "С другими командами говорит посол вашей команды" };
-  return isLeader(me) ? { ok: true, why: "" } : { ok: false, why: "Запросы другим командам отправляет капитан или посол, если он назначен" };
+  return isLeader(me) || me.gameRole === "AMBASSADOR" ? { ok: true, why: "" } : { ok: false, why: "С другими командами говорят капитан, заместитель и посол" };
 }
 
 const view = (r: { id: string; nodeKey: string; message: string; answer: string; status: string; createdAt: Date; expiresAt: Date; decidedAt: Date | null; requester: { id: string; name: string; color: string }; owner: { id: string; name: string; color: string } }, bookOf: Map<string, string>) =>
