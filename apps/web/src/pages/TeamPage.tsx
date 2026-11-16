@@ -283,6 +283,8 @@ export function TeamPage() {
   const [passages, setPassages] = useState<PassagesDto | null>(() => ready<PassagesDto>(`/api/games/${id}/my-passages`));
   const [gameName, setGameName] = useState(firstMap?.gameName ?? "");
   const [busy, setBusy] = useState(false);
+  /** Запрос прохода, на который сейчас уходит ответ из «Внимания». */
+  const [passBusy, setPassBusy] = useState<string | null>(null);
   /** Идёт запрос «отметить / снять приоритет»: блокируется только сама кнопка приоритета (замечание владельца 14.11: от неё мигали «Взять дело» и «Вымостить дорогу» — общий флаг busy блокировал все кнопки карточки). */
   const [prioBusy, setPrioBusy] = useState(false);
   /** Поручение дела (решение владельца 14.11): для какого дела открыт список «кому поручить». */
@@ -804,7 +806,11 @@ export function TeamPage() {
   const phase = previewPhase() ?? dayRules.phase;
   const canTakeNow = phase !== "night" || Boolean(dayRules.tasksOpen);
   const landingTask = landingId ? map.tasks.find((tk) => tk.id === landingId && tk.landing) ?? null : null;
-  const incoming = passages?.incoming.filter((r) => r.status === "PENDING") ?? [];
+  // Запросы прохода через наши города. Отвечает посол, а без посла — капитан или заместитель (canSpeak): им в строке
+  // «Внимания» — кнопки «отказать» и «разрешить» (решение владельца 16.11: «прям из уведомлений пропуск или отказ»).
+  // Остальным запрос — известие: кнопка «Очистить всё» убирает его из их списка.
+  const canAnswer = Boolean(passages?.canSpeak);
+  const incoming = (passages?.incoming.filter((r) => r.status === "PENDING") ?? []).filter((r) => canAnswer || !(map.seenPassages ?? []).includes(r.id));
   // Бейдж на кнопке меню — только то, что требует действия: возвращённое дело, входящий запрос прохода, наш ход в испытании.
   const peaceOffers = peace?.canSpeak ? peace.teams.filter((p) => p.state === "incoming") : [];
   // Просьба о защитном союзе (решение владельца 22.10) ждёт ответа капитана, заместителя или посла.
@@ -822,13 +828,38 @@ export function TeamPage() {
   const newQuarry = map.quarryNew ?? [];
   // К нашему городу подошла чужая команда (решение владельца 07.11: вместо шатров на карте — пункт «Внимание», push и уведомление).
   const arrivals = map.arrivals ?? [];
-  /** Пункт прочитан (решение владельца 07.11): исчезает сразу и только у меня; отметка хранится на сервере. */
-  const markSeen = (kind: "quarry" | "wreck" | "arrival", refId: string) => {
+  /** Пункты прочитаны (решение владельца 07.11): исчезают сразу и только у меня; отметки хранятся на сервере. */
+  type SeenItem = { kind: "quarry" | "wreck" | "arrival" | "passage"; refId: string };
+  const markSeenMany = (items: SeenItem[]) => {
+    if (items.length === 0) return;
+    const of = (k: SeenItem["kind"]) => items.filter((x) => x.kind === k).map((x) => x.refId);
+    const quarry = new Set(of("quarry")), arrived = new Set(of("arrival")), wrecks = of("wreck"), passed = of("passage");
     const m = mapRef.current;
-    if (m) putMap({ ...m, quarryNew: kind === "quarry" ? (m.quarryNew ?? []).filter((d) => d.id !== refId) : m.quarryNew, seenWrecks: kind === "wreck" ? [...(m.seenWrecks ?? []), refId] : m.seenWrecks, arrivals: kind === "arrival" ? (m.arrivals ?? []).filter((a) => a.id !== refId) : m.arrivals });
-    void api(`/api/games/${id}/attention/seen`, { method: "POST", body: JSON.stringify({ kind, refId }) }).catch(() => {});
+    if (m) putMap({ ...m, quarryNew: quarry.size ? (m.quarryNew ?? []).filter((d) => !quarry.has(d.id)) : m.quarryNew, arrivals: arrived.size ? (m.arrivals ?? []).filter((a) => !arrived.has(a.id)) : m.arrivals, seenWrecks: wrecks.length ? [...(m.seenWrecks ?? []), ...wrecks] : m.seenWrecks, seenPassages: passed.length ? [...(m.seenPassages ?? []), ...passed] : m.seenPassages });
+    void api(`/api/games/${id}/attention/seen`, { method: "POST", body: JSON.stringify(items.length === 1 ? items[0] : { items }) }).catch(() => {});
   };
+  const markSeen = (kind: "quarry" | "wreck" | "arrival", refId: string) => markSeenMany([{ kind, refId }]);
+  // «Очистить всё» (решение владельца 16.11): одним нажатием уходят известия — кто подошёл к городу, новый разбитый корабль,
+  // новое дело Каменоломни, а у того, кто не отвечает за команду, и запросы прохода. То, что ждёт действия самого игрока
+  // (возвращённое дело, поручение, запрос прохода у отвечающего, ход в испытании, отчёт о визите), остаётся: у этих
+  // пунктов есть сроки, и уходят они сами, когда дело сделано.
+  const clearable: SeenItem[] = [...arrivals.map((a) => ({ kind: "arrival" as const, refId: a.id })), ...newWrecks.map((w) => ({ kind: "wreck" as const, refId: w.id })), ...newQuarry.map((d) => ({ kind: "quarry" as const, refId: d.id })), ...(canAnswer ? [] : incoming.map((r) => ({ kind: "passage" as const, refId: r.id })))];
   const attention = ourTasks.filter((tk) => tk.status === "REJECTED").length + incoming.length + peaceOffers.length + activeBattles.filter((b) => isMyTurn(b, team.id)).length + allyAsks + (isLeader ? visitsDue.length : 0) + returnedEntries.length + returnedBlocks.length + newWrecks.length + newQuarry.length + arrivals.length + assignedToMe.length;
+  const clearAll = () => {
+    const left = attention - clearable.length;
+    markSeenMany(clearable);
+    if (left > 0) notify(t("Очищено. Остались пункты, которые ждут вашего ответа."), "info");
+  };
+  /** Ответ на запрос прохода прямо из «Внимания». Разрешение отозвать нельзя — перед ним вопрос; отказ — сразу. */
+  const decidePassage = async (r: { id: string; bookName: string; requester: { name: string } }, approve: boolean) => {
+    if (approve && !(await confirm(t("Команда «{team}» сможет ходить через ваш город, пока он ваш. Отозвать разрешение нельзя.", { team: r.requester.name }), { title: t("Разрешить проход через {book}?", { book: r.bookName }), okLabel: t("Разрешить") }))) return;
+    setPassBusy(r.id);
+    try {
+      await api(`/api/games/${id}/passages/${r.id}/decide`, { method: "POST", body: JSON.stringify({ approve, answer: "" }) });
+      notify(approve ? t("Команде «{team}» разрешён проход через {book}", { team: r.requester.name, book: r.bookName }) : t("Команде «{team}» отказано в проходе через {book}", { team: r.requester.name, book: r.bookName }), "info");
+    } catch (e) { notify(e instanceof ApiError ? e.message : t("Ошибка сети"), "bad"); }
+    finally { await loadPassages(); setPassBusy(null); }
+  };
   const rejectedTasks = ourTasks.filter((tk) => tk.status === "REJECTED");
   const myTurnBattles = activeBattles.filter((b) => isMyTurn(b, team.id));
   // Две вкладки испытаний (решение владельца 31.10: «вместо того, чтобы писать, кто претендент, а кто хранитель, — две табы»):
@@ -925,6 +956,8 @@ export function TeamPage() {
           <div className={"side-top" + (view === "battles" || view === "standings" || view === "service" || view === "deeds" ? " with-tabs" : "")}>
             <div className="menu-sub">
               <h2><Icon name={MENU_ITEMS.find((m) => m.key === view)?.icon ?? "map"} />{MENU_ITEMS.find((m) => m.key === view)?.label()}</h2>
+              {/* «Очистить всё» (решение владельца 16.11) — пока в списке есть известия; дела, ждущие ответа, кнопка не трогает. */}
+              {view === "attention" && clearable.length > 0 && <button type="button" className="ghost sm clear-all" onClick={clearAll}>{t("Очистить всё")}</button>}
               <button type="button" className="ghost icon" onClick={closeMenu} aria-label={t("Закрыть")}><Icon name="x" /></button>
             </div>
             {view === "battles" && (
@@ -977,9 +1010,19 @@ export function TeamPage() {
                         <div className="main"><span className="title">{t("Дело возвращено: {title}", { title: tk.deed.title })}</span>{tk.adminComment && <span className="meta">{tk.adminComment}</span>}</div><Icon name="chevron" className="chev" />
                       </li>
                     ))}
+                    {/* Запрос прохода: отвечающему за команду — «отказать» и «разрешить» прямо в строке (решение владельца 16.11,
+                        по его рисунку: крестик и галочка перед стрелкой); нажатие на саму строку по-прежнему открывает город,
+                        где к ответу можно приписать слова. */}
                     {incoming.map((r) => (
-                      <li key={r.id} role="button" tabIndex={0} onClick={() => { rememberScroll(); setMenuView("home"); openCity(r.nodeKey); }} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); rememberScroll(); setMenuView("home"); openCity(r.nodeKey); } }}>
-                        <div className="main"><span className="title">{t("Запрос прохода через {book}", { book: r.bookName })}</span><span className="meta">{t("от команды «{team}»", { team: r.requester.name })}</span></div><Icon name="chevron" className="chev" />
+                      <li key={r.id} className={canAnswer ? "with-acts" : undefined} role="button" tabIndex={0} onClick={() => { rememberScroll(); setMenuView("home"); openCity(r.nodeKey); }} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); rememberScroll(); setMenuView("home"); openCity(r.nodeKey); } }}>
+                        <div className="main"><span className="title">{t("Запрос прохода через {book}", { book: r.bookName })}</span><span className="meta">{t("от команды «{team}»", { team: r.requester.name })}</span></div>
+                        {canAnswer && (
+                          <span className="row-acts" onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
+                            <button type="button" className="secondary row-act deny" disabled={passBusy !== null} aria-label={t("Отказать в проходе")} title={t("Отказать в проходе")} onClick={() => void decidePassage(r, false)}><Icon name="x" /></button>
+                            <button type="button" className="secondary row-act grant" disabled={passBusy !== null} aria-label={t("Разрешить проход")} title={t("Разрешить проход")} onClick={() => void decidePassage(r, true)}><Icon name="tick" /></button>
+                          </span>
+                        )}
+                        <Icon name="chevron" className="chev" />
                       </li>
                     ))}
                     {/* Открывает профиль команды: принять или отклонить — там (решение владельца 05.11). */}

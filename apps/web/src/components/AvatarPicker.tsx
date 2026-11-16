@@ -1,4 +1,4 @@
-import { useRef, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { AVATAR_CODES, AVATAR_GROUPS, CREST_CODES, avatarGroupOf, avatarImage } from "@lotw/domain";
 import { ApiError, api } from "../lib/api";
 import { t } from "../lib/i18n";
@@ -12,7 +12,11 @@ const GROUP_TITLE: Record<Group, () => string> = { people: () => t("Люди"), 
 
 /**
  * Выбор аватарки участника или герба команды из готового набора игры (решение владельца 14.11: своих фото игра не
- * принимает и не хранит). Нажатие на саму аватарку открывает лист с набором; нажатие на картинку сразу ставит её.
+ * принимает и не хранит). Нажатие на саму аватарку открывает лист с набором. Нажатие на картинку набора показывает её
+ * крупно в том же листе (решение владельца 16.11: «добавить возможность просматривать их крупно, а то сейчас при
+ * нажатии она сразу ставится в профиль»): стрелки и свайп листают соседние картинки раздела, ставит картинку только
+ * кнопка «Выбрать». Пока картинка открыта крупно, кнопка в шапке листа — стрелка «назад» к набору (как у листа дела),
+ * а не крестик: тот, кто хочет вернуться к набору, не вылетает из выбора. Нажатие мимо листа и Esc — тоже к набору.
  * Аватарки разложены по вкладкам «Люди», «Животные», «Предметы» (решение владельца 14.11: «разделение… через табы»),
  * лист открывается на вкладке выбранной аватарки; гербы идут одним списком. Убрать выбранную картинку нельзя — только
  * сменить на другую (решение владельца 14.11: кнопку «Убрать аватарку» убрать); кружок с буквой — у тех, кто не выбирал.
@@ -34,6 +38,9 @@ export function AvatarPicker({ preview, url, kind, current, onChanged }: {
   const groupOf = (code: string | null): Group => avatarGroupOf(code ? AVATAR_CODES.indexOf(code) + 1 : 0);
   const [tab, setTab] = useState<Group>("people");
   const gridRef = useRef<HTMLDivElement>(null);
+  /** Картинка, которую сейчас смотрят крупно; null — на экране набор. */
+  const [look, setLook] = useState<string | null>(null);
+  const swipeX = useRef<number | null>(null);
   // Картинки вкладки — по отрезкам номеров раздела, в порядке отрезков (новые картинки раздела стоят в его конце).
   const codes = team ? CREST_CODES.map((c, i) => ({ c, n: i + 1 }))
     : AVATAR_GROUPS.find((g) => g.key === tab)!.ranges.flatMap(([from, to]) => AVATAR_CODES.slice(from - 1, to).map((c, i) => ({ c, n: from + i })));
@@ -42,32 +49,63 @@ export function AvatarPicker({ preview, url, kind, current, onChanged }: {
     setBusy(true);
     try {
       await api(url, { method: "PUT", body: JSON.stringify({ avatarId }) });
-      await onChanged(); setOpen(false);
+      await onChanged(); setOpen(false); setLook(null);
       ui.notify(team ? t("Герб выбран") : t("Аватарка выбрана"));
     }
     catch (e) { ui.notify(e instanceof ApiError ? e.message : t("Ошибка сети"), "bad"); }
     finally { setBusy(false); }
   }
   const title = team ? t("Выбрать герб команды") : t("Выбрать аватарку");
+  // Крупный просмотр: соседние картинки того же раздела, по кругу.
+  const at = look ? codes.findIndex((x) => x.c === look) : -1;
+  const seen = at >= 0 ? codes[at]! : null;
+  const step = (d: number) => { if (at >= 0) setLook(codes[(at + d + codes.length) % codes.length]!.c); };
+  // Соседние крупные картинки подгружаются заранее: листание без пустого кружка.
+  useEffect(() => {
+    if (at < 0) return;
+    for (const d of [-1, 1]) { const src = avatarImage(codes[(at + d + codes.length) % codes.length]!.c, "lg"); if (src) { const im = new Image(); im.decoding = "async"; im.src = src; } }
+  }, [look]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (!open || at < 0) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === "ArrowLeft") step(-1); else if (e.key === "ArrowRight") step(1); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [open, look]); // eslint-disable-line react-hooks/exhaustive-deps
   return (
     <div className="avatar-picker">
-      <button type="button" className="avatar-btn" onClick={() => { setTab(groupOf(current)); setOpen(true); }} aria-label={title} title={title}>
+      <button type="button" className="avatar-btn" onClick={() => { setTab(groupOf(current)); setLook(null); setOpen(true); }} aria-label={title} title={title}>
         {preview}
         <span className="badge" aria-hidden="true"><Icon name="edit" /></span>
       </button>
       {open && (
-        <Sheet title={team ? t("Герб команды") : t("Аватарка")} onClose={() => setOpen(false)} size="md" className="avatar-pick-sheet">
+        <Sheet title={team ? t("Герб команды") : t("Аватарка")} onClose={() => (seen ? setLook(null) : setOpen(false))} closeLabel={seen ? (team ? t("Все гербы") : t("Все аватарки")) : undefined} size="md" className="avatar-pick-sheet">
+          {seen ? (
+            // Крупно: картинка во всю ширину листа, под ней — листание и единственная залитая кнопка «Выбрать».
+            <div className="avatar-look" onTouchStart={(e) => { swipeX.current = e.touches[0]?.clientX ?? null; }} onTouchEnd={(e) => { const x0 = swipeX.current, x1 = e.changedTouches[0]?.clientX; swipeX.current = null; if (x0 != null && x1 != null && Math.abs(x1 - x0) > 48) step(x1 < x0 ? 1 : -1); }}>
+              <img className="big" key={seen.c} src={avatarImage(seen.c, "lg") ?? undefined} alt={team ? t("Герб {n}", { n: seen.n }) : t("Аватарка {n}", { n: seen.n })} width={320} height={320} decoding="async" />
+              {/* Где мы в наборе: раздел и место в нём — стрелки листают только этот раздел. */}
+              <p className="look-where">{team ? t("Герб {n} из {m}", { n: at + 1, m: codes.length }) : t("{group} · {n} из {m}", { group: GROUP_TITLE[tab](), n: at + 1, m: codes.length })}</p>
+              <div className="look-row">
+                <button type="button" className="secondary look-nav prev" onClick={() => step(-1)} aria-label={t("Предыдущая картинка")} title={t("Предыдущая картинка")}><Icon name="chevron" /></button>
+                {seen.c === current
+                  ? <span className="look-now">{team ? t("Это герб вашей команды") : t("Это ваша аватарка")}</span>
+                  : <button type="button" className="look-pick" disabled={busy} onClick={() => void choose(seen.c)}><Icon name="check" />{team ? t("Выбрать этот герб") : t("Выбрать эту аватарку")}</button>}
+                <button type="button" className="secondary look-nav" onClick={() => step(1)} aria-label={t("Следующая картинка")} title={t("Следующая картинка")}><Icon name="chevron" /></button>
+              </div>
+            </div>
+          ) : (<>
           {!team && <Tabs<Group> swipeArea={gridRef} value={tab} onChange={setTab} ariaLabel={t("Раздел набора")} items={AVATAR_GROUPS.map((g) => ({ key: g.key, label: GROUP_TITLE[g.key]() }))} />}
           {/* Листается только эта область: вкладки стоят на месте. Кнопки «убрать картинку» нет (решение владельца 14.11). */}
           <div className="avatar-pick-scroll" ref={gridRef}>
           <div className="avatar-pick-grid">
             {codes.map(({ c, n }) => (
-              <button key={c} type="button" className={"avatar-opt" + (c === current ? " on" : "")} disabled={busy} aria-pressed={c === current} onClick={() => void choose(c)} aria-label={team ? t("Герб {n}", { n }) : t("Аватарка {n}", { n })}>
+              <button key={c} type="button" className={"avatar-opt" + (c === current ? " on" : "")} aria-pressed={c === current} onClick={() => setLook(c)} aria-label={team ? t("Герб {n}", { n }) : t("Аватарка {n}", { n })}>
                 <img src={avatarImage(c) ?? undefined} alt="" loading="lazy" decoding="async" width={128} height={128} />
               </button>
             ))}
           </div>
           </div>
+          </>)}
         </Sheet>
       )}
     </div>

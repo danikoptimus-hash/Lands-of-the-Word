@@ -328,6 +328,20 @@
 .side-menu .section.attention h2 .i { color: var(--wax-ink); }
 .side-menu .section.attention .list li .chev { flex: none; width: 18px; height: 18px; color: var(--ink-2); }
 .side-menu .section.attention .list li .title { font-weight: 700; }
+/* Запрос прохода: «отказать» и «разрешить» прямо в строке (решение владельца 16.11) — две квадратные кнопки перед стрелкой.
+   Зона нажатия 44×44, между ними 8; строка не переносится, чтобы кнопки не уезжали под текст. */
+.side-menu .section.attention .list > li.with-acts { flex-wrap: nowrap; align-items: center; }
+.side-menu .section.attention .list > li.with-acts .main { flex: 1 1 0; }
+.row-acts { display: inline-flex; flex: none; gap: var(--sp-2); }
+.row-acts .row-act { width: 44px; height: 44px; min-height: 0; padding: 0; display: inline-grid; place-items: center; border-radius: var(--r-md); }
+.row-acts .row-act .i { width: 22px; height: 22px; stroke-width: 2.4; }
+.row-acts .row-act.deny { color: var(--danger); border-color: color-mix(in srgb, var(--danger) 55%, var(--paper-edge)); }
+.row-acts .row-act.grant { color: var(--success); border-color: color-mix(in srgb, var(--success) 55%, var(--paper-edge)); }
+.row-acts .row-act:disabled { opacity: .5; }
+/* «Очистить всё» в шапке «Внимания»: слово, неяркое, между названием раздела и крестиком. */
+.menu-sub .ghost.clear-all { position: relative; flex: none; min-height: 36px; margin-right: var(--sp-2); padding: 0 var(--sp-2); font-size: var(--fs-sm); font-weight: 600; color: var(--ink-2); white-space: nowrap; }
+/* Зона нажатия — 44 по высоте при видимой высоте 36 (как у «?»); от крестика отодвинута, чтобы не попасть мимо. */
+.menu-sub .ghost.clear-all::before { content: ""; position: absolute; inset: -5px 0; }
 .menu-hint { padding: 0 var(--sp-4) var(--sp-2); margin: 0; }
 
 /* На компьютере меню лежит на карте тем же стеклом, что и на телефоне (решение владельца 21.09) */
