@@ -1,3 +1,4 @@
+import { coverGate } from "../lib/mapCover";
 import { useEffect, useRef, useState } from "react";
 import { HEX_SIZE, hexCenter } from "../lib/hexmap";
 import type { MapHexDto } from "../lib/api";
@@ -117,9 +118,11 @@ export function LakesLayer({ vp, hexes, size = HEX_SIZE, onUnsupported, daytime 
         gl.drawArrays(gl.TRIANGLE_FAN, 0, 8);
       }
     };
+    const under = coverGate();
     const loop = (now: number) => {
       raf = requestAnimationFrame(loop);
       if (document.hidden) return;
+      if (!dirty && under(now)) return; // карта под листом — lib/mapCover.ts (кадр после смены размера или вида рисуется и под листом)
       if (!dirty && (still || now - last < 33)) return;
       dirty = false; last = now; draw(now);
     };

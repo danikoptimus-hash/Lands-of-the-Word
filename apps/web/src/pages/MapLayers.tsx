@@ -1,3 +1,4 @@
+import { coverGate } from "../lib/mapCover";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type React from "react";
 import { FOG_COLOR, HEX_SIZE, TERRAIN_COLOR, coastPath, hexCenter, hexPoints } from "../lib/hexmap";
@@ -89,9 +90,11 @@ function SeaCanvas({ vp, bed, light }: { vp: Viewport; bed: Seabed | null; light
       });
       ctx.globalAlpha = 1; ctx.globalCompositeOperation = "source-over";
     };
+    const under = coverGate();
     const loop = (now: number) => {
       raf = requestAnimationFrame(loop);
       if (document.hidden) return;
+      if (!dirty && under(now)) return; // карта под листом — lib/mapCover.ts (кадр после смены размера или вида рисуется и под листом)
       if (!dirty && (still || now - lastDraw < 50)) return;
       dirty = false; lastDraw = now; draw(now);
     };
@@ -462,9 +465,11 @@ export function FogLayer({ vp, size = HEX_SIZE, fogHexes, fogPoints = NO_POINTS,
       ctx.restore();
     };
     let raf = 0, last = 0;
+    const underFog = coverGate();
     const loop = (t: number) => {
       raf = requestAnimationFrame(loop);
       if (document.hidden) return;
+      if (!dirty.current && underFog(t)) return; // карта под листом — lib/mapCover.ts (кадр после смены размера или вида рисуется и под листом)
       // Пока окно разведки раскрывается — без ограничения кадров (решение владельца 29.10: «подними на 60 кадров»);
       // облака в покое — не чаще 24 к/с ради батареи.
       const now = performance.now(), moving = holesRef.current.some((h) => { const f = fogHoleAt(h, now); return f > 0 && f < 1; });

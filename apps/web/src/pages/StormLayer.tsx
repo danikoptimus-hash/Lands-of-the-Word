@@ -1,3 +1,4 @@
+import { coverGate } from "../lib/mapCover";
 import { useEffect, useRef } from "react";
 
 /**
@@ -91,9 +92,11 @@ export function StormLayer({ t }: { t: number }) {
         } else if (age > 600) bolt = null;
       }
     };
+    const under = coverGate();
     const loop = (now: number) => {
       raf = requestAnimationFrame(loop);
       if (document.hidden) return;
+      if (under(now)) return; // карта под листом — lib/mapCover.ts
       if (now - last < 33) return;
       last = now; draw(now);
     };
