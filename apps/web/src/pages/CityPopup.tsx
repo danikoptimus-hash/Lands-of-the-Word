@@ -1,3 +1,4 @@
+import { MEASURE } from "../lib/measure";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { BOOKS } from "@lotw/domain";
 import { api, ApiError, type CityTaskDto, type MyCityDto, type SupportItemDto, type TaskLockDto, type VisitDto } from "../lib/api";
@@ -37,7 +38,7 @@ const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
  */
 function useAwayCounter(url: string | null) {
   useEffect(() => {
-    if (!url) return;
+    if (!url || !MEASURE) return;
     void api(url, { method: "POST", body: JSON.stringify({ kind: "open" }) }).catch(() => {});
     let hiddenAt: number | null = null;
     const onVis = () => {

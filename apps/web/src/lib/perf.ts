@@ -1,4 +1,5 @@
 import { api } from "./api";
+import { MEASURE } from "./measure";
 
 /**
  * Замер интерфейса на устройстве: скорость открытия страницы (навигация, первая и самая крупная отрисовка)
@@ -51,6 +52,7 @@ function sampleFrames(ms: number): Promise<{ fps: number; jank: number; longTask
 
 /** Нажатие кнопки карты (вопрос владельца 24.10: пользуются ли «Вся карта» и «К старту»): что, где, с какого устройства. Без пользователя. */
 export function reportAction(action: "map-fit" | "map-start" | "map-mark", page: "map" | "admin-map"): void {
+  if (!MEASURE) return;
   try {
     const body = JSON.stringify({ action, page, device: device().device });
     if (!navigator.sendBeacon || !navigator.sendBeacon("/api/metrics/action", body)) void api("/api/metrics/action", { method: "POST", body }).catch(() => {});
@@ -59,7 +61,7 @@ export function reportAction(action: "map-fit" | "map-start" | "map-mark", page:
 
 /** Вызывается при открытии страницы (карта — после появления карты). Один замер на страницу за сессию вкладки. */
 export function reportPage(page: Page): void {
-  if (sent.has(page) || document.hidden) return;
+  if (!MEASURE || sent.has(page) || document.hidden) return;
   sent.add(page);
   const run = async () => {
     const frames = page === "other" ? null : await sampleFrames(6000);
