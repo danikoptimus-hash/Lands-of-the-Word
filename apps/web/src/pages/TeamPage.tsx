@@ -109,6 +109,8 @@ type MenuView = "home" | "attention" | "deeds" | "battles" | "standings" | "feed
 /** Поля ответа карты, которые меняются сами по себе и в сравнении «изменилась ли карта» не участвуют: часы сервера и номер версии. */
 const MAP_VOLATILE = ["now", "rev"] as const;
 const NOOP = () => {};
+/** Дата без переноса посреди («16 нояб., 22:56» не рвётся на две строки): пробелы — неразрывные. */
+const unbroken = (s: string) => s.replace(/ /g, "\u00a0");
 /** Секундные часы для одного блока: перерисовывается только он, а не вся страница с картой (ревизия 15.11). */
 function WithNow({ children }: { children: (now: number) => ReactNode }) { return <>{children(useNow())}</>; }
 /** Колокольчик — такая же плитка, как остальные (просьба участника 05.10): внутри всё, что требует внимания. */
@@ -509,7 +511,7 @@ export function TeamPage() {
       await api(`/api/games/${id}/edge-tasks/${taskId}/assign`, { method: "POST", body: JSON.stringify({ userId }) });
       await loadMap();
       setAssignFor(null);
-      notify(userId ? t("Дело поручено: {name}. Сутки взять его может только он", { name: memberName(userId) }) : t("Поручение снято: дело снова свободно"));
+      notify(userId ? t("Дело поручено: {name}", { name: memberName(userId) }) : t("Поручение снято: дело снова свободно"));
     } catch (e) { notify(e instanceof ApiError ? e.message : t("Ошибка сети"), "bad"); }
     finally { setAssignBusy(false); }
   }
@@ -584,7 +586,7 @@ export function TeamPage() {
     const when = mk.createdAt ? fmtDate(mk.createdAt) : "";
     // Метка с флажком «убрать, когда откроются облака» (решение владельца 11.11): команда видит, что она временная.
     const auto = mk.dropOnReveal ? ` ${t("Она исчезнет сама, когда здесь откроются облака.")}` : "";
-    if (mk.by && user && mk.by.id !== user.id) { notify((mk.note ? t("Метка «{note}» — её поставил {name} ({when}), убрать может только он.", { note: mk.note, name: by, when }) : t("Метку поставил {name} ({when}), убрать может только он.", { name: by, when })) + auto, "info"); return; }
+    if (mk.by && user && mk.by.id !== user.id) { notify((mk.note ? t("Метка «{note}» — автор {name} ({when}); убрать её может только автор.", { note: mk.note, name: by, when }) : t("Автор метки — {name} ({when}); убрать её может только автор.", { name: by, when })) + auto, "info"); return; }
     const text = mk.note
       ? (by ? t("Метка «{note}» (автор {name}, {when}) исчезнет у всей команды.", { note: mk.note, name: by, when }) : t("Метка «{note}» исчезнет у всей команды.", { note: mk.note }))
       : (by ? t("Метка (автор {name}, {when}) исчезнет у всей команды.", { name: by, when }) : t("Метка исчезнет у всей команды."));
@@ -845,7 +847,7 @@ export function TeamPage() {
                     {/* Поручение (решение владельца 14.11): пункт открывает карточку именно этого дела; висит, пока дело не взято, не отклонено и бронь не истекла. */}
                     {assignedToMe.map((tk) => (
                       <li key={"asg-" + tk.id} role="button" tabIndex={0} onClick={() => showOnMap(tk.id)} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); showOnMap(tk.id); } }}>
-                        <div className="main"><span className="title">{t("Вам поручено дело: {title}", { title: tk.deed.title })}</span><span className="meta">{[memberName(tk.assignedById ?? null) ? t("поручил: {name}", { name: memberName(tk.assignedById ?? null) }) : "", tk.assignedUntil ? t("взять до {time}", { time: fmtDate(tk.assignedUntil) }) : ""].filter(Boolean).join(" · ")}</span></div><Icon name="chevron" className="chev" />
+                        <div className="main"><span className="title">{t("Вам поручено дело: {title}", { title: tk.deed.title })}</span><span className="meta">{[memberName(tk.assignedById ?? null) ? t("поручает {name}", { name: memberName(tk.assignedById ?? null) }) : "", tk.assignedUntil ? t("взять до {time}", { time: fmtDate(tk.assignedUntil) }) : ""].filter(Boolean).join(" · ")}</span></div><Icon name="chevron" className="chev" />
                       </li>
                     ))}
                     {arrivals.map((a) => (
@@ -1166,10 +1168,12 @@ export function TeamPage() {
             <Sheet size="sm" container={mapEl} onClose={closeTask} onDismiss={backTo ? dismissTask : undefined} closeLabel={backTo ? t("Назад к списку") : undefined} className="deed-sheet" head={<div className="sheet-title"><h2>{task.deed.title}</h2>{/* Приоритет капитана (решение владельца 14.11): огонёк в шапке карточки, пояснение и кто отметил — по нажатию на него («текст спрятать и показывать только при нажатии на огонёк»). */}{deedPriority(task) && <HelpPopup name={t("Приоритет капитана")} className="prio-mark" trigger={<Icon name="flame" />}><p>{t("Приоритет капитана: это дело — в первую очередь")}{task.priorityById && memberName(task.priorityById) ? <> · {t("отметил: {name}", { name: memberName(task.priorityById) })}</> : null}</p></HelpPopup>}{/* У свободного дела значка состояния нет (решение владельца 14.11: «это и так понятно» — по кнопке «Взять дело»); в работе, на проверке, принято, возвращено — показываются. */}{task.status !== "OPEN" && <Chip tone={st.tone} icon={st.icon}>{st.label}</Chip>}</div>}>
               {/* Приоритет капитана (решение владельца 14.11): капитан или заместитель отмечает дело — его свиток на карте горит у всей команды. */}
               {task.person && <p className="meta-line mt-2 person-line"><Icon name="user" />{t("Кому: {name}", { name: task.person.name })}</p>}
-              {/* Поручение (решение владельца 14.11): одна строка — кому поручено и до какого времени держится бронь; адресату — кто поручил. */}
+              {/* Поручение (решение владельца 14.11): одна строка — кому поручено и до какого времени держится бронь; адресату — кто поручил.
+                  Слов «взять может только он» здесь нет (решение владельца 16.11: «вообще убираем эти слова» — игра не знает, он это или она);
+                  по той же причине рядом с именем нет «поручил» и «он». */}
               {assignee && <p className={"meta-line mt-2 assign-line" + (assignedToMe ? " me" : "")}><Icon name="user-plus" /><span>{assignedToMe
-                ? <>{t("Поручено вам")}{memberName(task.assignedById ?? null) ? <> · {t("поручил: {name}", { name: memberName(task.assignedById ?? null) })}</> : null}</>
-                : t("Поручено: {name}", { name: memberName(assignee) })}{task.assignedUntil && <> · {assignedToMe ? t("взять до {time}", { time: fmtDate(task.assignedUntil) }) : t("до {time} взять может только он", { time: fmtDate(task.assignedUntil) })}</>}</span></p>}
+                ? (memberName(task.assignedById ?? null) ? t("Вам поручает {name}", { name: memberName(task.assignedById ?? null) }) : t("Поручено вам"))
+                : t("Поручено: {name}", { name: memberName(assignee) })}{task.assignedUntil && <> · {assignedToMe ? t("взять до {time}", { time: unbroken(fmtDate(task.assignedUntil)) }) : t("до {time}", { time: unbroken(fmtDate(task.assignedUntil)) })}</>}</span></p>}
               {/* Чем сдавать — только у взятого дела (решение владельца 14.11): у свободного это лишнее; «можно издалека» убрано совсем. */}
               {(task.status !== "OPEN" || taker || task.deed.secret || task.sea) && (
               <p className="meta-line mt-2">

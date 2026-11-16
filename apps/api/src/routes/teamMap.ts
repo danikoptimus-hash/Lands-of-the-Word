@@ -182,7 +182,7 @@ export async function teamMapRoutes(app: FastifyInstance): Promise<void> {
     if (task.status !== "OPEN" && task.status !== "REJECTED") return reply.code(409).send({ error: "conflict", message: err(request, "Дело уже взято или сдано") });
     // Поручение (решение владельца 14.11): пока держится бронь, дело берёт только тот, кому оно поручено.
     if (assignActive(task) && task.assignedToId !== request.user!.id) {
-      return reply.code(409).send({ error: "assigned", message: err(request, "Дело поручено: {name}. Пока держится бронь, взять его может только он", { name: await nick(task.assignedToId!) }) });
+      return reply.code(409).send({ error: "assigned", message: err(request, "Дело поручено: {name}. Пока держится бронь, другим его не взять", { name: await nick(task.assignedToId!) }) });
     }
     // Заморозка администратором (решение владельца 21.10): взять новое дело нельзя до указанной даты.
     if (m.deedsFrozenUntil && m.deedsFrozenUntil.getTime() > Date.now()) return reply.code(409).send({ error: "frozen", message: err(request, "Администратор закрыл вам взятие дел до {date}", { date: fmtDay(m.deedsFrozenUntil, toLocale(request.user?.locale)) }) });
