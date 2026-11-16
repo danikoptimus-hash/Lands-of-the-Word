@@ -17,6 +17,7 @@ import { adminOrObserver } from "../services/access.js";
 import { paceForecast } from "../services/pace.js";
 import { brickRef } from "../services/wall.js";
 import { loadBook } from "../services/bible.js";
+import { WIRE, wireTasks } from "../services/mapWire.js";
 
 const submitBody = z.object({
   links: z.array(z.string().trim().url().max(500)).max(10).default([]),
@@ -159,7 +160,10 @@ export async function teamMapRoutes(app: FastifyInstance): Promise<void> {
     // карты. Так приложение сверяется с сервером без скачивания карты; саму карту оно получает «разницей» по событиям.
     const have = Number((request.query as { have?: string }).have);
     if (Number.isFinite(have) && have === map.rev) return { same: true, rev: map.rev, now: Date.now(), ...own };
-    return { ...own, ...map, tasks: map.tasks.map((t) => hideSecret(t, request.user!.id)) };
+    const tasks = map.tasks.map((t) => hideSecret(t, request.user!.id));
+    // Приложение новой версии просит карту со справочником текстов дел (services/mapWire.ts): ответ на треть меньше.
+    if (request.headers["x-lotw-wire"] === WIRE) return { ...own, ...map, ...wireTasks(tasks) };
+    return { ...own, ...map, tasks };
   });
 
   /** Администратор: карта глазами команды — ровно то, что видит она (туман, стороны, метки дел), без действий. */

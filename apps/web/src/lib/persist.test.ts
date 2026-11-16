@@ -8,7 +8,7 @@ function fakeStorage(): Storage {
 const g = globalThis as unknown as { window?: unknown; document?: unknown };
 g.window = { localStorage: fakeStorage(), addEventListener: () => {} };
 g.document = { addEventListener: () => {}, visibilityState: "visible" };
-const { flushSnaps, loadSnap, persistable, purgeSnaps, saveLastGame, saveSnap, saveUser, savedUser } = await import("./persist");
+const { FORM, dropSnap, flushSnaps, loadSnap, persistable, purgeSnaps, saveLastGame, saveSnap, saveUser, savedUser, sweepSnaps } = await import("./persist");
 const ls = () => (g.window as { localStorage: Storage }).localStorage;
 const MAP = "/api/games/g1/my-map";
 
@@ -72,5 +72,43 @@ describe("память между запусками", () => {
   it("слишком большой ответ не хранится", () => {
     saveSnap(MAP, "u1", { rev: 1, big: "x".repeat(1_600_000) }); flushSnaps();
     expect(loadSnap(MAP, "u1")).toBeNull();
+  });
+  it("снимок другой формы данных не показывается и стирается вместе с номером версии карты", () => {
+    saveSnap(MAP, "u1", { rev: 7 }); flushSnaps();
+    const raw = ls().getItem("lotw.s:" + MAP)!;
+    expect(raw.startsWith(`{"f":${FORM},"u":"u1","t":`)).toBe(true);
+    ls().setItem("lotw.s:" + MAP, raw.replace(`{"f":${FORM},`, `{"f":${FORM - 1},`));
+    expect(loadSnap(MAP, "u1")).toBeNull();
+    expect(ls().getItem("lotw.s:" + MAP)).toBeNull();
+    expect(ls().getItem("lotw.rev:g1")).toBeNull();
+  });
+
+  it("когда место кончилось, самая старая карта уступает его текущей", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-11-10T10:00:00Z")); saveSnap("/api/games/old/my-map", "u1", { rev: 1 }); flushSnaps();
+    vi.setSystemTime(new Date("2026-11-12T10:00:00Z")); saveSnap("/api/games/mid/my-map", "u1", { rev: 2 }); flushSnaps();
+    vi.setSystemTime(new Date("2026-11-16T10:00:00Z"));
+    // Хранилище, в которое помещаются только две карты.
+    const real = ls().setItem.bind(ls()); let full = true;
+    ls().setItem = (k: string, v: string) => { if (full && k.startsWith("lotw.s:") && ls().getItem("lotw.s:/api/games/old/my-map") !== null) throw new Error("QuotaExceededError"); real(k, v); };
+    saveSnap(MAP, "u1", { rev: 3 }); flushSnaps();
+    full = false; ls().setItem = real;
+    expect(ls().getItem("lotw.s:/api/games/old/my-map")).toBeNull();
+    expect(ls().getItem("lotw.rev:old")).toBeNull();
+    expect(loadSnap<{ rev: number }>("/api/games/mid/my-map", "u1")?.rev).toBe(2);
+    expect(loadSnap<{ rev: number }>(MAP, "u1")?.rev).toBe(3);
+  });
+
+  it("уборка стирает просроченные снимки, свежие остаются; один снимок стирается по просьбе", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-11-01T10:00:00Z")); saveSnap("/api/games/old/my-map", "u1", { rev: 1 }); flushSnaps();
+    vi.setSystemTime(new Date("2026-11-16T10:00:00Z")); saveSnap(MAP, "u1", { rev: 3 }); saveSnap("/api/games/g1/teams", "u1", { teams: [] }); flushSnaps();
+    sweepSnaps();
+    expect(ls().getItem("lotw.s:/api/games/old/my-map")).toBeNull();
+    expect(loadSnap<{ rev: number }>(MAP, "u1")?.rev).toBe(3);
+    dropSnap(MAP);
+    expect(loadSnap(MAP, "u1")).toBeNull();
+    expect(ls().getItem("lotw.rev:g1")).toBeNull();
+    expect(loadSnap("/api/games/g1/teams", "u1")).not.toBeNull();
   });
 });

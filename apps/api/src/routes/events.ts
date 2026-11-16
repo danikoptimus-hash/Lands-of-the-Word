@@ -4,6 +4,7 @@ import { requireUser } from "../auth.js";
 import { err } from "../services/i18n.js";
 import { subscribe } from "../services/events.js";
 import { gameMembership } from "../services/membership.js";
+import { WIRE } from "../services/mapWire.js";
 
 export async function eventRoutes(app: FastifyInstance): Promise<void> {
   /** Поток событий игры для админов и участников. */
@@ -25,8 +26,12 @@ export async function eventRoutes(app: FastifyInstance): Promise<void> {
     });
     // Пауза переподключения — случайная, от 2 до 10 секунд (ревизия 15.11): с одинаковой паузой в 3 секунды все приложения
     // после перезапуска сервера возвращались одновременно и разом перечитывали всё на ещё «холодный» сервер.
-    reply.raw.write(`retry: ${2000 + Math.floor(Math.random() * 8000)}\nevent: hello\ndata: {}\n\n`);
-    const unsubscribe = subscribe(id, reply, admin || request.user!.platformRole === "SUPERADMIN" ? null : member?.teamId ?? null);
+    // В приветствии — период биения: приложение включает «сторожа» канала сразу, не дожидаясь первого биения (иначе канал,
+    // умерший в первые 25 секунд, считался живым до конца сеанса — находка независимого разбора 16.11).
+    reply.raw.write(`retry: ${2000 + Math.floor(Math.random() * 8000)}\nevent: hello\ndata: {"hb":25}\n\n`);
+    // Команда — всегда своя; «нужно всё» — администратору и наблюдателю. Администратор, играющий в команде, получает и
+    // «разницу» карты своей команды, и события всех команд.
+    const unsubscribe = subscribe(id, reply, member?.teamId ?? null, Boolean(admin) || request.user!.platformRole === "SUPERADMIN", (request.query as { w?: string }).w === WIRE);
     // Биение — именованным событием (ревизия скорости, этап 2): приложение видит, что канал жив, и пока он жив, не опрашивает
     // сервер по таймеру. Прежние версии приложения незнакомое событие просто пропускают.
     const heartbeat = setInterval(() => { try { reply.raw.write(`event: hb\ndata: {}\n\n`); } catch { /* закрыто */ } }, 25000);
