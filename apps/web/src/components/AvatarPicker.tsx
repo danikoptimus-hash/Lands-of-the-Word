@@ -8,6 +8,18 @@ import { Sheet } from "./Sheet";
 import { Tabs } from "./Tabs";
 
 type Group = (typeof AVATAR_GROUPS)[number]["key"];
+/**
+ * Крупные картинки набора подгружаются заранее — для тех, что видны в наборе, и для соседей открытой (владелец 16.11:
+ * «когда выбираю аватарку для просмотра, она подгружается, а когда листаю на следующие, они сразу отображаются…
+ * поправь, чтобы не нужно было подгружать»). Картинки лежат в своём кэше приложения, так что качаются один раз.
+ */
+const warmed = new Set<string>();
+function warm(code: string): void {
+  const src = avatarImage(code, "lg");
+  if (!src || warmed.has(src)) return;
+  warmed.add(src);
+  const im = new Image(); im.decoding = "async"; im.src = src;
+}
 const GROUP_TITLE: Record<Group, () => string> = { people: () => t("Люди"), animals: () => t("Животные"), things: () => t("Предметы") };
 
 /**
@@ -63,8 +75,20 @@ export function AvatarPicker({ preview, url, kind, current, onChanged }: {
   // Соседние крупные картинки подгружаются заранее: листание без пустого кружка.
   useEffect(() => {
     if (at < 0) return;
-    for (const d of [-1, 1]) { const src = avatarImage(codes[(at + d + codes.length) % codes.length]!.c, "lg"); if (src) { const im = new Image(); im.decoding = "async"; im.src = src; } }
+    for (const d of [-2, -1, 1, 2]) warm(codes[(at + d + codes.length) % codes.length]!.c);
   }, [look]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Пока открыт набор, заранее подгружаются крупные картинки тех, что видны на экране: нажатие открывает картинку сразу.
+  // Начинаем чуть погодя, чтобы не мешать самим картинкам набора; при прокрутке подгружаются вновь показавшиеся.
+  useEffect(() => {
+    const root = gridRef.current;
+    if (!open || look || !root || typeof IntersectionObserver === "undefined") return;
+    let io: IntersectionObserver | null = null;
+    const timer = window.setTimeout(() => {
+      io = new IntersectionObserver((entries) => { for (const e of entries) if (e.isIntersecting) { const c = (e.target as HTMLElement).dataset.code; if (c) warm(c); io?.unobserve(e.target); } }, { root, rootMargin: "80px 0px" });
+      for (const el of root.querySelectorAll<HTMLElement>(".avatar-opt")) io.observe(el);
+    }, 250);
+    return () => { window.clearTimeout(timer); io?.disconnect(); };
+  }, [open, look, tab, team]);
   useEffect(() => {
     if (!open || at < 0) return;
     const onKey = (e: KeyboardEvent) => { if (e.key === "ArrowLeft") step(-1); else if (e.key === "ArrowRight") step(1); };
@@ -82,7 +106,8 @@ export function AvatarPicker({ preview, url, kind, current, onChanged }: {
           {seen ? (
             // Крупно: картинка во всю ширину листа, под ней — листание и единственная залитая кнопка «Выбрать».
             <div className="avatar-look" onTouchStart={(e) => { swipeX.current = e.touches[0]?.clientX ?? null; }} onTouchEnd={(e) => { const x0 = swipeX.current, x1 = e.changedTouches[0]?.clientX; swipeX.current = null; if (x0 != null && x1 != null && Math.abs(x1 - x0) > 48) step(x1 < x0 ? 1 : -1); }}>
-              <img className="big" key={seen.c} src={avatarImage(seen.c, "lg") ?? undefined} alt={team ? t("Герб {n}", { n: seen.n }) : t("Аватарка {n}", { n: seen.n })} width={320} height={320} decoding="async" />
+              {/* Под крупной картинкой — уже загруженная малая из набора: пока крупная едет (если не успела подгрузиться заранее), кружок не пустой. */}
+              <img className="big" key={seen.c} src={avatarImage(seen.c, "lg") ?? undefined} style={{ backgroundImage: `url(${avatarImage(seen.c) ?? ""})` }} alt={team ? t("Герб {n}", { n: seen.n }) : t("Аватарка {n}", { n: seen.n })} width={320} height={320} decoding="sync" />
               {/* Где мы в наборе: раздел и место в нём — стрелки листают только этот раздел. */}
               <p className="look-where">{team ? t("Герб {n} из {m}", { n: at + 1, m: codes.length }) : t("{group} · {n} из {m}", { group: GROUP_TITLE[tab](), n: at + 1, m: codes.length })}</p>
               <div className="look-row">
@@ -99,7 +124,7 @@ export function AvatarPicker({ preview, url, kind, current, onChanged }: {
           <div className="avatar-pick-scroll" ref={gridRef}>
           <div className="avatar-pick-grid">
             {codes.map(({ c, n }) => (
-              <button key={c} type="button" className={"avatar-opt" + (c === current ? " on" : "")} aria-pressed={c === current} onClick={() => setLook(c)} aria-label={team ? t("Герб {n}", { n }) : t("Аватарка {n}", { n })}>
+              <button key={c} type="button" data-code={c} className={"avatar-opt" + (c === current ? " on" : "")} aria-pressed={c === current} onPointerDown={() => warm(c)} onClick={() => setLook(c)} aria-label={team ? t("Герб {n}", { n }) : t("Аватарка {n}", { n })}>
                 <img src={avatarImage(c) ?? undefined} alt="" loading="lazy" decoding="async" width={128} height={128} />
               </button>
             ))}
