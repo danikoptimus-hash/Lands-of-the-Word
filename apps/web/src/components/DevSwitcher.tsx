@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useLocation } from "react-router-dom";
+import { setUnderMode, underMode, type UnderMode } from "../lib/mapCover";
 
 /**
  * Тестовое переключение между ботами (решение владельца 03.11): на стенде и локально — панель, из которой можно за
@@ -39,7 +40,14 @@ const S: Record<string, React.CSSProperties> = {
   back: { background: "#fff0e0", borderColor: "#b9742a", color: "#7a3b10" },
 };
 
+const UNDER: { key: UnderMode; label: string; hint: string }[] = [
+  { key: "now", label: "Как сейчас", hint: "Слои карты рисуют всегда, и под листом тоже" },
+  { key: "slow", label: "Редко", hint: "Под листом слои рисуют около трёх раз в секунду" },
+  { key: "pause", label: "Пауза", hint: "Под листом слои не рисуют; звери продолжают идти по часам сервера" },
+];
+
 export function DevSwitcher() {
+  const [under, setUnder] = useState<UnderMode>(() => underMode());
   const [bots, setBots] = useState<Bot[] | null>(null);
   const [me, setMe] = useState<string | null>(null);
   const [open, setOpen] = useState(() => { try { return localStorage.getItem("devswitch") !== "0"; } catch { return true; } });
@@ -98,6 +106,14 @@ export function DevSwitcher() {
         <div style={S.head}>
           <span>🧪 Вход за бота{me ? ` · сейчас: ${me}` : ""}</span>
           <button style={S.x} onClick={toggle} aria-label="Свернуть">×</button>
+        </div>
+        {/* Образец «карта под листами» (ревизия скорости, этап 2): что делают слои карты, пока её закрывает лист города или
+            раздел. Переключается на ходу; выбор помнится на этом устройстве. В игру идёт то, что выберет владелец. */}
+        <div style={S.group}>Карта под листом</div>
+        <div style={S.row}>
+          {UNDER.map((u) => (
+            <button key={u.key} style={{ ...S.btn, ...(under === u.key ? S.active : {}) }} title={u.hint} onClick={() => { setUnderMode(u.key); setUnder(u.key); }}>{u.label}</button>
+          ))}
         </div>
         {dt && (
           <div>
