@@ -41,9 +41,9 @@ const S: Record<string, React.CSSProperties> = {
 };
 
 const UNDER: { key: UnderMode; label: string; hint: string }[] = [
-  { key: "now", label: "Как сейчас", hint: "Слои карты рисуют всегда, и под листом тоже" },
+  { key: "now", label: "Как раньше", hint: "Слои карты рисуют всегда, и под листом тоже (до 16.11 было так)" },
   { key: "slow", label: "Редко", hint: "Под листом слои рисуют около трёх раз в секунду" },
-  { key: "pause", label: "Пауза", hint: "Под листом слои не рисуют; звери продолжают идти по часам сервера" },
+  { key: "pause", label: "Пауза", hint: "В игре по умолчанию: под листом слои не рисуют; звери продолжают идти по часам сервера" },
 ];
 
 export function DevSwitcher() {
