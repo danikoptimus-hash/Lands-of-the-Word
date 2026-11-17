@@ -33,6 +33,12 @@ async function ownedCity(gameId: string, teamId: string, nodeKey: string) {
   return node?.bookCode && state?.capturedAt ? { bookCode: node.bookCode } : null;
 }
 
+/**
+ * Блоки стены, которые участник сдавал в этой игре за другую команду (кроме возвращённых и блоков из груза): их стихи
+ * для него закрыты и в новой команде (решение владельца 17.11).
+ */
+const elsewhereBlocks = (gameId: string, bookCode: string, userId: string, teamId: string) => ({ gameId, bookCode, userId, cargo: false, status: { not: "REJECTED" as const }, NOT: { teamId } });
+
 async function nicknames(ids: string[]): Promise<Map<string, string>> {
   const rows = await prisma.user.findMany({ where: { id: { in: ids } }, select: { id: true, nickname: true, displayName: true } });
   return new Map(rows.map((u) => [u.id, u.displayName || u.nickname]));
@@ -55,15 +61,21 @@ export async function wallRoutes(app: FastifyInstance): Promise<void> {
     const { book, n } = await wallBook(id, city.bookCode);
     if (!book) return reply.code(409).send({ error: "conflict", message: err(request, "Текст этой книги ещё не загружен") });
     const userId = request.user!.id;
-    const [rows, mineEntries, defense, members] = await Promise.all([
+    const [rows, mineEntries, defense, members, elsewhereRows] = await Promise.all([
       prisma.wallBlock.findMany({ where: { ...heldBy(m.team.id), nodeKey }, orderBy: { createdAt: "asc" } }),
-      prisma.battleEntry.findMany({ where: { userId, status: { not: "REJECTED" }, battle: { gameId: id, bookCode: city.bookCode } }, select: { startIdx: true, endIdx: true } }),
+      prisma.battleEntry.findMany({ where: { userId, status: { not: "REJECTED" }, battle: { gameId: id, bookCode: city.bookCode } }, select: { startIdx: true, endIdx: true, teamId: true, carried: true } }),
       prisma.battle.findFirst({ where: { gameId: id, nodeKey, defenderId: m.team.id, status: "DEFENSE" }, select: { id: true } }),
       prisma.membership.findMany({ where: { teamId: m.team.id }, select: { userId: true, role: true } }),
+      prisma.wallBlock.findMany({ where: elsewhereBlocks(id, city.bookCode, userId, m.team.id), select: { startIdx: true, endIdx: true } }),
     ]);
     const inTeam = new Set(members.map((x) => x.userId));
     const learned = new Set<number>();
     for (const e of mineEntries) for (let i = e.startIdx; i <= e.endIdx; i++) learned.add(i);
+    // Стихи, которые участник сдавал в другой команде — блоком стены или в испытании (решение владельца 17.11): блок с
+    // ними закрыт, и приложение называет причину словами.
+    const elsewhere = new Set<number>();
+    for (const e of elsewhereRows) for (let i = e.startIdx; i <= e.endIdx; i++) elsewhere.add(i);
+    for (const e of mineEntries) if (!e.carried && e.teamId !== m.team.id) for (let i = e.startIdx; i <= e.endIdx; i++) elsewhere.add(i);
     const total = book.total, count = Math.ceil(total / n);
     // Починки (repairOfId) — отдельные строки: на проверке держат блок в состоянии «на проверке», принятые — история.
     const repairPending = new Set(rows.filter((r) => r.repairOfId && r.status === "SUBMITTED").map((r) => r.repairOfId!));
@@ -76,14 +88,16 @@ export async function wallRoutes(app: FastifyInstance): Promise<void> {
       else if (my?.status === "APPROVED" && my.missing > 0) state = repairPending.has(my.id) ? "submitted" : "cracked";
       else if (my?.status === "APPROVED") state = "approved";
       else if (my?.status === "SUBMITTED") state = "submitted";
-      else { for (let i = start; i <= end; i++) if (learned.has(i)) { state = "learned"; break; } }
+      else { for (let i = start; i <= end; i++) if (learned.has(i) || elsewhere.has(i)) { state = "learned"; break; } }
       const missing = state === "cracked" ? my!.missing : 0;
-      return { k, start, end, ref: brickRef(book, start, end), state, missing, repairRef: missing ? brickRef(book, end - missing + 1, end) : null };
+      // Почему закрыт: стихи блока сданы в испытании своей команды или в другой команде (стеной, в испытании) — подпись в приложении разная.
+      const inOtherTeam = state === "learned" && Array.from({ length: end - start + 1 }, (_, i) => start + i).some((i) => elsewhere.has(i));
+      return { k, start, end, ref: brickRef(book, start, end), state, missing, repairRef: missing ? brickRef(book, end - missing + 1, end) : null, ...(inOtherTeam ? { elsewhere: true } : {}) };
     });
     // Кто из команды может взять каждый блок (решение владельца 02.11: «чтобы капитан понимал, сколько человек может взять,
     // какие полностью свободны»): у участника нет сданных стихов блока (испытания и стена) и нет своей строки на него; план по блокам.
     const teamMembers = members.map((x) => x.userId);
-    const closedBy = new Map(await Promise.all(teamMembers.map(async (uid) => [uid, await learnedVerses(id, "", city.bookCode, uid)] as const)));
+    const closedBy = new Map(await Promise.all(teamMembers.map(async (uid) => [uid, await learnedVerses(id, "", city.bookCode, uid, m.team.id)] as const)));
     const rowsBy = new Map<string, Set<number>>();
     for (const r of rows) if (r.status !== "REJECTED" && !r.repairOfId && !r.cargo) { if (!rowsBy.has(r.userId)) rowsBy.set(r.userId, new Set()); rowsBy.get(r.userId)!.add(Math.floor(r.startIdx / n)); }
     const plans = await prisma.learnPlan.findMany({ where: { teamId: m.team.id, bookCode: city.bookCode }, select: { idx: true, userId: true } });
@@ -138,6 +152,11 @@ export async function wallRoutes(app: FastifyInstance): Promise<void> {
       userId = target.userId; weightRole = target.gameRole;
       byNote = `Сдал(а) за хранителя: ${await nick(request.user!.id)}`;
     }
+    // Стихи, сданные блоком стены в другой команде (решение владельца 17.11: после проигрыша участники переходят в другие
+    // команды и «уже не могли учить те, которые учили будучи в другой команде»): в блок новой команды они не входят — ни
+    // новым блоком, ни починкой.
+    const built = await prisma.wallBlock.findFirst({ where: { ...elsewhereBlocks(id, city.bookCode, userId, m.team.id), startIdx: { lte: end }, endIdx: { gte: start } }, select: { id: true } });
+    if (built) return reply.code(409).send({ error: "conflict", message: err(request, byNote ? "Стихи этого блока участник уже сдавал в другой команде: второй раз они не засчитываются" : "Стихи этого блока вы уже сдавали в другой команде: второй раз они не засчитываются") });
     const dup = await prisma.wallBlock.findFirst({ where: { teamId: m.team.id, nodeKey, userId, startIdx: start, status: { not: "REJECTED" }, repairOfId: null }, select: { id: true, status: true, missing: true, endIdx: true, weight: true } });
     // За другого — только новый блок: починку надломленного досдаёт сам хранитель.
     if (dup && byNote) return reply.code(409).send({ error: "conflict", message: err(request, "У этого участника блок уже сдан или принят") });
@@ -157,7 +176,7 @@ export async function wallRoutes(app: FastifyInstance): Promise<void> {
     if (dup) return reply.code(409).send({ error: "conflict", message: err(request, dup.status === "APPROVED" ? "Этот блок у вас уже принят" : "Этот блок у вас уже на проверке") });
     // Стих сдаётся один раз (решение владельца 03.10): стихи, отмеченные в испытаниях этой книги, в блок не входят.
     const overlap = await prisma.battleEntry.findFirst({ where: { userId, status: { not: "REJECTED" }, startIdx: { lte: end }, endIdx: { gte: start }, battle: { gameId: id, bookCode: city.bookCode } }, select: { id: true } });
-    if (overlap) return reply.code(409).send({ error: "conflict", message: err(request, "Стихи этого блока вы уже сдавали в испытании: второй раз они не засчитываются") });
+    if (overlap) return reply.code(409).send({ error: "conflict", message: err(request, byNote ? "Стихи этого блока участник уже сдавал в испытании: второй раз они не засчитываются" : "Стихи этого блока вы уже сдавали в испытании: второй раз они не засчитываются") });
     const weight = weightRole === "WARRIOR" ? 2 : 1;
     const note = byNote ? (body.note ? `${byNote}. ${body.note}` : byNote) : body.note;
     const row = await prisma.wallBlock.create({ data: { gameId: id, teamId: m.team.id, nodeKey, bookCode: city.bookCode, userId, startIdx: start, endIdx: end, links: body.links, note, weight } });
@@ -237,7 +256,8 @@ export async function wallRoutes(app: FastifyInstance): Promise<void> {
   /** Убрать свой блок, пока он на проверке. */
   app.delete("/api/games/:id/my-city/:nodeKey/wall/:blockId", async (request, reply) => {
     const { id, nodeKey, blockId } = request.params as { id: string; nodeKey: string; blockId: string };
-    const m = await requireMember(request, reply, id);
+    // Только в команде, которая в игре (17.11): участник выбывшей команды, убрав непроверенный блок, сдал бы его заново в новой.
+    const m = await requireActiveMember(request, reply, id);
     if (!m) return;
     const row = await prisma.wallBlock.findFirst({ where: { id: blockId, gameId: id, teamId: m.team.id, nodeKey } });
     if (!row) return reply.code(404).send({ error: "not_found", message: err(request, "Блок не найден") });

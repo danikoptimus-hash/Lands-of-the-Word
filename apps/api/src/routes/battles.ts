@@ -96,7 +96,7 @@ async function view(b: Full, users: Map<string, string>, forTeamId: string | nul
     .filter((e) => forTeamId === null || e.teamId === forTeamId)
     .map((e) => ({ id: e.id, side: e.side, userId: e.userId, nickname: users.get(e.userId) ?? "?", ref: range(e.startIdx, e.endIdx), start: e.startIdx, end: e.endIdx, verses: e.endIdx - e.startIdx + 1, weight: e.weight, links: e.links, note: e.note, status: e.status, adminComment: e.adminComment, carried: e.carried, createdAt: e.createdAt }));
   const my = mySide && userId ? [...userVerses(b.entries, mySide, userId)] : [];
-  const learned = mySide && userId && live ? [...(await learnedVerses(b.gameId, b.id, b.bookCode, userId))] : [];
+  const learned = mySide && userId && forTeamId && live ? [...(await learnedVerses(b.gameId, b.id, b.bookCode, userId, forTeamId))] : [];
   // Защитный союз (решение владельца 22.10): список союзников всем; хранителям нарушенного мира — кого ещё можно позвать.
   const shown = b.allies.filter((a) => a.status !== "DECLINED");
   const teams = shown.length || (b.violation && live && forTeamId === b.defenderId) ? await aliveTeams(b.gameId) : [];
@@ -121,15 +121,38 @@ async function view(b: Full, users: Map<string, string>, forTeamId: string | nul
   };
 }
 
-/** Стихи книги, уже принятые у участника в других испытаниях этой игры (на любой стороне) или сданные блоками стены (01.11): сдать их снова нельзя. */
-export async function learnedVerses(gameId: string, battleId: string, bookCode: string, userId: string): Promise<Set<number>> {
-  const [past, wall] = await Promise.all([
-    prisma.battleEntry.findMany({ where: { userId, status: "APPROVED", carried: false, battle: { gameId, bookCode, NOT: { id: battleId } } }, select: { startIdx: true, endIdx: true } }),
+/**
+ * Стихи книги, которые участник снова сдать не может: принятые у него в других испытаниях этой игры (на любой стороне)
+ * и сданные блоками стены (01.11) — в какой бы команде он тогда ни был. Стихи, выученные в другой команде, закрыты и без
+ * проверки (решение владельца 17.11: после проигрыша участники переходят в другие команды и «уже не могли учить те,
+ * которые учили будучи в другой команде» — ни для стены, ни для вызова, ни для ответа): хватает того, что запись была
+ * отмечена там и не возвращена администратором как негодная. Запись, возвращённая вместе с концом хода («Время вышло»:
+ * сторона проиграла по сроку, и её непроверенные записи вернулись разом), — не негодная: стихи закрыты.
+ * `teamId` — команда, за которую участник играет сейчас. В своей команде правило прежнее (03.10): закрыто только
+ * принятое. Новой команде такие стихи и не засчитываются: в ответ сами ложатся только записи своей команды
+ * (services/battles.ts → carryLearnedVerses).
+ */
+export async function learnedVerses(gameId: string, battleId: string, bookCode: string, userId: string, teamId: string): Promise<Set<number>> {
+  const [past, timedOut, wall] = await Promise.all([
+    // Своя команда: принятое в других испытаниях. Другая команда: всё отмеченное и не возвращённое — и в этом же испытании,
+    // если участника перевели между его сторонами.
+    prisma.battleEntry.findMany({ where: { userId, carried: false, battle: { gameId, bookCode }, OR: [{ status: "APPROVED", NOT: { battleId } }, { status: { in: ["SUBMITTED", "APPROVED"] }, NOT: { teamId } }] }, select: { startIdx: true, endIdx: true } }),
+    prisma.battleEntry.findMany({ where: { userId, carried: false, status: "REJECTED", NOT: { teamId }, battle: { gameId, bookCode, status: { in: ["WON", "EXPIRED"] } } }, select: { startIdx: true, endIdx: true, side: true, decidedAt: true, battle: { select: { status: true, resolvedAt: true } } } }),
     wallVersesOf(gameId, bookCode, userId),
   ]);
   const out = new Set<number>(wall);
   for (const e of past) for (let i = e.startIdx; i <= e.endIdx; i++) out.add(i);
+  for (const e of timedOut) if (returnedByTimeout(e)) for (let i = e.startIdx; i <= e.endIdx; i++) out.add(i);
   return out;
+}
+/**
+ * Запись возвращена не за качество, а концом хода: сторона проиграла по сроку (ответ не дан — город взят; вызов сгорел),
+ * и запись вернулась в ту же минуту — так работает кнопка администратора «Время вышло» (POST …/expire ниже).
+ */
+const TIMEOUT_RETURN_MS = 5 * 60_000;
+export function returnedByTimeout(e: { side: string; decidedAt: Date | null; battle: { status: string; resolvedAt: Date | null } }): boolean {
+  const lost = (e.side === "DEFENSE" && e.battle.status === "WON") || (e.side === "ATTACK" && e.battle.status === "EXPIRED");
+  return lost && e.decidedAt !== null && e.battle.resolvedAt !== null && Math.abs(e.battle.resolvedAt.getTime() - e.decidedAt.getTime()) <= TIMEOUT_RETURN_MS;
 }
 
 async function nicknames(ids: string[]): Promise<Map<string, string>> {
@@ -240,7 +263,7 @@ export async function battleRoutes(app: FastifyInstance): Promise<void> {
     ]);
     const names = await nicknames(members.map((x) => x.userId));
     const rows = await Promise.all(members.map(async (x) => {
-      const learned = await learnedVerses(id, b?.id ?? "", q.book, x.userId);
+      const learned = await learnedVerses(id, b?.id ?? "", q.book, x.userId, m.team.id);
       const marked = new Set<number>();
       if (b && side) for (const e of b.entries) if (e.userId === x.userId && e.side === side && e.status !== "REJECTED") for (let i = e.startIdx; i <= e.endIdx; i++) marked.add(i);
       return { userId: x.userId, name: names.get(x.userId) ?? "?", role: x.gameRole, captain: x.role === "CAPTAIN", learned: [...learned].sort((p, q2) => p - q2), marked: [...marked].sort((p, q2) => p - q2) };
@@ -269,7 +292,7 @@ export async function battleRoutes(app: FastifyInstance): Promise<void> {
     if (!book || to >= book.total) return reply.code(400).send({ error: "validation", message: err(request, "Такого стиха в книге нет") });
     const idxs = Array.from({ length: to - from + 1 }, (_, i) => from + i);
     if (body.on) {
-      const learned = await learnedVerses(id, "", body.book, body.userId);
+      const learned = await learnedVerses(id, "", body.book, body.userId, m.team.id);
       if (idxs.some((i) => learned.has(i))) return reply.code(409).send({ error: "conflict", message: err(request, idxs.length > 1 ? "Часть этих стихов участник уже сдавал" : "Этот стих участник уже сдавал") });
       await prisma.learnPlan.createMany({ data: idxs.map((idx) => ({ gameId: id, teamId: m.team.id, bookCode: body.book, idx, userId: body.userId, createdById: request.user!.id })), skipDuplicates: true });
     } else {
@@ -419,10 +442,10 @@ export async function battleRoutes(app: FastifyInstance): Promise<void> {
     const mine = userVerses(b.entries, side, target.userId);
     // Стих сдаётся один раз (решение владельца 03.10): то, что участник уже сдал и что принято в прошлых испытаниях
     // этой книги, второй раз не засчитывается ни в вызове, ни в ответе.
-    const learned = await learnedVerses(id, b.id, b.bookCode, target.userId);
+    const learned = await learnedVerses(id, b.id, b.bookCode, target.userId, m.team.id);
     const fresh = body.verses.filter((v) => !mine.has(v) && !learned.has(v));
     if (fresh.length === 0) {
-      if (body.verses.some((v) => learned.has(v) && !mine.has(v))) return reply.code(409).send({ error: "conflict", message: err(request, byNote ? "Эти стихи участник уже сдавал в прошлом испытании: второй раз они не засчитываются" : "Эти стихи вы уже сдавали в прошлом испытании: второй раз они не засчитываются") });
+      if (body.verses.some((v) => learned.has(v) && !mine.has(v))) return reply.code(409).send({ error: "conflict", message: err(request, byNote ? "Эти стихи участник уже сдавал раньше: второй раз они не засчитываются" : "Эти стихи вы уже сдавали раньше: второй раз они не засчитываются") });
       return reply.code(409).send({ error: "conflict", message: err(request, byNote ? "Эти стихи у участника уже отмечены" : "Эти стихи вы уже отметили") });
     }
     // В вызове участник сдаёт не меньше двух стихов подряд (решение владельца 06.11): среди его стихов в этом вызове
@@ -459,18 +482,21 @@ export async function battleRoutes(app: FastifyInstance): Promise<void> {
     const side = sideOf(b, m.team.id);
     if (!side) return reply.code(403).send({ error: "forbidden", message: err(request, "Ваша команда не участвует в этом испытании") });
     const mine = [...userVerses(b.entries, side, userId)];
-    const learned = [...(await learnedVerses(id, b.id, b.bookCode, userId))].filter((v) => !mine.includes(v));
+    const learned = [...(await learnedVerses(id, b.id, b.bookCode, userId, m.team.id))].filter((v) => !mine.includes(v));
     return { mine, learned };
   });
 
   /** Убрать свою запись, пока она не проверена и сторона не отправлена. */
   app.delete("/api/games/:id/battles/:battleId/entries/:entryId", async (request, reply) => {
     const { id, battleId, entryId } = request.params as { id: string; battleId: string; entryId: string };
-    const m = await requireMember(request, reply, id);
+    // Только в команде, которая в игре, и только пока идёт ход своей стороны (17.11): иначе участник выбывшей команды
+    // убирал бы свои непроверенные записи и в новой команде сдавал те же стихи заново.
+    const m = await requireActiveMember(request, reply, id);
     if (!m) return;
     if (!(await assertAwake(request, reply, id))) return;
     const e = await prisma.battleEntry.findFirst({ where: { id: entryId, battleId, teamId: m.team.id }, include: { battle: true } });
     if (!e || e.battle.gameId !== id) return reply.code(404).send({ error: "not_found", message: err(request, "Запись не найдена") });
+    if (e.battle.status !== e.side) return reply.code(409).send({ error: "conflict", message: err(request, e.side === "ATTACK" ? "Вызов уже завершён" : "Ответ уже завершён") });
     if (e.status === "APPROVED") return reply.code(409).send({ error: "conflict", message: err(request, "Принятую запись убрать нельзя") });
     if ((e.side === "ATTACK" && e.battle.attackDoneAt) || (e.side === "DEFENSE" && e.battle.defenseDoneAt)) return reply.code(409).send({ error: "conflict", message: err(request, e.side === "ATTACK" ? "Вызов уже отправлен на проверку" : "Ответ уже отправлен на проверку") });
     if (e.carried) return reply.code(409).send({ error: "conflict", message: err(request, "Зачтённую из прошлого испытания запись убрать нельзя") });
