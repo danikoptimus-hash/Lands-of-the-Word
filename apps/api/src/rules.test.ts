@@ -249,7 +249,7 @@ describe("испытание по решениям 18.09", () => {
     await prisma.battleEntry.create({ data: { battleId: past.id, side: "ATTACK", teamId: team2, userId: p3.id, startIdx: start, endIdx: start + 1, links: ["https://example.com/old"], status: "APPROVED", decidedAt: new Date() } });
     const again = await post(`/api/games/${gameId}/battles/${battleId}/entries`, p3Cookie, { verses: [start, start + 1], links: ["https://example.com/b0"] });
     expect(again.statusCode).toBe(409);
-    expect(again.json().message).toContain("прошлом испытании");
+    expect(again.json().message).toContain("уже сдавали раньше");
     const p3Post = await post(`/api/games/${gameId}/battles/${battleId}/entries`, p3Cookie, { verses, links: ["https://example.com/b"] });
     expect(p3Post.json()).toMatchObject({ added: 8 });
     const listed = (await get(`/api/games/${gameId}/my-battles`, p3Cookie)).json().battles as Array<{ id: string; learnedVerses: number[] }>;
