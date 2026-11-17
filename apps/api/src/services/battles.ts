@@ -10,6 +10,7 @@ import { checkLastTeam, checkTimeLimits } from "./game.js";
 import { expirePassages } from "../routes/diplomacy.js";
 import { onCityOwned, returnStaleTasks } from "./teamMap.js";
 import { layWallBeforeDeadline, wallOf } from "./wall.js";
+import { answerCap } from "./learned.js";
 import { days, rulesOf, type Rules } from "./rules.js";
 import { sweepSieges } from "./siege.js";
 import { sinkDueWrecks } from "./wrecks.js";
@@ -330,9 +331,10 @@ export async function maybeRepel(b: BattleWithEntries): Promise<BattleWithEntrie
   if (!sideApproved(b, "DEFENSE", need)) return b;
   const M = sumVerses(b.entries, "DEFENSE", true);
   const now = new Date();
-  // Закрепление — только при максимуме: каждый участник хранителей выучил всю книгу (решение владельца 18.09).
-  const [book, members, rules] = await Promise.all([loadBook(b.bookCode), prisma.membership.count({ where: { teamId: b.defenderId } }), gameRules(b.gameId)]);
-  const max = book ? book.total * Math.max(1, members) : Infinity;
+  // Закрепление — только при максимуме: каждый участник хранителей выучил всю книгу (решение владельца 18.09); стихи,
+  // выученные участником в другой команде, в максимум не входят — сдать их снова он не может (17.11).
+  const [book, rules] = await Promise.all([loadBook(b.bookCode), gameRules(b.gameId)]);
+  const max = book ? (await answerCap(b.gameId, b.defenderId, b.bookCode, book.total)).cap : Infinity;
   const lockedUntil = b.sumMode && M >= max && rules.lockWeeks > 0 ? new Date(now.getTime() + days(7 * rules.lockWeeks)) : null;
   // Отбитый вызов (решение владельца 04.10): уровень защиты = M, следующий вызов городу — не меньше M + 5, одинаково
   // для всех команд; личного штрафа отбитой команде нет (штраф копится только за сгоревшие вызовы).
@@ -504,8 +506,10 @@ export async function warOptions(gameId: string, teamId: string, nodeKey: string
   const penalty = state?.attackPenalty ?? 0;
   const minBid = minBidFor(node.defenseLevel, penalty, rules);
   // Предел ответа (решение владельца 31.10): ставка не выше того, что хранители могут ответить, — участники × стихи книги.
-  const ownerMembers = owner ? await prisma.membership.count({ where: { teamId: owner.teamId } }) : null;
-  const maxBid = book && ownerMembers !== null ? book.total * Math.max(1, ownerMembers) : null;
+  // Без стихов, которые участники хранителей выучили в другой команде (решение владельца 17.11) — services/learned.ts.
+  const limit = owner && book ? await answerCap(gameId, owner.teamId, node.bookCode ?? "", book.total) : null;
+  const ownerMembers = limit ? limit.members : owner ? await prisma.membership.count({ where: { teamId: owner.teamId } }) : null;
+  const maxBid = limit ? limit.cap : null, maxBidClosed = limit?.closed ?? 0;
   const studied = Boolean(content && state?.orderSolved && content.tasks.every((_, i) => state!.doneTasks.includes(i)));
   const locked = isLocked(node);
   let reason: string | null = null;
@@ -520,7 +524,7 @@ export async function warOptions(gameId: string, teamId: string, nodeKey: string
   else if (mine) reason = mine.status === "QUEUED" ? "Ваш вызов уже в очереди" : "Ваш вызов этому городу уже идёт";
   // Мир не запрещает вызов (решение владельца 22.10), но нарушает его: интерфейс предупреждает.
   const peace = owner ? await prisma.peace.findFirst({ where: { gameId, status: "ACTIVE", OR: [{ fromId: teamId, toId: owner.teamId }, { fromId: owner.teamId, toId: teamId }], AND: [{ OR: [{ until: null }, { until: { gt: new Date() } }] }] }, select: { until: true } }) : null;
-  return { peace: peace ? { until: peace.until } : null, defenseLevel: node.defenseLevel, sumMode: node.sumMode, locked, lockedUntil: locked ? node.lockedUntil : null, maxed: node.maxReachedAt !== null, bookVerses: book?.total ?? null, penalty, minBid, maxBid, ownerMembers, attackDays: rules.attackDays, burnPenalty: rules.burnPenalty, cancelPenalty: CANCEL_PENALTY, canDeclare: reason === null, reason, owner: owner?.team ?? null };
+  return { peace: peace ? { until: peace.until } : null, defenseLevel: node.defenseLevel, sumMode: node.sumMode, locked, lockedUntil: locked ? node.lockedUntil : null, maxed: node.maxReachedAt !== null, bookVerses: book?.total ?? null, penalty, minBid, maxBid, maxBidClosed, ownerMembers, attackDays: rules.attackDays, burnPenalty: rules.burnPenalty, cancelPenalty: CANCEL_PENALTY, canDeclare: reason === null, reason, owner: owner?.team ?? null };
 }
 
 void bookName;

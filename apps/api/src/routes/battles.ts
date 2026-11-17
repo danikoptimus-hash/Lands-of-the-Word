@@ -1,4 +1,4 @@
-import type { FastifyInstance } from "fastify";
+import type { FastifyInstance, FastifyRequest } from "fastify";
 import { z } from "zod";
 import { prisma } from "../db.js";
 import { assertAwake, gameDaytime } from "../services/daytime.js";
@@ -16,6 +16,7 @@ import { activeMsBetween, awakeMsBetween, BOOKS, dayLight, stormState } from "@l
 import { journal, nick } from "../services/journal.js";
 import { violatePeace } from "../services/peace.js";
 import { wallOf, wallVersesOf } from "../services/wall.js";
+import { answerCap, returnedByTimeout } from "../services/learned.js";
 import { battleVisibleTo } from "../services/visibility.js";
 
 const BOOK_BY_CODE = new Map(BOOKS.map((b) => [b.code, b]));
@@ -145,14 +146,11 @@ export async function learnedVerses(gameId: string, battleId: string, bookCode: 
   for (const e of timedOut) if (returnedByTimeout(e)) for (let i = e.startIdx; i <= e.endIdx; i++) out.add(i);
   return out;
 }
-/**
- * Запись возвращена не за качество, а концом хода: сторона проиграла по сроку (ответ не дан — город взят; вызов сгорел),
- * и запись вернулась в ту же минуту — так работает кнопка администратора «Время вышло» (POST …/expire ниже).
- */
-const TIMEOUT_RETURN_MS = 5 * 60_000;
-export function returnedByTimeout(e: { side: string; decidedAt: Date | null; battle: { status: string; resolvedAt: Date | null } }): boolean {
-  const lost = (e.side === "DEFENSE" && e.battle.status === "WON") || (e.side === "ATTACK" && e.battle.status === "EXPIRED");
-  return lost && e.decidedAt !== null && e.battle.resolvedAt !== null && Math.abs(e.battle.resolvedAt.getTime() - e.decidedAt.getTime()) <= TIMEOUT_RETURN_MS;
+/** Отказ «ставка выше предела ответа»: сколько хранители могут ответить и из чего это число сложено (31.10, 17.11). */
+function overCap(request: FastifyRequest, max: number, members: number, verses: number, closed: number): string {
+  return closed > 0
+    ? err(request, "Ставка не больше {max} стихов: столько хранители могут ответить ({n} участников × {v} стихов книги, без {k} выученных в другой команде)", { max, n: members, v: verses, k: closed })
+    : err(request, "Ставка не больше {max} стихов: столько хранители могут ответить ({n} участников × {v} стихов книги)", { max, n: members, v: verses });
 }
 
 async function nicknames(ids: string[]): Promise<Map<string, string>> {
@@ -330,7 +328,7 @@ export async function battleRoutes(app: FastifyInstance): Promise<void> {
     const body = declareBody.parse(request.body);
     if (body.bid < o.minBid) return reply.code(400).send({ error: "validation", message: err(request, "Минимальная ставка на этот город для вашей команды — {min} стихов", { min: o.minBid }) });
     // Городская стена (решение владельца 31.10): ставка не выше того, что хранители могут ответить.
-    if (o.maxBid !== null && body.bid > o.maxBid) return reply.code(400).send({ error: "validation", message: err(request, "Ставка не больше {max} стихов: столько хранители могут ответить ({n} участников × {v} стихов книги)", { max: o.maxBid, n: o.ownerMembers ?? 0, v: o.bookVerses ?? 0 }) });
+    if (o.maxBid !== null && body.bid > o.maxBid) return reply.code(400).send({ error: "validation", message: overCap(request, o.maxBid, o.ownerMembers ?? 0, o.bookVerses ?? 0, o.maxBidClosed) });
     const node = await prisma.mapNode.findUniqueOrThrow({ where: { gameId_key: { gameId: id, key: nodeKey } } });
     const sumMode = node.sumMode || body.bid >= (o.bookVerses ?? Infinity);
     if (sumMode && !node.sumMode) await prisma.mapNode.update({ where: { id: node.id }, data: { sumMode: true } });
@@ -376,9 +374,9 @@ export async function battleRoutes(app: FastifyInstance): Promise<void> {
     const min = minBidFor(node.defenseLevel, st?.attackPenalty ?? 0, await gameRules(id));
     if (body.bid < min) return reply.code(400).send({ error: "validation", message: err(request, "Минимальная ставка — {min} стихов", { min }) });
     const book = await loadBook(b.bookCode);
-    const members = await prisma.membership.count({ where: { teamId: b.defenderId } });
-    const cap = book ? book.total * Math.max(1, members) : null;
-    if (cap !== null && body.bid > cap) return reply.code(400).send({ error: "validation", message: err(request, "Ставка не больше {max} стихов: столько хранители могут ответить ({n} участников × {v} стихов книги)", { max: cap, n: members, v: book?.total ?? 0 }) });
+    const limit = book ? await answerCap(id, b.defenderId, b.bookCode, book.total) : null;
+    const cap = limit ? limit.cap : null;
+    if (limit && body.bid > limit.cap) return reply.code(400).send({ error: "validation", message: overCap(request, limit.cap, limit.members, book?.total ?? 0, limit.closed) });
     await prisma.battle.update({ where: { id: b.id }, data: { bid: body.bid, defenseCap: cap, sumMode: node.sumMode || body.bid >= (book?.total ?? Infinity) } });
     publish(id, { type: "battles", teamId: m.team.id });
     return { ok: true };

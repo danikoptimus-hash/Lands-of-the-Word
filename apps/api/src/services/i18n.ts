@@ -205,6 +205,7 @@ const EN: Record<string, string> = {
   "Нельзя бросить вызов": "You cannot challenge this city",
   "Минимальная ставка на этот город для вашей команды — {min} стихов": "Your team's minimum bid for this city is {min} verses",
   "Ставка не больше {max} стихов: столько хранители могут ответить ({n} участников × {v} стихов книги)": "The bid cannot exceed {max} verses: that is all the keepers can answer ({n} members × {v} verses of the book)",
+  "Ставка не больше {max} стихов: столько хранители могут ответить ({n} участников × {v} стихов книги, без {k} выученных в другой команде)": "The bid cannot exceed {max} verses: that is all the keepers can answer ({n} members × {v} verses of the book, minus {k} learned in another team)",
   "Команда «{team}» пошла на город {book} команды «{other}»: пошло время ответа": "Team “{team}” has marched on the city of {book} of team “{other}”: the answer clock is running",
   "Ставку можно менять, только пока вызов в очереди": "The bid can be changed only while the challenge is in the queue",
   "Минимальная ставка — {min} стихов": "The minimum bid is {min} verses",

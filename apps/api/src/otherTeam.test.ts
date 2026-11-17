@@ -2,7 +2,8 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { readFile } from "node:fs/promises";
 import { buildApp } from "./app.js";
 import { prisma } from "./db.js";
-import { sweep } from "./services/battles.js";
+import { maybeRepel, sweep } from "./services/battles.js";
+import { answerCap } from "./services/learned.js";
 import { cleanupFixtures, readyForStart, registerVerified, setGamePhase } from "./testAuth.js";
 
 /**
@@ -193,6 +194,10 @@ describe("стихи, выученные в другой команде", () => 
   });
 
   it("в вызове новой команды стихи, отмеченные в вызове прежней, не отмечаются", async () => {
+    // У хранителей Ионы никто из другой команды не приходил: предел ставки — участники × стихи книги, как раньше.
+    const jon = (await get(`/api/games/${gameId}/my-city/${jonKey}/war`, ck.cap3)).json() as { maxBid: number; ownerMembers: number; bookVerses: number; maxBidClosed: number };
+    expect(jon.maxBid).toBe(jon.bookVerses * jon.ownerMembers);
+    expect(jon.maxBidClosed).toBe(0);
     const { id, start } = await declare(ck.cap3, jonKey, 10);
     const twice = await post(`/api/games/${gameId}/battles/${id}/entries`, ck.out, { verses: [start, start + 1], links: ["https://example.com/j1"] });
     expect(twice.statusCode).toBe(409);
@@ -203,7 +208,17 @@ describe("стихи, выученные в другой команде", () => 
   it("в ответе новой команды стихи из прежней не отмечаются и сами не засчитываются; своё правило команды прежнее", async () => {
     // Непроверенная запись своей команды в прошлом испытании стихи не закрывает (правило 03.10).
     await prisma.battleEntry.create({ data: { battleId: lostBattle, side: "ATTACK", teamId: team3, userId: m3Id, startIdx: 25, endIdx: 26, links: ["https://example.com/own"] } });
+    // Предел ставки (решение владельца 17.11: «вычитать из предела закрытые для него стихи»): три участника × 85 стихов
+    // без 26, которые перешедший выучил в прежней команде, — блоки 0–9 и 40–49, записи 20–22, 29 и 30–31. Возвращённое
+    // как негодное (27–28, блок 50–59) не вычитается.
+    expect(await answerCap(gameId, team3, "rut", 85)).toEqual({ cap: 3 * 85 - 26, members: 3, closed: 26 });
+    const war = (await get(`/api/games/${gameId}/my-city/${rutKey}/war`, ck.cap2)).json() as { maxBid: number; ownerMembers: number; maxBidClosed: number };
+    expect(war).toMatchObject({ maxBid: 229, ownerMembers: 3, maxBidClosed: 26 });
+    const over = await post(`/api/games/${gameId}/my-city/${rutKey}/war`, ck.cap2, { bid: 230 });
+    expect(over.statusCode).toBe(400);
+    expect(over.json().message).toContain("без 26 выученных в другой команде");
     answerBattle = await challenge(ck.cap2, 25);
+    expect((await prisma.battle.findUniqueOrThrow({ where: { id: answerBattle } })).defenseCap).toBe(229);
     // В ответ сами легли только стихи своей команды (вызов капитана «Пустыни»): принятые в прежней команде стихи 30–31
     // и её принятый блок стены участнику в новой команде не засчитаны.
     expect(await prisma.battleEntry.count({ where: { battleId: answerBattle, side: "DEFENSE", userId: outId } })).toBe(0);
@@ -232,6 +247,27 @@ describe("стихи, выученные в другой команде", () => 
     // Свою непроверенную запись в идущем ответе участник убирает, как и раньше.
     const mine = await prisma.battleEntry.findFirstOrThrow({ where: { battleId: answerBattle, userId: outId, startIdx: 27 } });
     expect((await del(`/api/games/${gameId}/battles/${answerBattle}/entries/${mine.id}`, ck.out)).statusCode).toBe(200);
+  });
+
+  it("закрепление города: максимум книги считается без стихов, выученных в другой команде", async () => {
+    // Отдельное испытание записями в базу: «Пустыня» ответила всем, что может, — двое выучили книгу целиком (85 + 85),
+    // перешедший — всё, кроме 26 стихов прежней команды (59). Это её максимум (229): город закрепляется. По прежнему
+    // счёту «участники × стихи книги» (255) максимума не было бы.
+    const before = await prisma.mapNode.findUniqueOrThrow({ where: { gameId_key: { gameId, key: rutKey } } });
+    const cap3Id = (await prisma.user.findUniqueOrThrow({ where: { nickname: nicks.cap3 } })).id;
+    const now = new Date();
+    const b = await prisma.battle.create({ data: { gameId, nodeKey: rutKey, bookCode: "rut", attackerId: team2, defenderId: team3, status: "DEFENSE", sumMode: true, bid: 229, defenseCap: 229, startedAt: now, attackDoneAt: now, attackApprovedAt: now, attackLaunchedAt: now, defenseDoneAt: now, defenseDeadline: new Date(now.getTime() + 3_600_000) } });
+    const row = (userId: string, startIdx: number, endIdx: number) => ({ battleId: b.id, side: "DEFENSE" as const, teamId: team3, userId, startIdx, endIdx, links: ["https://example.com/max"], status: "APPROVED" as const, decidedAt: now });
+    await prisma.battleEntry.createMany({ data: [row(cap3Id, 0, 84), row(m3Id, 0, 84), row(outId, 10, 19), row(outId, 23, 28), row(outId, 32, 39), row(outId, 50, 84)] });
+    const done = await maybeRepel(await prisma.battle.findUniqueOrThrow({ where: { id: b.id }, include: { entries: true } }));
+    expect(done.status).toBe("REPELLED");
+    const node = await prisma.mapNode.findUniqueOrThrow({ where: { gameId_key: { gameId, key: rutKey } } });
+    expect(node.defenseLevel).toBe(229);
+    expect(node.maxReachedAt).toBeTruthy();
+    expect(node.lockedUntil!.getTime()).toBeGreaterThan(Date.now());
+    // Убираем пробное испытание и закрепление: дальше — прежний ход сценария.
+    await prisma.battle.delete({ where: { id: b.id } });
+    await prisma.mapNode.update({ where: { gameId_key: { gameId, key: rutKey } }, data: { defenseLevel: before.defenseLevel, lockedUntil: null, maxReachedAt: null } });
   });
 
   it("«Время вышло» и перевод администратором: возвращённое концом хода закрыто и в следующей команде", async () => {
