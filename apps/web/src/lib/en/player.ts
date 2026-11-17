@@ -819,7 +819,7 @@ export const PLAYER: Record<string, string> = {
   "Блоки книги": "Blocks of the book",
   "стихи сданы в испытании": "verses submitted in a trial",
   "стихи сданы в другой команде": "verses submitted in another team",
-  "Блоков, сданных вами в прежней команде: {n}. Второй раз они не сдаются.": "Blocks you submitted in your previous team: {n}. They cannot be submitted again.",
+  "Блоков со стихами, которые вы сдавали в прежней команде: {n}. Второй раз они не сдаются.": "Blocks with verses you submitted in your previous team: {n}. They cannot be submitted again.",
   "Блок {ref} сдан на проверку": "Block {ref} sent for review",
   "Городская стена: {n}": "City wall: {n}",
   "У города есть стена": "The city has a wall",

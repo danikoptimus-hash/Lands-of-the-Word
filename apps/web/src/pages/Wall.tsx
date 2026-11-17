@@ -258,8 +258,8 @@ function BuildSheet({ gameId, nodeKey, bookCode, bricks, members, canPlan, canFo
   }
   const stateTitle = (b: WallBrickDto) => b.state === "approved" ? t("принят") : b.state === "submitted" ? t("на проверке") : b.state === "learned" ? (b.elsewhere ? t("стихи сданы в другой команде") : t("стихи сданы в испытании")) : b.state === "used" ? t("сгорел в испытании") : b.state === "cracked" ? t("надломлен: не хватает {n} стихов", { n: b.missing ?? 0 }) : "";
   const all = members.length;
-  // Блоки, закрытые для участника, потому что он сдавал их в прежней команде (решение владельца 17.11): на телефоне подсказки
-  // у замка нет, поэтому причина названа словами.
+  // Блоки, закрытые для участника, потому что их стихи он сдавал в прежней команде — стеной или в испытании (решение
+  // владельца 17.11): на телефоне подсказки у замка нет, поэтому причина названа словами.
   const elsewhereCount = bricks.filter((b) => b.elsewhere).length;
   return (
     <Sheet size="md" title={t("Блок стены")} onClose={onClose} foot={<button type="button" disabled={busy || !canSubmit || links.length === 0} onClick={() => void send()}><Icon name="check" />{repair ? t("Починить {ref}", { ref: repair.ref }) : chosen && canSubmit && forId ? t("Сдать {ref} за {name}", { ref: chosen.ref, name: forName }) : chosen && canSubmit ? t("Сдать {ref}", { ref: chosen.ref }) : t("Сдать блок")}</button>}>
@@ -270,7 +270,7 @@ function BuildSheet({ gameId, nodeKey, bookCode, bricks, members, canPlan, canFo
           <Picker id="wall-for" value={forId} onChange={(v) => { setForId(v); setK(null); setError(null); }} placeholder={t("себя")} options={members.filter((m) => m.userId !== me).map((m) => ({ value: m.userId, label: m.name }))} />
         </div>
       )}
-      <p className="hint">{forId ? t("Сдаёте за участника {name}: выберите блок, который он выучил заранее, и прикрепите ссылку на его видео. Блок засчитается ему; во время ответа хранителей стену не строят.", { name: forName }) : repair ? t("Починка {ref}: досдайте {n} стихов ({part}).", { ref: repair.ref, n: repair.missing ?? 0, part: repair.repairRef ?? "" }) : t("Выучите {n} стихов одного блока наизусть, запишите видео и прикрепите ссылку.", { n })}{!repair && mineCount > 0 ? ` ${t("Ваших блоков в стене: {n}.", { n: mineCount })}` : ""}{!repair && !forId && elsewhereCount > 0 ? ` ${t("Блоков, сданных вами в прежней команде: {n}. Второй раз они не сдаются.", { n: elsewhereCount })}` : ""}<Help>{t("Число на кирпиче — сколько человек в команде ещё могут его взять; «все» — блок полностью свободен. Нажатие выбирает блок; удержание показывает имена, капитан поручает блок.")}</Help></p>
+      <p className="hint">{forId ? t("Сдаёте за участника {name}: выберите блок, который он выучил заранее, и прикрепите ссылку на его видео. Блок засчитается ему; во время ответа хранителей стену не строят.", { name: forName }) : repair ? t("Починка {ref}: досдайте {n} стихов ({part}).", { ref: repair.ref, n: repair.missing ?? 0, part: repair.repairRef ?? "" }) : t("Выучите {n} стихов одного блока наизусть, запишите видео и прикрепите ссылку.", { n })}{!repair && mineCount > 0 ? ` ${t("Ваших блоков в стене: {n}.", { n: mineCount })}` : ""}{!repair && !forId && elsewhereCount > 0 ? ` ${t("Блоков со стихами, которые вы сдавали в прежней команде: {n}. Второй раз они не сдаются.", { n: elsewhereCount })}` : ""}<Help>{t("Число на кирпиче — сколько человек в команде ещё могут его взять; «все» — блок полностью свободен. Нажатие выбирает блок; удержание показывает имена, капитан поручает блок.")}</Help></p>
       <div className="brick-grid bricks-tex" role="radiogroup" aria-label={t("Блоки книги")}>
         {bricks.map((b) => {
           const takers = b.takers.length;
