@@ -551,6 +551,8 @@ const EN: Record<string, string> = {
   "Этот блок у вас уже принят": "This block of yours is already approved",
   "Этот блок у вас уже на проверке": "This block of yours is already under review",
   "Стихи этого блока вы уже сдавали в испытании: второй раз они не засчитываются": "You already submitted the verses of this block in a trial: they do not count twice",
+  "Стихи этого блока вы уже сдавали в другой команде: второй раз они не засчитываются": "You already submitted the verses of this block in another team: they do not count twice",
+  "Стихи этого блока участник уже сдавал в другой команде: второй раз они не засчитываются": "This member already submitted the verses of this block in another team: they do not count twice",
   "Блок не найден": "Block not found",
   "Убрать можно только свой блок": "You can remove only your own block",
   "Проверенный блок убрать нельзя": "A reviewed block cannot be removed",
