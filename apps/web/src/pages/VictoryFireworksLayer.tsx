@@ -38,8 +38,8 @@ import type { Viewport } from "./MapLayers";
 export interface VictoryAnchor { x: number; y: number }
 
 /** Сила «ночной» вуали над картой, пока бьёт салют: днём и ночью (между ними — по свету карты). */
-export const VEIL_DAY = 0.5;
-export const VEIL_NIGHT = 0.3;
+export const VEIL_DAY = 0.55;
+export const VEIL_NIGHT = 0.32;
 /** Добавка к вуали в канонаду. */
 const VEIL_BARRAGE = 0.07;
 
@@ -61,6 +61,8 @@ const MAX_GLOWS = 24, MAX_ROCKETS = 48;
 const FRAME_MS = 33;   // потолок кадров — 30 в секунду
 const FADE = 0.24;     // гашение холста следов за кадр («выдержка» ~0,3 с)
 const HALO_MAX = 1300; // ореолов-спрайтов на кадр не больше
+/** Ветви ивы и пальмы помнят путь: HN точек через HDT с — длинная плавно гаснущая ветвь, как на фото с выдержкой. */
+const HN = 6, HDT = 0.1;
 
 /** Виды звёзд: 0 обычная, 1 строб, 4 искра (ракеты и капель), 6 ветвь ивы и хвоста, 7 голова пальмы. */
 type Kind = 0 | 1 | 4 | 6 | 7;
@@ -114,7 +116,7 @@ export function VictoryFireworksLayer({ vp, win, clock, timeZone, anchors }: {
     const readSize = () => {
       CW = host.clientWidth; CH = host.clientHeight;
       const area = (CW * CH) / (390 * 844);
-      sizeU = Math.min(1.6, Math.max(1, Math.sqrt(area) * 0.76));
+      sizeU = Math.min(1.7, Math.max(1, Math.sqrt(area) * 0.84));
       rateU = Math.min(2.2, Math.max(1, area / (sizeU * sizeU)));
       cap = Math.min(CAP_MAX, Math.round(3200 * rateU)); soft = Math.round(cap * 0.8);
     };
@@ -131,13 +133,15 @@ export function VictoryFireworksLayer({ vp, win, clock, timeZone, anchors }: {
     const GRAV = new Float32Array(CAP_MAX), DRAG = new Float32Array(CAP_MAX), WID = new Float32Array(CAP_MAX), PH = new Float32Array(CAP_MAX);
     const FR = new Float32Array(CAP_MAX), CHG = new Float32Array(CAP_MAX), GL = new Float32Array(CAP_MAX);
     const COL = new Uint8Array(CAP_MAX), COL2 = new Uint8Array(CAP_MAX), KIND = new Uint8Array(CAP_MAX), HALO = new Uint8Array(CAP_MAX);
+    const HX = new Float32Array(CAP_MAX * HN), HY = new Float32Array(CAP_MAX * HN), HT = new Float32Array(CAP_MAX), HC = new Uint8Array(CAP_MAX);
     let n = 0;
     const kill = (i: number) => {
       const l = --n;
       if (i === l) return;
       X[i] = X[l]!; Y[i] = Y[l]!; PX[i] = PX[l]!; PY[i] = PY[l]!; VX[i] = VX[l]!; VY[i] = VY[l]!; AGE[i] = AGE[l]!; LIFE[i] = LIFE[l]!;
       GRAV[i] = GRAV[l]!; DRAG[i] = DRAG[l]!; WID[i] = WID[l]!; PH[i] = PH[l]!; FR[i] = FR[l]!; CHG[i] = CHG[l]!; GL[i] = GL[l]!;
-      COL[i] = COL[l]!; COL2[i] = COL2[l]!; KIND[i] = KIND[l]!; HALO[i] = HALO[l]!;
+      COL[i] = COL[l]!; COL2[i] = COL2[l]!; KIND[i] = KIND[l]!; HALO[i] = HALO[l]!; HT[i] = HT[l]!; HC[i] = HC[l]!;
+      if (HC[l]) { const a = i * HN, b = l * HN; for (let q = 0; q < HN; q++) { HX[a + q] = HX[b + q]!; HY[a + q] = HY[b + q]!; } }
     };
     /** Новая звезда; `w` — размер головки в пикселях экрана, `col2`/`chg` — смена цвета на доле жизни `chg`. */
     const star = (x: number, y: number, vx: number, vy: number, life: number, col: number, kind: Kind, grav: number, drag: number, w: number,
@@ -146,7 +150,7 @@ export function VictoryFireworksLayer({ vp, win, clock, timeZone, anchors }: {
       const i = n++;
       X[i] = x; Y[i] = y; PX[i] = x; PY[i] = y; VX[i] = vx; VY[i] = vy; AGE[i] = o?.age ?? 0; LIFE[i] = life; COL[i] = col; KIND[i] = kind;
       GRAV[i] = grav; DRAG[i] = drag; WID[i] = w; FR[i] = o?.fr ?? 0; COL2[i] = o?.col2 ?? col; CHG[i] = o?.chg ?? 0; GL[i] = o?.gl ?? 0;
-      PH[i] = rng() * 6.283; HALO[i] = Math.floor(rng() * 4);
+      PH[i] = rng() * 6.283; HALO[i] = Math.floor(rng() * 4); HT[i] = 0; HC[i] = 0;
     };
 
     const rockets: Rocket[] = [];
@@ -226,15 +230,15 @@ export function VictoryFireworksLayer({ vp, win, clock, timeZone, anchors }: {
         }
         case "willow": {
           const life = rnd(3.6, 4.6), drag = 2.6, v0 = speedFor(R * 0.9, drag, life * 0.55) * u;
-          sphere(cnt(200), v0, (vx, vy) => star(cx, cy, vx, vy, life * rnd(0.85, 1.1), rng() < 0.82 ? C_GOLD : C_AMBER, 6, g(64), drag, 2.2,
-            { fr: rnd(10, 18), gl: rng() < 0.4 ? 1.4 : 0 }));
+          sphere(cnt(160), v0, (vx, vy) => star(cx, cy, vx, vy, life * rnd(0.85, 1.1), rng() < 0.82 ? C_GOLD : C_AMBER, 6, g(46), drag, 2.2,
+            { fr: rnd(10, 18), gl: rng() < 0.3 ? 0.9 : 0 }));
           break;
         }
         case "horsetail": {
-          const m = cnt(170), life = rnd(3, 3.8), drag = 1.4, v0 = speedFor(R * 0.8, drag, 1.2) * u;
+          const m = cnt(140), life = rnd(3, 3.8), drag = 1.4, v0 = speedFor(R * 0.8, drag, 1.2) * u;
           for (let i = 0; i < m; i++) {
             const a = rnd(-Math.PI * 0.96, -Math.PI * 0.04), v = v0 * rnd(0.35, 1);
-            star(cx, cy, Math.cos(a) * v, Math.sin(a) * v, life * rnd(0.8, 1.05), rng() < 0.85 ? C_GOLD : C_WARM, 6, g(120), drag, 2.1, { fr: rnd(10, 16), gl: rng() < 0.35 ? 1.3 : 0 });
+            star(cx, cy, Math.cos(a) * v, Math.sin(a) * v, life * rnd(0.8, 1.05), rng() < 0.85 ? C_GOLD : C_WARM, 6, g(110), drag, 2.1, { fr: rnd(10, 16), gl: rng() < 0.25 ? 0.9 : 0 });
           }
           break;
         }
@@ -243,8 +247,8 @@ export function VictoryFireworksLayer({ vp, win, clock, timeZone, anchors }: {
           const col = rng() < 0.6 ? C_GOLD : c1;
           for (let a = 0; a < arms; a++) {
             const ang = off + (a / arms) * 6.2832 + rnd(-0.08, 0.08), ca = Math.cos(ang), sa = Math.sin(ang);
-            star(cx, cy, ca * v0, sa * v0 - g(30), life, col, 7, g(105), drag, 3.6, { gl: 7, fr: rnd(8, 12) });
-            for (let j = 0; j < 6; j++) { const v = v0 * rnd(0.5, 0.95); star(cx, cy, ca * v + g(rnd(-5, 5)), sa * v - g(26), life * rnd(0.7, 0.95), col, 6, g(105), drag, 2.2); }
+            star(cx, cy, ca * v0, sa * v0 - g(30), life, col, 7, g(105), drag, 3.2, { gl: 6, fr: rnd(8, 12) });
+            for (let j = 0; j < 8; j++) { const v = v0 * rnd(0.45, 0.95), aj = ang + rnd(-0.07, 0.07); star(cx, cy, Math.cos(aj) * v, Math.sin(aj) * v - g(26), life * rnd(0.7, 0.95), col, 6, g(105), drag, 2); }
           }
           break;
         }
@@ -259,8 +263,9 @@ export function VictoryFireworksLayer({ vp, win, clock, timeZone, anchors }: {
       }
       // Вспышка у ядра (до ~120 мс, тёплая) и короткий свет цвета разрыва вокруг него — не заливка экрана.
       const dim = barrageEnd > 0 ? 0.65 : 1;
-      addGlow(cx, cy, g(R * 0.2), 0.12, C_WARM, 0.9 * dim);
-      addGlow(cx, cy, g(R * 0.62), 0.5, sh.type === "willow" || sh.type === "horsetail" ? C_GOLD : c1, 0.22 * dim);
+      const gc = sh.type === "willow" || sh.type === "horsetail" ? C_GOLD : c1;
+      addGlow(cx, cy, g(R * 0.13), 0.1, gc, 0.6 * dim);
+      addGlow(cx, cy, g(R * 0.55), 0.45, gc, 0.16 * dim);
       burstEnds.push(T + SEE[sh.type]);
       recent.push({ x: cx, y: cy, at: T }); if (recent.length > 10) recent.shift();
     };
@@ -303,7 +308,7 @@ export function VictoryFireworksLayer({ vp, win, clock, timeZone, anchors }: {
       let best = { x: CW / 2, y: CH / 2 }, bestD = -1;
       const rs = recent.filter((r) => T - r.at < 3).map((r) => screenOf(r.x, r.y));
       for (let i = 0; i < 8; i++) {
-        const p = { x: rnd(CW * 0.06, CW * 0.94), y: rnd(CH * 0.1, CH * 0.72) };
+        const p = { x: rnd(CW * 0.06, CW * 0.94), y: rnd(CH * 0.1, CH * 0.78) };
         let d = 1e9;
         for (const q of rs) d = Math.min(d, Math.hypot(p.x - q.x, p.y - q.y));
         if (d > bestD) { bestD = d; best = p; }
@@ -325,7 +330,7 @@ export function VictoryFireworksLayer({ vp, win, clock, timeZone, anchors }: {
         launch(a.x + rnd(-10, 10), Math.max(CH * 0.1, a.y - up), a.x, a.y, type, R, c1, c2, delay);
       } else {
         const p = spot();
-        launch(p.x, p.y, p.x + rnd(-0.05, 0.05) * CW, CH * 1.02, type, R, c1, c2, delay);
+        launch(p.x, p.y, p.x + rnd(-0.04, 0.04) * CW, Math.min(CH * 1.02, p.y + CH * rnd(0.28, 0.42)), type, R, c1, c2, delay);
       }
     };
     /** Веер: несколько ракет из одной точки внизу расходятся лучами и лопаются на разной высоте. */
@@ -358,10 +363,10 @@ export function VictoryFireworksLayer({ vp, win, clock, timeZone, anchors }: {
     };
     /** Финальный аккорд канонады: ряд огромных золотых ив через весь экран, над ними — шар и строб. */
     const grand = () => {
-      const m = Math.max(4, Math.min(10, Math.round(CW / (95 * sizeU))));
+      const m = Math.max(4, Math.min(9, Math.round(CW / (100 * sizeU))));
       for (let i = 0; i < m; i++) {
         const f = (i + 0.5) / m, x = f * CW, y = CH * (0.3 + (i % 2 ? 0.1 : -0.04) + rnd(-0.03, 0.03));
-        launch(x, y, x + rnd(-14, 14), CH * 1.03, i % 3 === 1 ? "horsetail" : "willow", radius("huge") * rnd(0.95, 1.15), C_GOLD, C_AMBER, i * 0.06);
+        launch(x, y, x + rnd(-14, 14), CH * 1.03, i % 3 === 1 ? "horsetail" : "willow", radius("huge") * rnd(0.9, 1.1), C_GOLD, C_AMBER, (i % 2) * 0.22 + i * 0.04);
       }
       const t: ShellType = rng() < 0.5 ? "chrys" : "saturn", [a, b] = colors(t);
       launch(CW * rnd(0.4, 0.6), CH * 0.22, CW / 2, CH * 1.04, t, radius("huge") * 1.1, a, b, 0.55);
@@ -380,7 +385,7 @@ export function VictoryFireworksLayer({ vp, win, clock, timeZone, anchors }: {
       if (T < nextEvent) return;
       if (barrage && T >= barrageEnd - 1.1) { nextEvent = T + 0.3; return; }
       event(barrage);
-      nextEvent = T + (barrage ? rnd(0.13, 0.24) : rnd(0.42, 0.8)) / rateU;
+      nextEvent = T + (barrage ? rnd(0.13, 0.24) : rnd(0.5, 0.95)) / rateU;
       // Звёзд почти потолок — новых залпов нет, пока не освободится место.
       if (n > cap - 350) nextEvent = T + 0.4;
     };
@@ -396,6 +401,15 @@ export function VictoryFireworksLayer({ vp, win, clock, timeZone, anchors }: {
         const d = 1 - Math.min(0.9, DRAG[i]! * dt);
         const vx = VX[i]! * d, vy = VY[i]! * d + GRAV[i]! * dt;
         VX[i] = vx; VY[i] = vy; X[i] = X[i]! + vx * dt; Y[i] = Y[i]! + vy * dt;
+        const kd = KIND[i]!;
+        if (kd === 6 || kd === 7) {
+          const ht = HT[i]! + dt;
+          if (ht >= HDT) {
+            const o = i * HN;
+            for (let q = HN - 1; q > 0; q--) { HX[o + q] = HX[o + q - 1]!; HY[o + q] = HY[o + q - 1]!; }
+            HX[o] = PX[i]!; HY[o] = PY[i]!; HT[i] = 0; if (HC[i]! < HN) HC[i] = HC[i]! + 1;
+          } else HT[i] = ht;
+        }
         // Капель искр с мерцающих ветвей: падают и быстро гаснут.
         const gl = GL[i]!;
         if (gl > 0 && n < soft && age > LIFE[i]! * 0.2 && rng() < gl * dt) {
@@ -416,9 +430,10 @@ export function VictoryFireworksLayer({ vp, win, clock, timeZone, anchors }: {
     };
 
     // ——— Рисование ———
-    // Вёдра штрихов: (толщина 0 тонкая искра / 1 обычная / 2 толстая) × цвет × яркость — один путь на ведро.
-    const NT = 3, trailB: number[][] = Array.from({ length: NT * NC * NA }, () => []);
+    // Вёдра штрихов: (толщина 0 тонкая искра / 1 обычная) × цвет × яркость — один путь на ведро.
+    const NT = 2, trailB: number[][] = Array.from({ length: NT * NC * NA }, () => []);
     const coreB: number[][] = Array.from({ length: 2 * NC * NA }, () => []);
+    const strandB: number[][] = Array.from({ length: NC * NA }, () => []);
     const alphaLevel = (a: number) => (a >= 0.93 ? 0 : Math.min(NA - 1, Math.max(0, Math.round((1 - a) * 7.6))));
     const vb = { x0: 0, x1: 0, y0: 0, y1: 0 };
 
@@ -459,8 +474,8 @@ export function VictoryFireworksLayer({ vp, win, clock, timeZone, anchors }: {
       for (const r of rockets) {
         const x = r.ax ?? r.sx, y = r.ay ?? r.sy;
         if (x < vb.x0 || x > vb.x1 || y < vb.y0 || y > vb.y1) continue;
-        trailB[(1 * NC + C_GOLD) * NA + 1]!.push(r.px, r.py, x, y);
-        const s = 9 / k; ctx.globalAlpha = 0.9; ctx.drawImage(sprite(C_WARM), x - s, y - s, s * 2, s * 2);
+        trailB[(0 * NC + C_GOLD) * NA + 4]!.push(r.px, r.py, x, y);
+        const s = 5 / k; ctx.globalAlpha = 0.8; ctx.drawImage(sprite(C_WARM), x - s, y - s, s * 2, s * 2);
       }
       // Звёзды.
       const haloStep = n > HALO_MAX ? Math.ceil((n / HALO_MAX) * 4) / 4 : 0; // доля ореолов: по метке звезды 0..3
@@ -482,14 +497,25 @@ export function VictoryFireworksLayer({ vp, win, clock, timeZone, anchors }: {
         if (a <= 0.04) continue;
         const al = alphaLevel(a);
         if (kind !== 1 || t <= 0.3) {
-          const th = kind === 4 ? 0 : kind === 7 ? 2 : 1;
+          const th = kind === 4 ? 0 : 1;
           trailB[(th * NC + col) * NA + Math.min(NA - 1, al + (kind === 4 ? 1 : 0))]!.push(PX[i]!, PY[i]!, x, y);
         }
         if (kind === 4) continue;
+        const hc = HC[i]!;
+        if (hc) {
+          // Ветвь: путь за последние ~0,6 с, тоньше и бледнее к хвосту.
+          const o = i * HN;
+          let x0 = x, y0 = y;
+          for (let q = 0; q < hc; q++) {
+            const x1 = HX[o + q]!, y1 = HY[o + q]!, aa = a * (1 - (q + 0.5) / HN) * 0.75;
+            if (aa > 0.04) strandB[col * NA + alphaLevel(aa)]!.push(x0, y0, x1, y1);
+            x0 = x1; y0 = y1;
+          }
+        }
         // Головка: ядро (в первые мгновения почти белое) и ореол-спрайт.
         coreB[((t < 0.12 ? 1 : 0) * NC + col) * NA + al]!.push(x, y);
         if (HALO[i]! < haloKeep) {
-          const s = (w * (t < 0.15 ? 2.6 : 2) * (kind === 7 ? 1.4 : 1)) / k;
+          const s = (w * (t < 0.15 ? 2.3 : 2) * (kind === 7 ? 1.3 : 1)) / k;
           ctx.globalAlpha = a * (kind === 1 ? 1 : 0.85);
           ctx.drawImage(sprite(col), x - s, y - s, s * 2, s * 2);
         }
@@ -501,10 +527,21 @@ export function VictoryFireworksLayer({ vp, win, clock, timeZone, anchors }: {
         if (!s.length) continue;
         const a = b % NA, rest = (b - a) / NA, col = rest % NC, th = (rest - col) / NC, [h, sat, l] = COLORS[col]!;
         tctx.strokeStyle = `hsla(${h},${sat}%,${Math.min(80, l + 6)}%,${(ALPHAS[a] * 0.8).toFixed(3)})`;
-        tctx.lineWidth = (th === 0 ? 1.2 : th === 1 ? 2.2 : 3.2) / k;
+        tctx.lineWidth = (th === 0 ? 1.2 : 2.2) / k;
         tctx.beginPath();
         for (let j = 0; j < s.length; j += 4) { tctx.moveTo(s[j]!, s[j + 1]!); tctx.lineTo(s[j + 2]!, s[j + 3]!); }
         tctx.stroke();
+        s.length = 0;
+      }
+      ctx.lineWidth = 1.5 / k;
+      for (let b = 0; b < strandB.length; b++) {
+        const s = strandB[b]!;
+        if (!s.length) continue;
+        const a = b % NA, col = (b - a) / NA, [h, sat, l] = COLORS[col]!;
+        ctx.strokeStyle = `hsla(${h},${sat}%,${Math.min(80, l + 4)}%,${ALPHAS[a]})`;
+        ctx.beginPath();
+        for (let j = 0; j < s.length; j += 4) { ctx.moveTo(s[j]!, s[j + 1]!); ctx.lineTo(s[j + 2]!, s[j + 3]!); }
+        ctx.stroke();
         s.length = 0;
       }
       for (let b = 0; b < coreB.length; b++) {
