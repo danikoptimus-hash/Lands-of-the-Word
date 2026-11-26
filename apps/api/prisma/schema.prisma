@@ -169,6 +169,12 @@ model Game {
    * Почему завершена: last_team (осталась одна команда), time_limit (срок), manual (админ).
    */
   finishReason      String?
+  /**
+   * Празднование победы (решение владельца 26.11): последняя столица взята, в строю одна команда. Партия ещё идёт трое
+   * суток (срок settings.endsAt = victoryAt + 72 ч), победители занимают руины; потом она завершается с этой командой.
+   */
+  victoryAt         DateTime?
+  victoryTeamId     String?
   recipients        Recipient[]
   taskEvents        TaskEvent[]
   supportRequests   SupportRequest[]

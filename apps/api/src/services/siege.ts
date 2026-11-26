@@ -8,6 +8,7 @@ import { isLocked } from "./battles.js";
 import type { Prisma } from "@prisma/client";
 import { journal, teamNames } from "./journal.js";
 import { peaceBetween } from "./peace.js";
+import { activeGameEnds, contestVoid, defeatOps, dueBeforeEnd } from "./defeat.js";
 
 /**
  * Осада делами (решение владельца 18.09). Город, где хранители отбились с максимумом (каждый участник выучил
@@ -25,17 +26,22 @@ async function pointsOf(gameId: string, teamId: string, from: Date, to: Date, ru
 
 /** Пересчёт баллов идущих осад (для показа) и разрешение завершившихся. Вызывается из sweep. */
 export async function sweepSieges(gameId?: string, now = new Date()): Promise<void> {
-  const sieges = await prisma.siege.findMany({ where: { ...(gameId ? { gameId } : {}), status: "ACTIVE" } });
+  // Только идущие партии (второй круг разбора, 26.11): в завершённой осада не разрешается.
+  const ends = await activeGameEnds(gameId);
+  const sieges = await prisma.siege.findMany({ where: { gameId: { in: [...ends.keys()] }, status: "ACTIVE" } });
   for (const s of sieges) {
     const rules = rulesOf((await prisma.game.findUnique({ where: { id: s.gameId }, select: { settings: true } }))?.settings);
     const until = s.endsAt.getTime() < now.getTime() ? s.endsAt : now;
     const [a, d] = await Promise.all([pointsOf(s.gameId, s.attackerId, s.startedAt, until, rules), pointsOf(s.gameId, s.defenderId, s.startedAt, until, rules)]);
     if (a !== s.attackerPoints || d !== s.defenderPoints) await prisma.siege.update({ where: { id: s.id }, data: { attackerPoints: a, defenderPoints: d } });
     if (s.endsAt.getTime() > now.getTime()) continue;
+    // Срок осады позже конца игры, а обход пришёл, когда вышли оба: исхода нет, осаду снимет завершение игры.
+    if (!dueBeforeEnd(s.endsAt, ends.get(s.gameId) ?? null, now)) continue;
     // Срок вышел: больше баллов — город переходит; равенство — остаётся у хранителей.
     const owner = await prisma.teamCityState.findFirst({ where: { gameId: s.gameId, nodeKey: s.nodeKey, capturedAt: { not: null } } });
     const book = (await prisma.mapNode.findUnique({ where: { gameId_key: { gameId: s.gameId, key: s.nodeKey } }, select: { bookCode: true } }))?.bookCode ?? "";
-    if (!owner || owner.teamId !== s.defenderId) { await prisma.siege.update({ where: { id: s.id }, data: { status: "CANCELLED", resolvedAt: now } }); continue; }
+    // Хозяин сменился, партия празднует победу или сторона выбыла (страховка, 26.11) — осада снимается без исхода.
+    if (!owner || owner.teamId !== s.defenderId || (await contestVoid(s.gameId, s.attackerId, s.defenderId))) { await prisma.siege.update({ where: { id: s.id }, data: { status: "CANCELLED", resolvedAt: now } }); publish(s.gameId, { type: "battles" }); continue; }
     const [an, dn] = await teamNames(s.attackerId, s.defenderId);
     if (a > d) {
       journal(s.gameId, "siege_won", { everyone: true, teamId: s.attackerId, vars: { team: an, other: dn, book } });
@@ -74,13 +80,11 @@ export async function transferCity(gameId: string, nodeKey: string, fromTeamId: 
     prisma.battle.updateMany({ where: { gameId, nodeKey, status: { in: ["QUEUED", "ATTACK", "DEFENSE"] } }, data: { status: "CANCELLED", resolvedAt: now } }),
   ];
   if (wasCapital) {
-    ops.push(prisma.team.update({ where: { id: fromTeamId }, data: { status: "defeated" } }));
     // Победа (решение владельца 08.11): салют над всеми городами команды, взявшей чужую столицу, до конца дня.
     ops.push(prisma.team.update({ where: { id: toTeamId }, data: { triumphAt: now } }));
-    const others = await prisma.teamCityState.findMany({ where: { teamId: fromTeamId, capturedAt: { not: null }, NOT: { nodeKey } }, select: { nodeKey: true } });
-    if (others.length) ops.push(prisma.mapNode.updateMany({ where: { gameId, key: { in: others.map((o) => o.nodeKey) } }, data: { ruined: true, defenseLevel: 0, lockedUntil: null, maxReachedAt: null } }));
-    ops.push(prisma.teamCityState.updateMany({ where: { teamId: fromTeamId, capturedAt: { not: null } }, data: { capturedAt: null, isCapital: false, secondCapital: false } }));
-    ops.push(prisma.teamEdgeTask.updateMany({ where: { teamId: fromTeamId, status: "TAKEN" }, data: { status: "OPEN", takenById: null, takenAt: null } }));
+    // Выбывание — то же, что при взятии вызовом (services/defeat.ts): раньше здесь не снимались испытания и осады
+    // выбывшей команды за другие города, и они потом отнимали город у победителя (разбор празднования, 26.11).
+    ops.push(...(await defeatOps(gameId, fromTeamId, nodeKey, now)));
   }
   await prisma.$transaction(ops);
   await onCityOwned(gameId, nodeKey, toTeamId);
@@ -94,15 +98,17 @@ export async function transferCity(gameId: string, nodeKey: string, fromTeamId: 
 /** Можно ли объявить осаду: город с максимумом защиты, закрепление кончилось, команда изучила город, осада не идёт. */
 export async function siegeOptions(gameId: string, teamId: string, nodeKey: string) {
   const node = await prisma.mapNode.findUniqueOrThrow({ where: { gameId_key: { gameId, key: nodeKey } } });
-  const [owner, state, active, rules] = await Promise.all([
+  const [owner, state, active, game] = await Promise.all([
     prisma.teamCityState.findFirst({ where: { gameId, nodeKey, capturedAt: { not: null } } }),
     prisma.teamCityState.findUnique({ where: { teamId_nodeKey: { teamId, nodeKey } } }),
     prisma.siege.findFirst({ where: { gameId, nodeKey, status: "ACTIVE" } }),
-    prisma.game.findUnique({ where: { id: gameId }, select: { settings: true } }).then((g) => rulesOf(g?.settings)),
+    prisma.game.findUnique({ where: { id: gameId }, select: { settings: true, victoryAt: true } }),
   ]);
+  const rules = rulesOf(game?.settings);
   const maxed = node.maxReachedAt !== null;
   let reason: string | null = null;
-  if (!maxed) reason = "Осада делами возможна только для города, где хранители выучили всю книгу";
+  if (game?.victoryAt) reason = "Празднование победы: вызовов и осад больше нет";
+  else if (!maxed) reason = "Осада делами возможна только для города, где хранители выучили всю книгу";
   else if (!owner || owner.teamId === teamId) reason = "Город не принадлежит другой команде";
   else if (await peaceBetween(gameId, teamId, owner.teamId)) reason = "Между вашими командами мир: осада невозможна, пока мир не расторгнут";
   else if (isLocked(node)) reason = "Город закреплён: осаду можно объявить после срока закрепления";

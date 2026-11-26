@@ -1,6 +1,7 @@
 import { prisma } from "../db.js";
 import { notifyAdmins } from "./notify.js";
 import { rulesOf } from "./rules.js";
+import { setSettings } from "./gameSettings.js";
 
 /**
  * Дайджест сдач для администраторов (решение владельца 18.09, A-13): вместо письма на каждую сдачу — одно письмо
@@ -22,7 +23,7 @@ export async function sweepDigests(now = new Date()): Promise<void> {
       prisma.battle.count({ where: { gameId: g.id, status: { in: ["ATTACK", "DEFENSE"] }, entries: { some: { status: "SUBMITTED" } } } }),
       prisma.wallBlock.count({ where: { gameId: g.id, status: "SUBMITTED" } }),
     ]);
-    await prisma.game.update({ where: { id: g.id }, data: { settings: { ...(g.settings as object), lastDigestAt: now.toISOString() } } });
+    await setSettings(g.id, { lastDigestAt: now.toISOString() });
     const deeds = roadDeeds + quarry; // сдачи Каменоломни тоже ждут проверки
     if (deeds + sides + walls === 0) continue;
     notifyAdmins(g.id, "сдачи ждут проверки", "На проверке: дел — {deeds}, сторон испытаний — {sides}, блоков стен — {walls}. Откройте раздел «Проверка».", { deeds, sides, walls });
