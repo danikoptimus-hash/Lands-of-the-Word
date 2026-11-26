@@ -12,7 +12,7 @@ import { onCityOwned, returnStaleTasks } from "./teamMap.js";
 import { layWallBeforeDeadline, wallOf } from "./wall.js";
 import { answerCap } from "./learned.js";
 import { days, rulesOf, type Rules } from "./rules.js";
-import { sweepSieges } from "./siege.js";
+import { dueSieges, resolveSiege } from "./siege.js";
 import { activeGameEnds, contestVoid, defeatOps, dueBeforeEnd } from "./defeat.js";
 import { sinkDueWrecks } from "./wrecks.js";
 import { BOOKS } from "@lotw/domain";
@@ -379,6 +379,9 @@ export async function afterReject(b: BattleWithEntries, side: "ATTACK" | "DEFENS
 /** Город взят: смена владельца, уровень защиты = ставка; потеря столицы = поражение хранителей. */
 export async function resolveWon(b: Battle): Promise<void> {
   const now = new Date();
+  // Обход разбирает просроченное по порядку сроков: более раннее событие могло уже снять или закрыть этот вызов.
+  const cur = await prisma.battle.findUnique({ where: { id: b.id }, select: { status: true, defenseDoneAt: true } });
+  if (cur?.status !== "DEFENSE" || cur.defenseDoneAt) return;
   if (await contestVoid(b.gameId, b.attackerId, b.defenderId)) {
     await prisma.battle.updateMany({ where: { id: b.id, status: "DEFENSE" }, data: { status: "CANCELLED", resolvedAt: now } });
     publish(b.gameId, { type: "battles" });
@@ -444,12 +447,16 @@ export function sweep(gameId?: string): Promise<void> {
   sweepChain = run.catch(() => {});
   return run;
 }
-async function sweepNow(gameId?: string): Promise<void> {
-  const now = new Date();
+/** Шаги обхода до проверки срока игры: проходы, сгоревшие вызовы, стена, просроченные ответы и осады. */
+async function sweepDue(gameId: string | undefined, now: Date): Promise<void> {
   await expirePassages(gameId);
+  // Конец каждой идущей игры (services/defeat.ts): что наступило позже него, обход не трогает — снимет завершение игры.
+  const ends = await activeGameEnds(gameId);
+  const inTime = (gameId: string, due: Date) => ends.has(gameId) && dueBeforeEnd(due, ends.get(gameId) ?? null, now);
   // Сгорает вызов, не отправленный на проверку за срок, и вызов, одобренный, но не начатый за срок (решение владельца 01.11); на проверке срок стоит.
   const burnt = await prisma.battle.findMany({ where: { ...(gameId ? { gameId } : {}), status: "ATTACK", attackDeadline: { lt: now }, OR: [{ attackDoneAt: null }, { attackApprovedAt: { not: null } }] } });
   for (const b of burnt) {
+    if (!inTime(b.gameId, b.attackDeadline!)) continue;
     const rules = await gameRules(b.gameId);
     // Переход — только если вызов всё ещё сгорает (те же условия, что в выборке): пока шёл обход, его могли сдать на
     // проверку или закрыть; тогда штрафа нет. Переход и штраф — одной операцией: либо оба, либо ничего.
@@ -475,16 +482,28 @@ async function sweepNow(gameId?: string): Promise<void> {
   // Стена ложится в ответ за минуту до конца времени ответа (решение владельца 02.11), а не при «Испытать»: до этого
   // хранители отвечают сами; опоздавший обход кладёт стену и после срока, прежде чем признать город потерянным.
   const walls = await prisma.battle.findMany({ where: { ...(gameId ? { gameId } : {}), status: "DEFENSE", defenseDoneAt: null, wallAppliedAt: null, defenseDeadline: { lte: new Date(now.getTime() + WALL_LEAD_MS) } }, include: { entries: true } });
-  for (const b of walls) await layWallBeforeDeadline(b);
+  for (const b of walls) if (inTime(b.gameId, new Date(b.defenseDeadline!.getTime() - WALL_LEAD_MS))) await layWallBeforeDeadline(b);
   // Город теряется, только если ответ просрочен не позже конца игры (services/defeat.ts, dueBeforeEnd); позже — вызов
-  // снимет завершение игры по сроку.
-  const ends = await activeGameEnds(gameId);
-  const lost = await prisma.battle.findMany({ where: { ...(gameId ? { gameId } : {}), status: "DEFENSE", defenseDeadline: { lt: now }, defenseDoneAt: null } });
-  for (const b of lost) if (ends.has(b.gameId) && dueBeforeEnd(b.defenseDeadline!, ends.get(b.gameId) ?? null, now)) await resolveWon(b);
-  await sweepSieges(gameId, now);
-  // Срок игры — после разбора просроченного (разбор празднования, 26.11): город, взятый до срока игры (ответ не дан,
-  // осада кончилась), достаётся претендентам, и взятие последней столицы даёт празднование, а не конец по сроку.
-  await checkTimeLimits(gameId);
+  // снимет завершение игры по сроку. Просроченные ответы и осады разбираются вместе, по времени срока (третий круг
+  // разбора, 26.11): при опоздавшем обходе победителя решает то, что случилось раньше, а не порядок строк в базе.
+  const lost = (await prisma.battle.findMany({ where: { ...(gameId ? { gameId } : {}), status: "DEFENSE", defenseDeadline: { lt: now }, defenseDoneAt: null } })).filter((b) => inTime(b.gameId, b.defenseDeadline!));
+  const due = [
+    ...lost.map((b) => ({ at: b.defenseDeadline!.getTime(), run: () => resolveWon(b) })),
+    ...(await dueSieges(gameId, now)).map((x) => ({ at: x.siege.endsAt.getTime(), run: () => resolveSiege(x, now) })),
+  ].sort((x, y) => x.at - y.at);
+  for (const x of due) await x.run();
+}
+async function sweepNow(gameId?: string): Promise<void> {
+  const now = new Date();
+  // Срок игры проверяется после разбора просроченного, но и тогда, когда шаг раньше упал (третий круг разбора, 26.11):
+  // иначе одна ошибка каждую минуту не давала бы игре завершиться по сроку. Ошибка шага после этого идёт дальше, как раньше.
+  try {
+    await sweepDue(gameId, now);
+  } finally {
+    // Срок игры — после разбора просроченного (разбор празднования, 26.11): город, взятый до срока игры (ответ не дан,
+    // осада кончилась), достаётся претендентам, и взятие последней столицы даёт празднование, а не конец по сроку.
+    await checkTimeLimits(gameId);
+  }
   await sinkDueWrecks(gameId, now);
   // Еженедельная летопись не рассылается (решение владельца 25.10: «у команд и так летопись ведётся»).
   if (!gameId) await sweepDigests(now);
