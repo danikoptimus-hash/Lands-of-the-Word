@@ -10,25 +10,28 @@ import type { Viewport } from "./MapLayers";
  *
  * Чужой опыт (правило приёмки). Приёмы — из «Firework Simulator v2» Caleb Miller (CodePen MillerTime/XgpNwb, MIT) и из того,
  * как настоящий салют выглядит на фото с выдержкой:
- *  - салюту нужно тёмное небо: пока он идёт, карта под ним притемняется «ночной» вуалью (днём сильнее, ночью слабее);
+ *  - салюту нужно тёмное небо: пока он идёт, карта под ним притемняется «ночной» вуалью (владелец 26.11: «притемнение
+ *    оставь»); вуаль умножает цвета карты на тёмно-синий — белое становится синим, а не серым;
  *  - шлейфы «с выдержкой»: отдельный холст следов, который каждый кадр не очищается, а гасится (`destination-out`), —
  *    звезда тянет за собой плавный сужающийся след сама, без нарисованных «палочек»;
- *  - звезда — светящаяся точка: заранее нарисованный спрайт-градиент по цвету (`drawImage`, без `shadowBlur`) и яркое ядро;
+ *  - звезда — светящаяся точка: заранее нарисованный спрайт-градиент по цвету (`drawImage`, без `shadowBlur`) и ядро;
  *  - разрыв — шар: направления с поверхности сферы (круг плотнее у края), скорость подобрана под сопротивление воздуха,
- *    чтобы шар доходил ровно до нужного радиуса; сотни звёзд; смена цвета звёзд, «пестик» другого цвета;
- *  - ива и конский хвост — длинные золотые ветви с мерцанием, с которых сыплются искры; строб — мерцающие точки;
- *    кольцо — только вокруг шара («Сатурн»); искры за ракетой на подъёме; короткая вспышка цвета разрыва у ядра.
+ *    чтобы шар доходил ровно до нужного радиуса; падение под тяжестью подобрано так, чтобы звезда гасла, не опустившись
+ *    ниже ~0,3–0,65 радиуса, — без «дождя»; смена цвета звёзд, «пестик» другого цвета, мерцание при угасании;
+ *  - ива — длинные золотые ветви (с цветными кончиками), которые гаснут вместе с куполом; строб — мерцающие точки;
+ *    пальма — толстые ветви; ракета — яркая головка с коротким хвостом; короткая вспышка у ядра.
  * Код не копировался — только приёмы, всё написано заново под карту.
  *
- * Устройство. Вуаль — div под подписями городов; два холста над картой: следы (гасятся) и головки звёзд (чистятся
- * каждый кадр). Всё в координатах карты: разрыв остаётся на своём месте при сдвиге и зуме; когда карту двигают, холст
- * следов переносится вслед за ней одним `drawImage` (иначе следы остались бы на месте — ошибка «следы при зуме» 16.11).
- * Размер разрыва задаётся в пикселях экрана на момент разрыва при любом приближении: на общем виде карты разрывы так же
- * крупны, как вблизи. На большом экране разрывы крупнее и их больше (по площади экрана).
+ * Устройство. Вуаль — div под подписями городов; два холста над картой: следы (гасятся) и головки (чистятся каждый кадр).
+ * К карте привязан только центр разрыва (`SX`, `SY` — места в координатах карты); звёзды хранят смещение от центра в
+ * пикселях экрана. Поэтому при сдвиге разрыв едет с картой, а при зуме сохраняет размер на экране (не сжимается в комок
+ * на общем виде и не раздувается вблизи). При сдвиге холст следов переносится одним `drawImage`, при зуме — очищается
+ * (ошибка «следы при зуме» 16.11). На большом экране разрывы крупнее и их больше — по площади экрана.
  *
  * Распорядитель — по собственным часам показа (`T`, растёт на кадр): под листом (`coverGate`) показ замирает и после него
- * не догоняет. Спокойно — разрыв-другой каждые полсекунды, на экране всегда 3–6 разрывов разной стадии. Раз в 18–28 с —
- * канонада 5–6 с: стена разрывов по всей ширине и финальный аккорд из огромных золотых ив.
+ * не догоняет. Спокойно — на экране всё время 6–10 ярких разрывов в разных стадиях (на компьютере больше, по площади).
+ * Раз в 18–28 с — канонада 5–6 с вдвое гуще и финальный аккорд: сетка огромных ив и многоцветных шаров от края до края,
+ * строб поверх; сразу за ним — снова обычные разрывы. Центры разрывов — вне шапки и панели разделов.
  *
  * Скорость (памятка 16.11): всё на холсте, в слое меток ничего не движется; потолок 30 кадров; когда салюта нет (до победы,
  * после неё, днём вторых и третьих суток) — цикл кадров не крутится, холсты сжаты до точки, раз в 4 с проверяется только
@@ -37,11 +40,11 @@ import type { Viewport } from "./MapLayers";
  */
 export interface VictoryAnchor { x: number; y: number }
 
-/** Сила «ночной» вуали над картой, пока бьёт салют: днём и ночью (между ними — по свету карты). */
-export const VEIL_DAY = 0.55;
-export const VEIL_NIGHT = 0.32;
+/** Сила «ночной» вуали над картой, пока бьёт салют: днём и ночью (между ними — по свету карты). Вуаль — `multiply`. */
+export const VEIL_DAY = 0.85;
+export const VEIL_NIGHT = 0.5;
 /** Добавка к вуали в канонаду. */
-const VEIL_BARRAGE = 0.07;
+const VEIL_BARRAGE = 0.06;
 
 // ——— Палитра ———
 // [оттенок, насыщенность %, яркость %].
@@ -51,24 +54,27 @@ const COLORS: ReadonlyArray<readonly [number, number, number]> = [
 ];
 const NC = COLORS.length;
 const C_GOLD = 0, C_AMBER = 1, C_WHITE = 15, C_WARM = 16;
-const CHROMA: ReadonlyArray<number> = [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14]; // цвета разрывов (без белых и золота)
+const CHROMA: ReadonlyArray<number> = [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 14]; // цвета разрывов (без белых и золота)
 const ALPHAS = [1, 0.84, 0.68, 0.54, 0.41, 0.3, 0.2, 0.11] as const;
 const NA = ALPHAS.length;
 
 // ——— Пределы ———
-const CAP_MAX = 6000;  // память под звёзды; рабочий потолок — `cap` по размеру экрана (телефон 3200)
-const MAX_GLOWS = 24, MAX_ROCKETS = 48;
-const FRAME_MS = 33;   // потолок кадров — 30 в секунду
-const FADE = 0.24;     // гашение холста следов за кадр («выдержка» ~0,3 с)
-const HALO_MAX = 1300; // ореолов-спрайтов на кадр не больше
+const CAP_MAX = 8000;   // память под звёзды; рабочий потолок — `cap` по размеру экрана (телефон 4800, компьютер 8000)
+const CAP_PHONE = 4800;
+const NSLOT = 256;      // мест разрывов в кольце (разрыв живёт ≤ 4 с, их ≤ ~30 в секунду)
+const MAX_GLOWS = 40, MAX_ROCKETS = 60;
+const FRAME_MS = 33;    // потолок кадров — 30 в секунду
+const FADE = 0.24;      // гашение холста следов за кадр («выдержка» ~0,3 с)
+const HALO_PHONE = 1500; // ореолов-спрайтов на кадр не больше (на большом экране — больше, по площади)
 /** Ветви ивы и пальмы помнят путь: HN точек через HDT с — длинная плавно гаснущая ветвь, как на фото с выдержкой. */
 const HN = 6, HDT = 0.1;
 
-/** Виды звёзд: 0 обычная, 1 строб, 4 искра (ракеты и капель), 6 ветвь ивы и хвоста, 7 голова пальмы. */
+/** Виды звёзд: 0 обычная, 1 строб, 4 искра ракеты, 6 ветвь ивы, 7 голова пальмы. */
 type Kind = 0 | 1 | 4 | 6 | 7;
-type ShellType = "peony" | "chrys" | "willow" | "horsetail" | "palm" | "strobe" | "saturn";
-interface Rocket { sx: number; sy: number; tx: number; ty: number; px: number; py: number; ax?: number; ay?: number; T: number; age: number; type: ShellType; R: number; c1: number; c2: number }
-interface Glow { x: number; y: number; r: number; age: number; life: number; col: number; a: number }
+type ShellType = "peony" | "chrys" | "willow" | "palm" | "strobe";
+/** Ракета летит к месту `slot`; `ox`, `oy` — откуда, в пикселях экрана от него. */
+interface Rocket { slot: number; ox: number; oy: number; T: number; age: number; type: ShellType; R: number; c1: number; c2: number }
+interface Glow { slot: number; r: number; age: number; life: number; col: number; a: number }
 
 /** Простой генератор с зерном (mulberry32): `?vseed=N` даёт одинаковый показ для съёмки. */
 function mulberry(seed: number): () => number {
@@ -83,7 +89,7 @@ export function VictoryFireworksLayer({ vp, win, clock, timeZone, anchors }: {
   /** Часы сервера, мс. */
   clock: () => number;
   timeZone: string;
-  /** Места городов в координатах карты: часть залпов уходит из них. */
+  /** Места городов в координатах карты: часть ракет взлетает из них. */
   anchors?: ReadonlyArray<VictoryAnchor>;
 }) {
   const ref = useRef<HTMLCanvasElement>(null);
@@ -108,7 +114,9 @@ export function VictoryFireworksLayer({ vp, win, clock, timeZone, anchors }: {
 
     // ——— Состояние холстов ———
     let CW = 0, CH = 0, W = 0, H = 0;
-    let sizeU = 1, rateU = 1, cap = 3200, soft = 2600;
+    let sizeU = 1, rateU = 1, cap = CAP_PHONE, soft = 3800, haloMax = HALO_PHONE;
+    /** Свободная от интерфейса часть экрана (шапка, панель разделов, колонка плиток): центры разрывов — только в ней. */
+    let fx0 = 0, fx1 = 0, fy0 = 0, fy1 = 0;
     let running = false, stopping = false, raf = 0, last = 0, checked = -1e9;
     /** Вид карты, под который сейчас нарисован холст следов. */
     let tk = 1, ttx = 0, tty = 0;
@@ -117,8 +125,10 @@ export function VictoryFireworksLayer({ vp, win, clock, timeZone, anchors }: {
       CW = host.clientWidth; CH = host.clientHeight;
       const area = (CW * CH) / (390 * 844);
       sizeU = Math.min(1.7, Math.max(1, Math.sqrt(area) * 0.84));
-      rateU = Math.min(2.2, Math.max(1, area / (sizeU * sizeU)));
-      cap = Math.min(CAP_MAX, Math.round(3200 * rateU)); soft = Math.round(cap * 0.8);
+      rateU = Math.min(2, Math.max(1, area / sizeU));
+      cap = Math.min(CAP_MAX, Math.round(CAP_PHONE * rateU)); soft = Math.round(cap * 0.8); haloMax = Math.round(HALO_PHONE * Math.min(2, rateU));
+      const wide = CW >= 900;
+      fx0 = wide ? 96 : 14; fx1 = CW - 14; fy0 = wide ? 70 : 86; fy1 = CH - (wide ? 70 : 128);
     };
     const sizeCanvas = () => {
       const w = running ? Math.max(1, Math.round(CW * dpr)) : 1, h = running ? Math.max(1, Math.round(CH * dpr)) : 1;
@@ -127,50 +137,53 @@ export function VictoryFireworksLayer({ vp, win, clock, timeZone, anchors }: {
       W = w; H = h;
     };
 
-    // ——— Звёзды (массивы чисел, без выделения памяти) ———
+    // ——— Места разрывов: центр в координатах карты ———
+    const SX = new Float64Array(NSLOT), SY = new Float64Array(NSLOT), SK = new Float64Array(NSLOT).fill(1);
+    let slotNext = 0;
+    const view = () => vpRef.current.viewRef.current;
+    const newSlot = (sx: number, sy: number) => { const v = view(), s = slotNext; slotNext = (slotNext + 1) % NSLOT; SX[s] = (sx - v.tx) / v.k; SY[s] = (sy - v.ty) / v.k; SK[s] = v.k; return s; };
+    const screenOf = (wx: number, wy: number) => { const v = view(); return { x: wx * v.k + v.tx, y: wy * v.k + v.ty }; };
+
+    // ——— Звёзды (массивы чисел, без выделения памяти); X, Y — смещение от центра разрыва в пикселях экрана ———
     const X = new Float32Array(CAP_MAX), Y = new Float32Array(CAP_MAX), PX = new Float32Array(CAP_MAX), PY = new Float32Array(CAP_MAX);
     const VX = new Float32Array(CAP_MAX), VY = new Float32Array(CAP_MAX), AGE = new Float32Array(CAP_MAX), LIFE = new Float32Array(CAP_MAX);
     const GRAV = new Float32Array(CAP_MAX), DRAG = new Float32Array(CAP_MAX), WID = new Float32Array(CAP_MAX), PH = new Float32Array(CAP_MAX);
-    const FR = new Float32Array(CAP_MAX), CHG = new Float32Array(CAP_MAX), GL = new Float32Array(CAP_MAX);
-    const COL = new Uint8Array(CAP_MAX), COL2 = new Uint8Array(CAP_MAX), KIND = new Uint8Array(CAP_MAX), HALO = new Uint8Array(CAP_MAX);
+    const FR = new Float32Array(CAP_MAX), CHG = new Float32Array(CAP_MAX);
+    const COL = new Uint8Array(CAP_MAX), COL2 = new Uint8Array(CAP_MAX), KIND = new Uint8Array(CAP_MAX), HALO = new Uint8Array(CAP_MAX), SLOT = new Uint8Array(CAP_MAX);
     const HX = new Float32Array(CAP_MAX * HN), HY = new Float32Array(CAP_MAX * HN), HT = new Float32Array(CAP_MAX), HC = new Uint8Array(CAP_MAX);
     let n = 0;
     const kill = (i: number) => {
       const l = --n;
       if (i === l) return;
       X[i] = X[l]!; Y[i] = Y[l]!; PX[i] = PX[l]!; PY[i] = PY[l]!; VX[i] = VX[l]!; VY[i] = VY[l]!; AGE[i] = AGE[l]!; LIFE[i] = LIFE[l]!;
-      GRAV[i] = GRAV[l]!; DRAG[i] = DRAG[l]!; WID[i] = WID[l]!; PH[i] = PH[l]!; FR[i] = FR[l]!; CHG[i] = CHG[l]!; GL[i] = GL[l]!;
-      COL[i] = COL[l]!; COL2[i] = COL2[l]!; KIND[i] = KIND[l]!; HALO[i] = HALO[l]!; HT[i] = HT[l]!; HC[i] = HC[l]!;
+      GRAV[i] = GRAV[l]!; DRAG[i] = DRAG[l]!; WID[i] = WID[l]!; PH[i] = PH[l]!; FR[i] = FR[l]!; CHG[i] = CHG[l]!;
+      COL[i] = COL[l]!; COL2[i] = COL2[l]!; KIND[i] = KIND[l]!; HALO[i] = HALO[l]!; SLOT[i] = SLOT[l]!; HT[i] = HT[l]!; HC[i] = HC[l]!;
       if (HC[l]) { const a = i * HN, b = l * HN; for (let q = 0; q < HN; q++) { HX[a + q] = HX[b + q]!; HY[a + q] = HY[b + q]!; } }
     };
-    /** Новая звезда; `w` — размер головки в пикселях экрана, `col2`/`chg` — смена цвета на доле жизни `chg`. */
-    const star = (x: number, y: number, vx: number, vy: number, life: number, col: number, kind: Kind, grav: number, drag: number, w: number,
-      o?: { fr?: number; col2?: number; chg?: number; gl?: number; age?: number }) => {
+    /** Новая звезда у места `slot`; `w` — размер головки в пикселях экрана, `col2`/`chg` — смена цвета на доле жизни `chg`. */
+    const star = (slot: number, x: number, y: number, vx: number, vy: number, life: number, col: number, kind: Kind, grav: number, drag: number, w: number,
+      o?: { fr?: number; col2?: number; chg?: number }) => {
       if (n >= cap) return;
       const i = n++;
-      X[i] = x; Y[i] = y; PX[i] = x; PY[i] = y; VX[i] = vx; VY[i] = vy; AGE[i] = o?.age ?? 0; LIFE[i] = life; COL[i] = col; KIND[i] = kind;
-      GRAV[i] = grav; DRAG[i] = drag; WID[i] = w; FR[i] = o?.fr ?? 0; COL2[i] = o?.col2 ?? col; CHG[i] = o?.chg ?? 0; GL[i] = o?.gl ?? 0;
+      X[i] = x; Y[i] = y; PX[i] = x; PY[i] = y; VX[i] = vx; VY[i] = vy; AGE[i] = 0; LIFE[i] = life; COL[i] = col; KIND[i] = kind; SLOT[i] = slot;
+      GRAV[i] = grav; DRAG[i] = drag; WID[i] = w; FR[i] = o?.fr ?? 0; COL2[i] = o?.col2 ?? col; CHG[i] = o?.chg ?? 0;
       PH[i] = rng() * 6.283; HALO[i] = Math.floor(rng() * 4); HT[i] = 0; HC[i] = 0;
     };
 
     const rockets: Rocket[] = [];
     const glows: Glow[] = [];
     const queue: Array<{ at: number; run: () => void }> = [];
-    const recent: Array<{ x: number; y: number; at: number }> = [];
-    let lastEnd = -1e9, T = 0, nextEvent = 0.1, nextBarrage = rnd(7, 11), barrageEnd = -1, finalDone = true;
+    const recent: Array<{ s: number; at: number }> = [];
+    let lastEnd = -1e9, T = 0, nextEvent = 0.05, nextBarrage = rnd(8, 12), barrageEnd = -1, finalDone = true;
     let energy = 0, barrageE = 0, bright = 1, brightAt = -1e9, veilNow = -1;
     let peak = 0, sumParts = 0, sumFrames = 0, frameMs = 0, burstsLive = 0, peakBursts = 0;
-    /** Когда каждый разрыв перестанет быть виден (для счёта «сколько разрывов на экране сейчас»). */
-    const burstEnds: number[] = [];
-    const SEE: Record<ShellType, number> = { peony: 2.2, chrys: 2.8, willow: 4.2, horsetail: 3.4, palm: 3, strobe: 3, saturn: 2.4 };
-    const stats = { cap: 3200, parts: 0, peak: 0, avgParts: 0, bursts: 0, peakBursts: 0, frameMs: 0, frames: 0, barrage: false, calm: false, T: 0, rockets: 0, veil: 0 };
+    /** Пока каждый разрыв ярок (купол виден целиком, а не угасающие хвосты) — для счёта «ярких разрывов на экране». */
+    const brightEnds: number[] = [];
+    const BRIGHT: Record<ShellType, number> = { peony: 1.05, chrys: 1.3, willow: 1.8, palm: 1.4, strobe: 1.6 };
+    const stats = { cap: CAP_PHONE, parts: 0, peak: 0, avgParts: 0, bursts: 0, peakBursts: 0, frameMs: 0, frames: 0, barrage: false, calm: false, T: 0, rockets: 0, veil: 0 };
     if (winRef.current.debug) (window as unknown as { __victoryFx?: unknown }).__victoryFx = stats;
 
-    const view = () => vpRef.current.viewRef.current;
-    const worldOf = (sx: number, sy: number) => { const v = view(); return { x: (sx - v.tx) / v.k, y: (sy - v.ty) / v.k }; };
-    const screenOf = (wx: number, wy: number) => { const v = view(); return { x: wx * v.k + v.tx, y: wy * v.k + v.ty }; };
-
-    // ——— Спрайты: светящаяся точка цвета (ядро почти белое, мягкий ореол) ———
+    // ——— Спрайты: светящаяся точка цвета (ядро светлое, мягкий ореол) ———
     const sprites: Array<HTMLCanvasElement | undefined> = [];
     const sprite = (c: number) => {
       let s = sprites[c];
@@ -178,104 +191,98 @@ export function VictoryFireworksLayer({ vp, win, clock, timeZone, anchors }: {
       s = document.createElement("canvas"); s.width = s.height = 48;
       const g = s.getContext("2d")!, [h, sat, l] = COLORS[c]!;
       const gr = g.createRadialGradient(24, 24, 0, 24, 24, 24);
-      gr.addColorStop(0, `hsla(${h},${sat}%,${Math.min(98, l + 32)}%,1)`);
-      gr.addColorStop(0.16, `hsla(${h},${sat}%,${Math.min(92, l + 14)}%,.85)`);
+      gr.addColorStop(0, `hsla(${h},${sat}%,${Math.min(96, l + 26)}%,1)`);
+      gr.addColorStop(0.16, `hsla(${h},${sat}%,${Math.min(90, l + 12)}%,.85)`);
       gr.addColorStop(0.42, `hsla(${h},${sat}%,${l}%,.28)`);
       gr.addColorStop(1, `hsla(${h},${sat}%,${l}%,0)`);
       g.fillStyle = gr; g.fillRect(0, 0, 48, 48);
       sprites[c] = s;
       return s;
     };
-    const addGlow = (x: number, y: number, r: number, life: number, col: number, a: number) => { if (glows.length < MAX_GLOWS) glows.push({ x, y, r, age: 0, life, col, a }); };
+    const addGlow = (slot: number, r: number, life: number, col: number, a: number) => { if (glows.length < MAX_GLOWS) glows.push({ slot, r, age: 0, life, col, a }); };
 
     // ——— Виды разрывов ———
-    // R — радиус разрыва в пикселях экрана, u — единиц карты на пиксель, fill — доля звёзд при близком потолке.
+    // R — радиус разрыва в пикселях экрана, fill — доля звёзд при близком потолке.
+    /** Начальная скорость, при которой звезда с сопротивлением `drag` за жизнь доходит ровно до радиуса R. */
     const speedFor = (R: number, drag: number, life: number) => (R * drag) / (1 - Math.exp(-drag * life * 0.85));
-    const fillOf = () => (n < soft ? 1 : Math.max(0.3, (cap - 200 - n) / (cap - soft)));
+    /** Тяжесть, при которой звезда за жизнь опускается под весом на `drop`·R (не дальше — гаснет над своим шаром). */
+    const gravFor = (R: number, drag: number, life: number, drop: number) => (drop * R * drag) / Math.max(0.3, life - 1 / drag);
+    const fillOf = () => (n < soft ? 1 : Math.max(0.35, (cap - 200 - n) / (cap - soft)));
     /** Направления с поверхности шара, видимые сбоку: круг получается плотным у края, как у настоящего разрыва. */
-    const sphere = (cnt: number, speed: number, f: (vx: number, vy: number, r: number) => void) => {
+    const sphere = (cnt: number, speed: number, f: (vx: number, vy: number, dx: number, dy: number) => void) => {
       for (let i = 0; i < cnt; i++) {
-        const c = rnd(-1, 1), r = Math.sqrt(1 - c * c), a = rnd(0, 6.2832), v = speed * rnd(0.96, 1.04);
-        f(Math.cos(a) * v * r, Math.sin(a) * v * r, r);
+        const c = rnd(-1, 1), r = Math.sqrt(1 - c * c), a = rnd(0, 6.2832), k = rnd(0.96, 1.04), dx = Math.cos(a) * r, dy = Math.sin(a) * r;
+        f(dx * speed * k, dy * speed * k, dx, dy);
       }
     };
 
-    const explode = (sh: Rocket, cx: number, cy: number) => {
-      const u = 1 / view().k, R = sh.R, fill = fillOf(), { c1, c2 } = sh;
-      const cnt = (base: number) => Math.max(50, Math.round(base * Math.pow(R / (90 * sizeU), 0.7) * fill));
-      const g = (px: number) => px * u; // пиксели экрана → карта
+    const explode = (sh: Rocket) => {
+      const R = sh.R, fill = fillOf(), { c1, c2, slot } = sh;
+      const cnt = (base: number) => Math.max(60, Math.round(base * Math.pow(R / (90 * sizeU), 0.6) * fill));
+      const o0 = R * 0.05; // звёзды стартуют чуть в стороне от центра: шар виден с первого кадра, а не точкой
       switch (sh.type) {
-        case "peony": case "saturn": {
-          const life = rnd(1.9, 2.4), drag = 2.1, v0 = speedFor(R, drag, life) * u;
-          const change = rng() < 0.4, pistil = sh.type === "peony" && rng() < 0.35, two = !change && !pistil && rng() < 0.4;
-          sphere(cnt(230), v0, (vx, vy) => star(cx, cy, vx, vy, life * rnd(0.9, 1.08), two && rng() < 0.5 ? c2 : c1, 0, g(48), drag, 2.6,
+        case "peony": {
+          const life = rnd(1.5, 1.8), drag = 2.4, v0 = speedFor(R, drag, life), gr = gravFor(R, drag, life, 0.3);
+          const change = rng() < 0.4, pistil = rng() < 0.35, two = !change && !pistil && rng() < 0.4;
+          sphere(cnt(180), v0, (vx, vy, dx, dy) => star(slot, dx * o0, dy * o0, vx, vy, life * rnd(0.92, 1.06), two && rng() < 0.5 ? c2 : c1, 0, gr, drag, 2.6,
             change ? { col2: c2, chg: rnd(0.42, 0.55) } : undefined));
-          if (pistil) sphere(cnt(70), v0 * 0.45, (vx, vy) => star(cx, cy, vx, vy, life * 0.8, c2, 0, g(40), drag, 2.4));
-          if (sh.type === "saturn") {
-            const m = Math.round(70 * Math.max(0.6, fill)), tilt = rnd(0.2, 0.4), rot = rnd(-0.6, 0.6), cr = Math.cos(rot), sr = Math.sin(rot), off = rnd(0, 6.28);
-            for (let i = 0; i < m; i++) {
-              const a = off + (i / m) * 6.2832, ex = Math.cos(a) * v0 * 1.35, ey = Math.sin(a) * v0 * 1.35 * tilt;
-              star(cx, cy, ex * cr - ey * sr, ex * sr + ey * cr, life * rnd(0.95, 1.05), c2, 0, g(48), drag, 2.6);
-            }
-          }
+          if (pistil) sphere(cnt(60), v0 * 0.45, (vx, vy, dx, dy) => star(slot, dx * o0, dy * o0, vx, vy, life * 0.8, c2, 0, gr * 0.6, drag, 2.4));
           break;
         }
         case "chrys": {
-          const life = rnd(2.4, 3), drag = 1.7, v0 = speedFor(R, drag, life) * u;
-          sphere(cnt(250), v0, (vx, vy) => {
-            const glit = rng() < 0.45;
-            star(cx, cy, vx, vy, life * rnd(0.9, 1.08), rng() < 0.15 ? c2 : c1, 0, g(62), drag, 2.3, glit ? { fr: rnd(16, 26), gl: rng() < 0.5 ? 1.2 : 0 } : undefined);
-          });
+          const life = rnd(1.9, 2.3), drag = 1.9, v0 = speedFor(R, drag, life), gr = gravFor(R, drag, life, 0.4);
+          sphere(cnt(190), v0, (vx, vy, dx, dy) => star(slot, dx * o0, dy * o0, vx, vy, life * rnd(0.92, 1.06), rng() < 0.18 ? c2 : c1, 0, gr, drag, 2.3,
+            rng() < 0.45 ? { fr: rnd(16, 26) } : undefined));
           break;
         }
         case "willow": {
-          const life = rnd(3.6, 4.6), drag = 2.6, v0 = speedFor(R * 0.9, drag, life * 0.55) * u;
-          sphere(cnt(160), v0, (vx, vy) => star(cx, cy, vx, vy, life * rnd(0.85, 1.1), rng() < 0.82 ? C_GOLD : C_AMBER, 6, g(46), drag, 2.2,
-            { fr: rnd(10, 18), gl: rng() < 0.3 ? 0.9 : 0 }));
-          break;
-        }
-        case "horsetail": {
-          const m = cnt(140), life = rnd(3, 3.8), drag = 1.4, v0 = speedFor(R * 0.8, drag, 1.2) * u;
-          for (let i = 0; i < m; i++) {
-            const a = rnd(-Math.PI * 0.96, -Math.PI * 0.04), v = v0 * rnd(0.35, 1);
-            star(cx, cy, Math.cos(a) * v, Math.sin(a) * v, life * rnd(0.8, 1.05), rng() < 0.85 ? C_GOLD : C_WARM, 6, g(110), drag, 2.1, { fr: rnd(10, 16), gl: rng() < 0.25 ? 0.9 : 0 });
-          }
+          // Купол ивы: ветви гаснут вместе (жизнь почти одинаковая), опускаются на 0,65 R; у половины ив — цветные кончики.
+          const life = rnd(2.6, 3), drag = 2.8, v0 = speedFor(R * 0.92, drag, life * 0.6), gr = gravFor(R, drag, life, 0.4), tip = c2 !== C_AMBER;
+          sphere(cnt(160), v0, (vx, vy, dx, dy) => star(slot, dx * o0, dy * o0, vx, vy, life * rnd(0.95, 1.04), rng() < 0.85 ? C_GOLD : C_AMBER, 6, gr, drag, 2.2,
+            tip && rng() < 0.6 ? { fr: rnd(10, 16), col2: c2, chg: rnd(0.5, 0.62) } : { fr: rnd(10, 16) }));
           break;
         }
         case "palm": {
-          const arms = Math.round(rnd(7, 10)), life = rnd(2.6, 3.2), drag = 1.3, v0 = speedFor(R, drag, life * 0.8) * u, off = rnd(0, 6.28);
-          const col = rng() < 0.6 ? C_GOLD : c1;
+          const arms = Math.round(rnd(7, 9)), life = rnd(2, 2.4), drag = 1.6, v0 = speedFor(R, drag, life * 0.8), gr = gravFor(R, drag, life, 0.55), off = rnd(0, 6.28);
+          const col = rng() < 0.5 ? C_GOLD : c1;
           for (let a = 0; a < arms; a++) {
             const ang = off + (a / arms) * 6.2832 + rnd(-0.08, 0.08), ca = Math.cos(ang), sa = Math.sin(ang);
-            star(cx, cy, ca * v0, sa * v0 - g(30), life, col, 7, g(105), drag, 3.2, { gl: 6, fr: rnd(8, 12) });
-            for (let j = 0; j < 8; j++) { const v = v0 * rnd(0.45, 0.95), aj = ang + rnd(-0.07, 0.07); star(cx, cy, Math.cos(aj) * v, Math.sin(aj) * v - g(26), life * rnd(0.7, 0.95), col, 6, g(105), drag, 2); }
+            star(slot, ca * o0, sa * o0, ca * v0, sa * v0, life, col, 7, gr, drag, 3.2, { fr: rnd(8, 12) });
+            for (let j = 0; j < 8; j++) { const v = v0 * rnd(0.45, 0.95), aj = ang + rnd(-0.07, 0.07); star(slot, ca * o0, sa * o0, Math.cos(aj) * v, Math.sin(aj) * v, life * rnd(0.75, 0.95), col, 6, gr, drag, 2); }
           }
           break;
         }
         case "strobe": {
-          const life = rnd(2.7, 3.3), drag = 1.4, v0 = speedFor(R, drag, life * 0.9) * u;
-          sphere(cnt(190), v0, (vx, vy) => {
-            if (rng() < 0.3) star(cx, cy, vx, vy, life * 0.7, c1, 0, g(30), drag, 2.4);
-            else star(cx, cy, vx, vy, life * rnd(0.85, 1.1), rng() < 0.6 ? C_WHITE : C_GOLD, 1, g(30), drag, 2.6, { fr: rnd(8, 13) });
+          const life = rnd(2.2, 2.6), drag = 1.8, v0 = speedFor(R, drag, life * 0.9), gr = gravFor(R, drag, life, 0.4);
+          sphere(cnt(170), v0, (vx, vy, dx, dy) => {
+            if (rng() < 0.3) star(slot, dx * o0, dy * o0, vx, vy, life * 0.7, c1, 0, gr, drag, 2.4);
+            else star(slot, dx * o0, dy * o0, vx, vy, life * rnd(0.9, 1.05), rng() < 0.6 ? C_WHITE : C_GOLD, 1, gr, drag, 2.6, { fr: rnd(8, 13) });
           });
           break;
         }
       }
-      // Вспышка у ядра (до ~120 мс, тёплая) и короткий свет цвета разрыва вокруг него — не заливка экрана.
-      const dim = barrageEnd > 0 ? 0.65 : 1;
-      const gc = sh.type === "willow" || sh.type === "horsetail" ? C_GOLD : c1;
-      addGlow(cx, cy, g(R * 0.13), 0.1, gc, 0.6 * dim);
-      addGlow(cx, cy, g(R * 0.55), 0.45, gc, 0.16 * dim);
-      burstEnds.push(T + SEE[sh.type]);
-      recent.push({ x: cx, y: cy, at: T }); if (recent.length > 10) recent.shift();
+      // Вспышка у ядра: маленькая (0,08 R) и короткая (80 мс), и слабый свет цвета разрыва вокруг — не заливка экрана.
+      const gc = sh.type === "willow" ? C_GOLD : c1, dim = barrageEnd > 0 ? 0.65 : 1;
+      addGlow(slot, R * 0.08, 0.08, gc, 0.5 * dim);
+      addGlow(slot, R * 0.5, 0.4, gc, 0.14 * dim);
+      brightEnds.push(T + BRIGHT[sh.type]);
+      recent.push({ s: slot, at: T }); if (recent.length > 24) recent.shift();
     };
 
     // ——— Ракеты ———
-    const launch = (tsx: number, tsy: number, fromSx: number, fromSy: number, type: ShellType, Rpx: number, c1: number, c2: number, delay = 0) => {
+    /** Ракета к месту (tsx, tsy) экрана: взлетает недалеко снизу, иногда из видимого города под местом разрыва. */
+    const launch = (tsx: number, tsy: number, type: ShellType, Rpx: number, c1: number, c2: number, delay = 0) => {
       const go = () => {
         if (rockets.length >= MAX_ROCKETS) return;
-        const t = worldOf(tsx, tsy), s = worldOf(fromSx, fromSy), dist = Math.hypot(tsx - fromSx, tsy - fromSy);
-        rockets.push({ sx: s.x, sy: s.y, tx: t.x, ty: t.y, px: s.x, py: s.y, T: 0.55 + Math.min(0.5, dist / 1600) + rnd(0, 0.1), age: 0, type, R: Rpx, c1, c2 });
+        const slot = newSlot(tsx, tsy);
+        let ox = rnd(-0.05, 0.05) * CW, oy = CH * rnd(0.16, 0.3);
+        if (rng() < 0.3) {
+          for (const a of anchorsRef.current ?? []) {
+            const s = screenOf(a.x, a.y), dy = s.y - tsy, dx = s.x - tsx;
+            if (dy > CH * 0.1 && dy < CH * 0.4 && Math.abs(dx) < CW * 0.2) { ox = dx; oy = dy; break; }
+          }
+        }
+        rockets.push({ slot, ox, oy, T: rnd(0.32, 0.48) + Math.min(0.12, Math.hypot(ox, oy) / 3000), age: 0, type, R: Rpx, c1, c2 });
       };
       if (delay <= 0) go(); else queue.push({ at: T + delay, run: go });
     };
@@ -285,92 +292,87 @@ export function VictoryFireworksLayer({ vp, win, clock, timeZone, anchors }: {
     const radius = (c: Cls) => (c === "small" ? rnd(40, 52) : c === "medium" ? rnd(56, 74) : c === "large" ? rnd(80, 104) : rnd(115, 150)) * sizeU;
     const typeFor = (c: Cls): ShellType => pick<ShellType>(
       c === "small" ? ["peony", "peony", "chrys", "strobe"]
-        : c === "medium" ? ["peony", "peony", "chrys", "chrys", "willow", "strobe", "horsetail"]
-        : c === "large" ? ["peony", "chrys", "chrys", "willow", "willow", "palm", "strobe", "saturn", "horsetail"]
-        : ["chrys", "willow", "willow", "palm", "saturn", "peony"]);
+        : c === "medium" ? ["peony", "peony", "chrys", "chrys", "strobe", "willow"]
+        : c === "large" ? ["peony", "peony", "chrys", "chrys", "willow", "palm", "strobe"]
+        : ["chrys", "peony", "willow", "willow", "palm"]);
     const pickClass = (barrage: boolean): Cls => {
       const r = rng();
       if (barrage) return r < 0.12 ? "small" : r < 0.45 ? "medium" : r < 0.85 ? "large" : "huge";
-      return r < 0.2 ? "small" : r < 0.56 ? "medium" : r < 0.9 ? "large" : "huge";
+      return r < 0.22 ? "small" : r < 0.6 ? "medium" : r < 0.92 ? "large" : "huge";
     };
     const colors = (type: ShellType): [number, number] => {
-      if (type === "willow" || type === "horsetail") return [C_GOLD, C_AMBER];
       const a = pick(CHROMA);
       let b = pick(CHROMA);
       while (b === a) b = pick(CHROMA);
-      if (type === "palm") return [rng() < 0.5 ? C_GOLD : a, C_WARM];
+      if (type === "willow") return [C_GOLD, rng() < 0.5 ? a : C_AMBER];
+      if (type === "palm") return [rng() < 0.4 ? C_GOLD : a, C_WARM];
       if (type === "strobe") return [a, C_WHITE];
-      return rng() < 0.75 ? [a, b] : [a, rng() < 0.5 ? C_GOLD : C_WHITE];
+      return rng() < 0.8 ? [a, b] : [a, rng() < 0.5 ? C_GOLD : C_WHITE];
     };
 
-    /** Место разрыва: из нескольких случайных точек неба берётся самая далёкая от недавних разрывов — салют ложится по всей карте. */
-    const spot = (): { x: number; y: number } => {
-      let best = { x: CW / 2, y: CH / 2 }, bestD = -1;
-      const rs = recent.filter((r) => T - r.at < 3).map((r) => screenOf(r.x, r.y));
-      for (let i = 0; i < 8; i++) {
-        const p = { x: rnd(CW * 0.06, CW * 0.94), y: rnd(CH * 0.1, CH * 0.78) };
+    /** Место разрыва: из нескольких случайных точек свободной части экрана — самая далёкая от недавних разрывов. */
+    const spot = (R: number): { x: number; y: number } => {
+      const x0 = fx0 + R * 0.25, x1 = Math.max(x0 + 1, fx1 - R * 0.25), y0 = fy0 + R * 0.55, y1 = Math.max(y0 + 1, fy1 - R * 0.3);
+      let best = { x: (x0 + x1) / 2, y: (y0 + y1) / 2 }, bestD = -1;
+      const rs = recent.filter((r) => T - r.at < 1.6).map((r) => screenOf(SX[r.s]!, SY[r.s]!));
+      for (let i = 0; i < 9; i++) {
+        const p = { x: rnd(x0, x1), y: rnd(y0, y1) };
         let d = 1e9;
-        for (const q of rs) d = Math.min(d, Math.hypot(p.x - q.x, p.y - q.y));
+        for (const q of rs) d = Math.min(d, Math.hypot(p.x - q.x, (p.y - q.y) * 1.1));
         if (d > bestD) { bestD = d; best = p; }
       }
       return best;
     };
-    const visibleAnchors = () => {
-      const out: Array<{ x: number; y: number }> = [];
-      for (const a of anchorsRef.current ?? []) { const s = screenOf(a.x, a.y); if (s.x > CW * 0.08 && s.x < CW * 0.92 && s.y > CH * 0.35 && s.y < CH * 0.9) out.push(s); }
-      return out;
-    };
 
     // ——— Залпы ———
     const single = (barrage: boolean, cls = pickClass(barrage), delay = 0) => {
-      const type = typeFor(cls), [c1, c2] = colors(type), R = radius(cls);
-      const as = rng() < 0.25 ? visibleAnchors() : [];
-      if (as.length) {
-        const a = pick(as), up = Math.max(R * 1.1, CH * rnd(0.2, 0.32));
-        launch(a.x + rnd(-10, 10), Math.max(CH * 0.1, a.y - up), a.x, a.y, type, R, c1, c2, delay);
-      } else {
-        const p = spot();
-        launch(p.x, p.y, p.x + rnd(-0.04, 0.04) * CW, Math.min(CH * 1.02, p.y + CH * rnd(0.28, 0.42)), type, R, c1, c2, delay);
-      }
+      const type = typeFor(cls), [c1, c2] = colors(type), R = radius(cls), p = spot(R);
+      launch(p.x, p.y, type, R, c1, c2, delay);
     };
-    /** Веер: несколько ракет из одной точки внизу расходятся лучами и лопаются на разной высоте. */
+    /** Веер: несколько ракет почти разом, лопаются рядом друг с другом на разной высоте. */
     const fan = (barrage: boolean) => {
-      const m = Math.round(rnd(3, barrage ? 6 : 4)), lx = rnd(0.25, 0.75) * CW, ly = CH * 1.02, step = rnd(0.22, 0.34);
-      const cls: Cls = rng() < 0.6 ? "medium" : "large", type = typeFor(cls), mono = rng() < 0.5, base = colors(type);
+      const m = Math.round(rnd(3, barrage ? 5 : 4)), cls: Cls = rng() < 0.6 ? "medium" : "large", type = typeFor(cls), mono = rng() < 0.5, base = colors(type);
+      const c = spot(radius(cls) * 2);
       for (let i = 0; i < m; i++) {
-        const k = i - (m - 1) / 2, ang = -Math.PI / 2 + k * step, len = CH * rnd(0.5, 0.78);
+        const k = i - (m - 1) / 2, R = radius(cls) * rnd(0.85, 1);
+        const x = Math.min(fx1 - R * 0.25, Math.max(fx0 + R * 0.25, c.x + k * R * 1.2)), y = Math.min(fy1 - R * 0.3, Math.max(fy0 + R * 0.55, c.y - Math.cos(k) * R * 0.5));
         const t2 = mono ? type : typeFor(cls), [a, b] = mono ? base : colors(t2);
-        launch(lx + Math.cos(ang) * len, Math.max(CH * 0.1, ly + Math.sin(ang) * len), lx, ly, t2, radius(cls) * rnd(0.85, 1), a, b, i * 0.07);
+        launch(x, y, t2, R, a, b, i * 0.08);
       }
     };
     /** Бегущая волна: ряд разрывов поперёк экрана, радугой или одним цветом. */
     const wave = () => {
-      const m = Math.max(4, Math.round(rnd(4, 6) * Math.sqrt(rateU))), dir = rng() < 0.5 ? 1 : -1, y0 = rnd(0.22, 0.5) * CH, rainbow = rng() < 0.5, h0 = Math.floor(rng() * CHROMA.length);
+      const m = Math.max(4, Math.round(rnd(4, 6) * Math.sqrt(rateU))), dir = rng() < 0.5 ? 1 : -1, R = radius("medium");
+      const y0 = rnd(fy0 + R, fy1 - R), rainbow = rng() < 0.6, h0 = Math.floor(rng() * CHROMA.length);
       const type: ShellType = rng() < 0.5 ? "peony" : "chrys", [c1, c2] = colors(type);
       for (let i = 0; i < m; i++) {
-        const f = i / (m - 1), x = (dir > 0 ? 0.1 + 0.8 * f : 0.9 - 0.8 * f) * CW;
-        launch(x, y0 + Math.sin(f * 5) * CH * 0.06, x + rnd(-10, 10), CH * 1.02, type, radius("medium"), rainbow ? CHROMA[(h0 + i * 2) % CHROMA.length]! : c1, c2, i * 0.13);
+        const f = i / (m - 1), x = fx0 + R * 0.4 + (fx1 - fx0 - R * 0.8) * (dir > 0 ? f : 1 - f);
+        launch(x, y0 + Math.sin(f * 5) * R * 0.5, type, R, rainbow ? CHROMA[(h0 + i * 2) % CHROMA.length]! : c1, c2, i * 0.12);
       }
-    };
-    const pair = (barrage: boolean) => {
-      const cls = pickClass(barrage), type = typeFor(cls), [c1, c2] = colors(type), cx = rnd(0.4, 0.6) * CW, y = rnd(0.2, 0.55) * CH, d = rnd(0.22, 0.32) * CW, R = radius(cls);
-      for (const s of [-1, 1]) launch(cx + s * d, y, cx + s * d * 1.15, CH * 1.02, type, R, c1, c2, 0);
     };
     const event = (barrage: boolean) => {
       const r = rng();
-      if (barrage) { if (r < 0.28) fan(true); else if (r < 0.45) wave(); else if (r < 0.6) pair(true); else single(true); return; }
-      if (r < 0.66) single(false); else if (r < 0.8) pair(false); else if (r < 0.93) fan(false); else wave();
+      if (barrage) { if (r < 0.25) fan(true); else if (r < 0.4) wave(); else single(true); return; }
+      if (r < 0.8) single(false); else if (r < 0.95) fan(false); else wave();
     };
-    /** Финальный аккорд канонады: ряд огромных золотых ив через весь экран, над ними — шар и строб. */
+    /**
+     * Финальный аккорд канонады — самый сильный миг: сетка огромных разрывов по всей свободной части экрана, от края до края
+     * и до панели разделов; ивы (с цветными кончиками) вперемешку с многоцветными шарами, строб поверх.
+     */
     const grand = () => {
-      const m = Math.max(4, Math.min(9, Math.round(CW / (100 * sizeU))));
-      for (let i = 0; i < m; i++) {
-        const f = (i + 0.5) / m, x = f * CW, y = CH * (0.3 + (i % 2 ? 0.1 : -0.04) + rnd(-0.03, 0.03));
-        launch(x, y, x + rnd(-14, 14), CH * 1.03, i % 3 === 1 ? "horsetail" : "willow", radius("huge") * rnd(0.9, 1.1), C_GOLD, C_AMBER, (i % 2) * 0.22 + i * 0.04);
+      const R = radius("huge") * 0.85, cols = Math.max(3, Math.round((fx1 - fx0) / (R * 1.35))), rows = Math.max(3, Math.round((fy1 - fy0) / (R * 1.25)));
+      for (let r = 0; r < rows; r++) {
+        for (let c = 0; c < cols; c++) {
+          const x = fx0 + (fx1 - fx0) * (c + 0.5 + (r % 2 ? 0.25 : -0.25)) / cols + rnd(-0.1, 0.1) * R;
+          const y = fy0 + R * 0.45 + (fy1 - fy0 - R * 0.7) * (r + rnd(0.3, 0.7)) / rows;
+          const willow = (r + c) % 2 === 0, type: ShellType = willow ? "willow" : rng() < 0.5 ? "peony" : "chrys", [a, b] = colors(type);
+          launch(Math.min(fx1, Math.max(fx0, x)), y, type, R * rnd(0.9, 1.15), a, b, rnd(0, 0.55) + r * 0.05);
+        }
       }
-      const t: ShellType = rng() < 0.5 ? "chrys" : "saturn", [a, b] = colors(t);
-      launch(CW * rnd(0.4, 0.6), CH * 0.22, CW / 2, CH * 1.04, t, radius("huge") * 1.1, a, b, 0.55);
-      launch(CW * rnd(0.25, 0.75), CH * 0.42, CW / 2, CH * 1.04, "strobe", radius("large"), C_WHITE, C_WHITE, 0.9);
+      for (let i = 0; i < Math.max(2, Math.round(cols / 2)); i++) {
+        const p = spot(radius("large"));
+        launch(p.x, p.y, "strobe", radius("large"), pick(CHROMA), C_WHITE, 0.7 + i * 0.1);
+      }
     };
 
     // ——— Распорядитель ———
@@ -380,23 +382,22 @@ export function VictoryFireworksLayer({ vp, win, clock, timeZone, anchors }: {
       if (stopping) return;
       if (barrageEnd < 0 && T >= nextBarrage) { barrageEnd = T + rnd(5, 6); finalDone = false; }
       const barrage = barrageEnd > 0;
-      if (barrage && !finalDone && T >= barrageEnd - 1.1) { finalDone = true; grand(); }
-      if (barrage && T >= barrageEnd) { barrageEnd = -1; lastEnd = T; nextBarrage = T + rnd(18, 28); nextEvent = Math.max(nextEvent, T + 1.6); }
+      if (barrage && !finalDone && T >= barrageEnd - 1) { finalDone = true; grand(); }
+      // Сразу за финалом — снова обычные разрывы: экран не остаётся с одними угасающими ивами.
+      if (barrage && T >= barrageEnd) { barrageEnd = -1; lastEnd = T; nextBarrage = T + rnd(18, 28); nextEvent = Math.min(nextEvent, T + 0.2); }
       if (T < nextEvent) return;
-      if (barrage && T >= barrageEnd - 1.1) { nextEvent = T + 0.3; return; }
+      if (barrage && T >= barrageEnd - 1) { nextEvent = T + 0.25; return; }
       event(barrage);
-      nextEvent = T + (barrage ? rnd(0.13, 0.24) : rnd(0.5, 0.95)) / rateU;
+      nextEvent = T + (barrage ? rnd(0.08, 0.13) : rnd(0.13, 0.21)) / rateU;
       // Звёзд почти потолок — новых залпов нет, пока не освободится место.
-      if (n > cap - 350) nextEvent = T + 0.4;
+      if (n > cap - 300) nextEvent = T + 0.25;
     };
 
     // ——— Шаг ———
     const step = (dt: number) => {
-      const u = 1 / view().k;
       for (let i = n - 1; i >= 0; i--) {
         const age = AGE[i]! + dt; AGE[i] = age;
         PX[i] = X[i]!; PY[i] = Y[i]!;
-        if (age < 0) continue;
         if (age >= LIFE[i]!) { kill(i); continue; }
         const d = 1 - Math.min(0.9, DRAG[i]! * dt);
         const vx = VX[i]! * d, vy = VY[i]! * d + GRAV[i]! * dt;
@@ -410,23 +411,17 @@ export function VictoryFireworksLayer({ vp, win, clock, timeZone, anchors }: {
             HX[o] = PX[i]!; HY[o] = PY[i]!; HT[i] = 0; if (HC[i]! < HN) HC[i] = HC[i]! + 1;
           } else HT[i] = ht;
         }
-        // Капель искр с мерцающих ветвей: падают и быстро гаснут.
-        const gl = GL[i]!;
-        if (gl > 0 && n < soft && age > LIFE[i]! * 0.2 && rng() < gl * dt) {
-          star(X[i]!, Y[i]!, vx * 0.25 + rnd(-8, 8) * u, vy * 0.25 + rnd(0, 14) * u, rnd(0.4, 0.8), rng() < 0.7 ? C_GOLD : C_WARM, 4, 140 * u, 1.6, 1.5);
-        }
       }
       for (let i = rockets.length - 1; i >= 0; i--) {
         const r = rockets[i]!; r.age += dt;
-        const f = Math.min(1, r.age / r.T), e = 1 - Math.pow(1 - f, 2.2), x = r.sx + (r.tx - r.sx) * e, y = r.sy + (r.ty - r.sy) * e;
-        r.px = r.ax ?? r.sx; r.py = r.ay ?? r.sy; r.ax = x; r.ay = y;
-        if (f >= 1) { rockets.splice(i, 1); explode(r, r.tx, r.ty); continue; }
-        // Искры за ракетой: две на кадр, падают и гаснут.
-        if (n < soft) for (let q = 0; q < 2; q++) star(x, y, rnd(-16, 16) * u, rnd(10, 40) * u, rnd(0.3, 0.6), rng() < 0.6 ? C_GOLD : C_WARM, 4, 90 * u, 1.4, 1.4);
+        const f = Math.min(1, r.age / r.T), e = 1 - Math.pow(1 - f, 2), x = r.ox * (1 - e), y = r.oy * (1 - e);
+        if (f >= 1) { rockets.splice(i, 1); explode(r); continue; }
+        // Искра за ракетой: одна на кадр, короткая.
+        if (n < soft) star(r.slot, x, y, rnd(-14, 14), rnd(10, 36), rnd(0.2, 0.38), rng() < 0.6 ? C_GOLD : C_WARM, 4, 90, 1.4, 1.4);
       }
       for (let i = glows.length - 1; i >= 0; i--) { const g = glows[i]!; g.age += dt; if (g.age >= g.life) glows.splice(i, 1); }
-      for (let i = burstEnds.length - 1; i >= 0; i--) if (burstEnds[i]! < T) burstEnds.splice(i, 1);
-      burstsLive = burstEnds.length;
+      for (let i = brightEnds.length - 1; i >= 0; i--) if (brightEnds[i]! < T) brightEnds.splice(i, 1);
+      burstsLive = brightEnds.length;
     };
 
     // ——— Рисование ———
@@ -435,88 +430,99 @@ export function VictoryFireworksLayer({ vp, win, clock, timeZone, anchors }: {
     const coreB: number[][] = Array.from({ length: 2 * NC * NA }, () => []);
     const strandB: number[][] = Array.from({ length: NC * NA }, () => []);
     const alphaLevel = (a: number) => (a >= 0.93 ? 0 : Math.min(NA - 1, Math.max(0, Math.round((1 - a) * 7.6))));
-    const vb = { x0: 0, x1: 0, y0: 0, y1: 0 };
+    // Центры мест на экране (пересчёт раз за кадр).
+    const CX = new Float32Array(NSLOT), CY = new Float32Array(NSLOT);
+    /**
+     * Доля яркости места: разрыв держит размер на экране, а его центр едет с картой. Если карту сильно приблизили или
+     * отдалили (больше чем в 1,4 раза с момента разрыва), центры сбегаются или разбегаются — такой разрыв быстро гаснет,
+     * а не сливается с соседями в комок; новые разрывы уже бьют по новому виду.
+     */
+    const SF = new Float32Array(NSLOT);
 
-    /** Холст следов нарисован под прежний вид карты — переносим его вслед за картой. */
+    /** Холст следов нарисован под прежний вид карты: при сдвиге — переносим вслед, при зуме — начинаем заново. */
     const followView = (k: number, tx: number, ty: number) => {
       if (k === tk && tx === ttx && ty === tty) return;
-      const r = k / tk;
-      if (!tmp) { tmp = document.createElement("canvas"); tmp.width = W; tmp.height = H; }
-      const t2 = tmp.getContext("2d")!;
-      t2.setTransform(1, 0, 0, 1, 0, 0); t2.globalCompositeOperation = "copy"; t2.drawImage(tcanvas, 0, 0);
-      tctx.setTransform(1, 0, 0, 1, 0, 0); tctx.globalCompositeOperation = "source-over"; tctx.clearRect(0, 0, W, H);
-      if (r > 0.05 && r < 20) { tctx.setTransform(r, 0, 0, r, (tx - ttx * r) * dpr, (ty - tty * r) * dpr); tctx.drawImage(tmp, 0, 0); }
+      tctx.setTransform(1, 0, 0, 1, 0, 0); tctx.globalCompositeOperation = "source-over";
+      if (Math.abs(k / tk - 1) < 1e-6) {
+        if (!tmp) { tmp = document.createElement("canvas"); tmp.width = W; tmp.height = H; }
+        const t2 = tmp.getContext("2d")!;
+        t2.setTransform(1, 0, 0, 1, 0, 0); t2.globalCompositeOperation = "copy"; t2.drawImage(tcanvas, 0, 0);
+        tctx.clearRect(0, 0, W, H);
+        tctx.drawImage(tmp, Math.round((tx - ttx) * dpr), Math.round((ty - tty) * dpr));
+      } else tctx.clearRect(0, 0, W, H);
       tk = k; ttx = tx; tty = ty;
     };
 
     const draw = () => {
       const v = view(), k = v.k, tx = v.tx, ty = v.ty;
       followView(k, tx, ty);
+      for (let s = 0; s < NSLOT; s++) {
+        CX[s] = SX[s]! * k + tx; CY[s] = SY[s]! * k + ty;
+        const r = k > SK[s]! ? k / SK[s]! : SK[s]! / k;
+        SF[s] = r < 1.4 ? 1 : Math.max(0, 1 - (r - 1.4) / 0.5);
+      }
       // Следы: гасим прошлое и дорисовываем путь каждой звезды за этот кадр.
       tctx.setTransform(1, 0, 0, 1, 0, 0);
       tctx.globalCompositeOperation = "destination-out"; tctx.globalAlpha = 1;
       tctx.fillStyle = `rgba(0,0,0,${FADE})`; tctx.fillRect(0, 0, W, H);
       ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.globalCompositeOperation = "source-over"; ctx.globalAlpha = 1;
       ctx.clearRect(0, 0, W, H);
-      const m = k * dpr;
-      tctx.setTransform(m, 0, 0, m, tx * dpr, ty * dpr); tctx.globalCompositeOperation = "lighter";
-      ctx.setTransform(m, 0, 0, m, tx * dpr, ty * dpr); ctx.globalCompositeOperation = "lighter";
-      const mg = 60 / k;
-      vb.x0 = -tx / k - mg; vb.x1 = (CW - tx) / k + mg; vb.y0 = -ty / k - mg; vb.y1 = (CH - ty) / k + mg;
+      tctx.setTransform(dpr, 0, 0, dpr, 0, 0); tctx.globalCompositeOperation = "lighter";
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.globalCompositeOperation = "lighter";
+      const x0 = -40, x1 = CW + 40, y0 = -40, y1 = CH + 40;
       // Вспышки у ядер.
       for (const g of glows) {
-        if (g.x < vb.x0 - g.r || g.x > vb.x1 + g.r || g.y < vb.y0 - g.r || g.y > vb.y1 + g.r) continue;
-        const t = g.age / g.life;
-        ctx.globalAlpha = g.a * (1 - t) * (1 - t);
-        ctx.drawImage(sprite(g.col), g.x - g.r, g.y - g.r, g.r * 2, g.r * 2);
+        const gx = CX[g.slot]!, gy = CY[g.slot]!;
+        if (gx < x0 - g.r || gx > x1 + g.r || gy < y0 - g.r || gy > y1 + g.r) continue;
+        const t = g.age / g.life, sf = SF[g.slot]!;
+        if (sf <= 0) continue;
+        ctx.globalAlpha = g.a * (1 - t) * (1 - t) * sf;
+        ctx.drawImage(sprite(g.col), gx - g.r, gy - g.r, g.r * 2, g.r * 2);
       }
-      // Ракеты: след на холсте следов, головка — светящаяся точка.
+      // Ракеты: яркая головка и короткий хвост (на холсте головок — следа-кола на экране не остаётся).
       for (const r of rockets) {
-        const x = r.ax ?? r.sx, y = r.ay ?? r.sy;
-        if (x < vb.x0 || x > vb.x1 || y < vb.y0 || y > vb.y1) continue;
-        trailB[(0 * NC + C_GOLD) * NA + 4]!.push(r.px, r.py, x, y);
-        const s = 5 / k; ctx.globalAlpha = 0.8; ctx.drawImage(sprite(C_WARM), x - s, y - s, s * 2, s * 2);
+        const f = Math.min(1, r.age / r.T), e = 1 - Math.pow(1 - f, 2), x = CX[r.slot]! + r.ox * (1 - e), y = CY[r.slot]! + r.oy * (1 - e);
+        if (x < x0 || x > x1 || y < y0 || y > y1 || SF[r.slot]! <= 0) continue;
+        const len = Math.hypot(r.ox, r.oy) || 1, tl = Math.min(24, len * e);
+        strandB[C_GOLD * NA + 2]!.push(x, y, x + (r.ox / len) * tl, y + (r.oy / len) * tl);
+        ctx.globalAlpha = 0.95; ctx.drawImage(sprite(C_WARM), x - 6, y - 6, 12, 12);
       }
       // Звёзды.
-      const haloStep = n > HALO_MAX ? Math.ceil((n / HALO_MAX) * 4) / 4 : 0; // доля ореолов: по метке звезды 0..3
+      const haloStep = n > haloMax ? Math.ceil((n / haloMax) * 4) / 4 : 0; // доля ореолов: по метке звезды 0..3
       const haloKeep = haloStep ? Math.max(1, Math.floor(4 / haloStep)) : 4;
       for (let i = 0; i < n; i++) {
-        const age = AGE[i]!;
-        if (age < 0) continue;
-        const x = X[i]!, y = Y[i]!;
-        if (x < vb.x0 || x > vb.x1 || y < vb.y0 || y > vb.y1) continue;
-        const life = LIFE[i]!, t = age / life, kind = KIND[i]!, w = WID[i]!;
+        const sl = SLOT[i]!, cx = CX[sl]!, cy = CY[sl]!, x = cx + X[i]!, y = cy + Y[i]!, sf = SF[sl]!;
+        if (sf <= 0 || x < x0 || x > x1 || y < y0 || y > y1) continue;
+        const age = AGE[i]!, life = LIFE[i]!, t = age / life, kind = KIND[i]!, w = WID[i]!;
         const col = CHG[i]! > 0 && t > CHG[i]! ? COL2[i]! : COL[i]!;
         let a: number;
-        if (kind === 6 || kind === 7) a = 0.92 * (1 - t * t * t);
-        else if (kind === 4) a = 0.9 * (1 - t) * (1 - t);
-        else a = t < 0.05 ? 1 : Math.pow(1 - t, 1.1);
+        if (kind === 6 || kind === 7) a = t < 0.4 ? 0.95 : 0.95 * Math.pow(1 - (t - 0.4) / 0.6, 2.2); // ветви гаснут вместе с куполом
+        else if (kind === 4) a = 0.8 * (1 - t) * (1 - t);
+        else a = t < 0.06 ? 0.7 + 5 * t : Math.pow(1 - t, 1.25);
         const fr = FR[i]!;
-        if (kind === 1 && t > 0.3) { if ((age * fr + PH[i]! / 6.2832) % 1 > 0.32) continue; a = Math.max(a, 0.7); }
-        else if (fr > 0 && t > 0.4) a *= 0.35 + 0.65 * Math.abs(Math.sin(age * fr + PH[i]!));
+        if (kind === 1 && t > 0.3) { if ((age * fr + PH[i]! / 6.2832) % 1 > 0.32) continue; a = Math.max(a, 0.75); }
+        else if (fr > 0 && t > 0.45) a *= 0.4 + 0.6 * Math.abs(Math.sin(age * fr + PH[i]!));
+        a *= sf;
         if (a <= 0.04) continue;
         const al = alphaLevel(a);
-        if (kind !== 1 || t <= 0.3) {
-          const th = kind === 4 ? 0 : 1;
-          trailB[(th * NC + col) * NA + Math.min(NA - 1, al + (kind === 4 ? 1 : 0))]!.push(PX[i]!, PY[i]!, x, y);
-        }
+        if ((kind !== 1 || t <= 0.3) && (kind < 6 || t < 0.55)) trailB[((kind === 4 ? 0 : 1) * NC + col) * NA + Math.min(NA - 1, al + (kind === 4 ? 1 : 0))]!.push(cx + PX[i]!, cy + PY[i]!, x, y);
         if (kind === 4) continue;
         const hc = HC[i]!;
         if (hc) {
-          // Ветвь: путь за последние ~0,6 с, тоньше и бледнее к хвосту.
+          // Ветвь: путь за последние ~0,6 с, бледнее к хвосту.
           const o = i * HN;
-          let x0 = x, y0 = y;
+          let xa = x, ya = y;
           for (let q = 0; q < hc; q++) {
-            const x1 = HX[o + q]!, y1 = HY[o + q]!, aa = a * (1 - (q + 0.5) / HN) * 0.75;
-            if (aa > 0.04) strandB[col * NA + alphaLevel(aa)]!.push(x0, y0, x1, y1);
-            x0 = x1; y0 = y1;
+            const xb = cx + HX[o + q]!, yb = cy + HY[o + q]!, aa = a * (1 - (q + 0.5) / HN) * 0.65;
+            if (aa > 0.04) strandB[col * NA + alphaLevel(aa)]!.push(xa, ya, xb, yb);
+            xa = xb; ya = yb;
           }
         }
-        // Головка: ядро (в первые мгновения почти белое) и ореол-спрайт.
-        coreB[((t < 0.12 ? 1 : 0) * NC + col) * NA + al]!.push(x, y);
+        // Головка: ядро (в первые мгновения светлее) и ореол-спрайт; в первые кадры ореол меньше — шар, а не комок.
+        coreB[((t < 0.1 ? 1 : 0) * NC + col) * NA + al]!.push(x, y);
         if (HALO[i]! < haloKeep) {
-          const s = (w * (t < 0.15 ? 2.3 : 2) * (kind === 7 ? 1.3 : 1)) / k;
-          ctx.globalAlpha = a * (kind === 1 ? 1 : 0.85);
+          const s = w * (t < 0.1 ? 1.5 : 2) * (kind === 7 ? 1.3 : 1);
+          ctx.globalAlpha = a * (t < 0.1 ? 0.55 : kind === 1 ? 1 : 0.85);
           ctx.drawImage(sprite(col), x - s, y - s, s * 2, s * 2);
         }
       }
@@ -526,14 +532,14 @@ export function VictoryFireworksLayer({ vp, win, clock, timeZone, anchors }: {
         const s = trailB[b]!;
         if (!s.length) continue;
         const a = b % NA, rest = (b - a) / NA, col = rest % NC, th = (rest - col) / NC, [h, sat, l] = COLORS[col]!;
-        tctx.strokeStyle = `hsla(${h},${sat}%,${Math.min(80, l + 6)}%,${(ALPHAS[a] * 0.8).toFixed(3)})`;
-        tctx.lineWidth = (th === 0 ? 1.2 : 2.2) / k;
+        tctx.strokeStyle = `hsla(${h},${sat}%,${Math.min(80, l + 6)}%,${(ALPHAS[a] * 0.9).toFixed(3)})`;
+        tctx.lineWidth = th === 0 ? 1.2 : 2.2;
         tctx.beginPath();
         for (let j = 0; j < s.length; j += 4) { tctx.moveTo(s[j]!, s[j + 1]!); tctx.lineTo(s[j + 2]!, s[j + 3]!); }
         tctx.stroke();
         s.length = 0;
       }
-      ctx.lineWidth = 1.5 / k;
+      ctx.lineWidth = 1.5;
       for (let b = 0; b < strandB.length; b++) {
         const s = strandB[b]!;
         if (!s.length) continue;
@@ -544,15 +550,14 @@ export function VictoryFireworksLayer({ vp, win, clock, timeZone, anchors }: {
         ctx.stroke();
         s.length = 0;
       }
+      ctx.lineWidth = 2.1;
       for (let b = 0; b < coreB.length; b++) {
         const s = coreB[b]!;
         if (!s.length) continue;
         const a = b % NA, rest = (b - a) / NA, col = rest % NC, hot = (rest - col) / NC, [h, sat, l] = COLORS[col]!;
-        ctx.strokeStyle = hot ? `hsla(${h},${Math.round(sat * 0.5)}%,92%,${ALPHAS[a]})` : `hsla(${h},${sat}%,${Math.min(90, l + 18)}%,${ALPHAS[a]})`;
-        ctx.lineWidth = 2.4 / k;
+        ctx.strokeStyle = hot ? `hsla(${h},${Math.round(sat * 0.7)}%,86%,${ALPHAS[a]})` : `hsla(${h},${sat}%,${Math.min(86, l + 16)}%,${ALPHAS[a]})`;
         ctx.beginPath();
-        const e = 0.02 / k;
-        for (let j = 0; j < s.length; j += 2) { ctx.moveTo(s[j]!, s[j + 1]!); ctx.lineTo(s[j]! + e, s[j + 1]!); }
+        for (let j = 0; j < s.length; j += 2) { ctx.moveTo(s[j]!, s[j + 1]!); ctx.lineTo(s[j]! + 0.02, s[j + 1]!); }
         ctx.stroke();
         s.length = 0;
       }
@@ -562,14 +567,14 @@ export function VictoryFireworksLayer({ vp, win, clock, timeZone, anchors }: {
     /** Вуаль над картой: плавно входит и уходит; в канонаду чуть темнее. */
     const setVeil = () => {
       const base = VEIL_NIGHT + (VEIL_DAY - VEIL_NIGHT) * bright;
-      const vv = Math.round((base + VEIL_BARRAGE * barrageE) * energy * 1000) / 1000;
+      const vv = Math.round(Math.min(1, base + VEIL_BARRAGE * barrageE) * energy * 1000) / 1000;
       if (Math.abs(vv - veilNow) >= 0.003 || (vv === 0 && veilNow !== 0)) { veilNow = vv; veilEl.style.opacity = String(vv); }
     };
 
     // ——— Запуск и остановка цикла кадров ———
     const shouldBurn = () => victoryFxOn(winRef.current, clockRef.current(), tzRef.current);
     const under = coverGate();
-    const reset = () => { n = 0; rockets.length = 0; glows.length = 0; queue.length = 0; burstEnds.length = 0; recent.length = 0; energy = 0; barrageE = 0; };
+    const reset = () => { n = 0; rockets.length = 0; glows.length = 0; queue.length = 0; brightEnds.length = 0; recent.length = 0; energy = 0; barrageE = 0; };
     const loop = (now: number) => {
       raf = requestAnimationFrame(loop);
       if (document.hidden) return;
@@ -595,14 +600,14 @@ export function VictoryFireworksLayer({ vp, win, clock, timeZone, anchors }: {
         const ms = performance.now() - t0; frameMs = frameMs ? frameMs * 0.9 + ms * 0.1 : ms;
         peak = Math.max(peak, n); peakBursts = Math.max(peakBursts, burstsLive); sumParts += n; sumFrames++;
         stats.cap = cap; stats.parts = n; stats.peak = peak; stats.avgParts = Math.round(sumParts / sumFrames); stats.bursts = burstsLive; stats.peakBursts = peakBursts;
-        stats.frameMs = Math.round(frameMs * 100) / 100; stats.frames = sumFrames; stats.barrage = barrageEnd > 0 || T - lastEnd < 4; stats.calm = barrageEnd < 0 && T - lastEnd > 5;
+        stats.frameMs = Math.round(frameMs * 100) / 100; stats.frames = sumFrames; stats.barrage = barrageEnd > 0 || T - lastEnd < 3; stats.calm = barrageEnd < 0 && T - lastEnd > 3;
         stats.T = Math.round(T * 10) / 10; stats.rockets = rockets.length; stats.veil = veilNow;
       }
     };
     const start = () => {
       if (running) return;
       running = true; stopping = false; last = 0; checked = -1e9; brightAt = -1e9;
-      reset(); T = 0; nextEvent = 0.1; nextBarrage = rnd(7, 11); barrageEnd = -1; finalDone = true;
+      reset(); T = 0; nextEvent = 0.05; nextBarrage = rnd(8, 12); barrageEnd = -1; finalDone = true;
       sizeCanvas();
       const v = view(); tk = v.k; ttx = v.tx; tty = v.ty;
       raf = requestAnimationFrame(loop);

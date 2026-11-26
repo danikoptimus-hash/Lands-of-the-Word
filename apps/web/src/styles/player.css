@@ -841,8 +841,9 @@ label > .help-pop-wrap.req-star { margin-left: 2px; vertical-align: baseline; }
 .fx-layer.fireworks { z-index: 2; }
 /* Салют победы (26.11): по всей карте, выше обычного салюта; холст пока салюта нет сжат до точки. */
 .fx-layer.victory-fx { z-index: 2; }
-/* Вуаль салюта победы: «ночное небо» над картой, под подписями городов; силу задаёт слой (VEIL_DAY, VEIL_NIGHT). */
-.victory-veil { position: absolute; inset: 0; pointer-events: none; background: rgb(6, 12, 44); opacity: 0; }
+/* Вуаль салюта победы: «ночное небо» над картой, под подписями городов; умножает цвета карты на тёмно-синий (белое
+   становится синим, а не серым); силу задаёт слой (VEIL_DAY, VEIL_NIGHT). */
+.victory-veil { position: absolute; inset: 0; pointer-events: none; background: rgb(30, 46, 112); mix-blend-mode: multiply; opacity: 0; }
 .fx-layer.storm-sky { z-index: 2; overflow: hidden; }
 .fx-layer.storm { z-index: 3; }
 .storm-sky .dim { position: absolute; inset: 0; background: radial-gradient(ellipse 90% 60% at 50% 0%, rgba(16, 20, 28, .62), rgba(12, 16, 22, .40) 55%, rgba(8, 10, 16, .50) 100%); }
