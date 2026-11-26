@@ -29,5 +29,5 @@ export function mapAt(map: MyMapDto, at: Date): MyMapDto {
   const hexes = map.hexes.map((h) => (h.lit !== false && lit.has(`${h.q},${h.r}`) ? h : { q: h.q, r: h.r, island: h.island, lit: false as const }));
   const tasks = map.tasks.filter((tk) => tk.status === "APPROVED" && tk.decidedAt && Date.parse(tk.decidedAt) <= ms).map((tk) => ({ ...tk, landing: false, candidates: undefined }));
   const cities = map.cities.filter((c) => keys.has(c.nodeKey)).map((c) => (c.capturedAt && Date.parse(c.capturedAt) > ms ? { ...c, captured: false, isCapital: false, battle: null } : { ...c, battle: null }));
-  return { ...map, hexes, revealed, edges: map.edges.filter((e) => keys.has(e.aKey) || keys.has(e.bKey)), tasks, cities, peeked: [], frontier: [], marks: [], foreign: [], dailyBird: null };
+  return { ...map, hexes, revealed, edges: map.edges.filter((e) => keys.has(e.aKey) || keys.has(e.bKey)), tasks, cities, peeked: [], frontier: [], marks: [], foreign: [], dailyBird: null, /** Пока игрок смотрит прошлое, салюта победы нет (как у администратора в истории). */ victory: null };
 }

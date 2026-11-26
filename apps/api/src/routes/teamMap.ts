@@ -20,6 +20,7 @@ import { loadBook } from "../services/bible.js";
 import { WIRE, wireTasks } from "../services/mapWire.js";
 import { staticMap } from "../services/gameMap.js";
 import { byTask, locked, withLock } from "../services/lock.js";
+import { victoryOf } from "../services/game.js";
 
 const submitBody = z.object({
   links: z.array(z.string().trim().url().max(500)).max(10).default([]),
@@ -127,8 +128,8 @@ export async function teamMapRoutes(app: FastifyInstance): Promise<void> {
     const { id } = request.params as { id: string };
     const m = await requireMember(request, reply, id);
     if (!m) return;
-    const game = await prisma.game.findUniqueOrThrow({ where: { id }, select: { status: true, name: true, settings: true, startedAt: true } });
-    if (game.status === "DRAFT") return { status: game.status, gameName: game.name, team: { id: m.team.id, name: m.team.name, color: m.team.color }, hexes: [], revealed: [], edges: [], tasks: [], cities: [], peeked: [] };
+    const game = await prisma.game.findUniqueOrThrow({ where: { id }, select: { status: true, name: true, settings: true, startedAt: true, victoryAt: true, victoryTeamId: true } });
+    if (game.status === "DRAFT") return { status: game.status, gameName: game.name, team: { id: m.team.id, name: m.team.name, color: m.team.color }, hexes: [], revealed: [], edges: [], tasks: [], cities: [], peeked: [], victory: null };
     // Всё, что маршрут добавляет к карте, запрашивается разом (ревизия скорости, этап 2): раньше тринадцать обращений к базе
     // шли одно за другим, а маршрут вызывается чаще всех — каждой сверкой каждого приложения.
     const userId = request.user!.id, teamId = m.team.id, since = new Date(Date.now() - 14 * 86_400_000), recent = new Date(Date.now() - 3 * 86_400_000);
@@ -173,7 +174,8 @@ export async function teamMapRoutes(app: FastifyInstance): Promise<void> {
     }
     // То, что маршрут добавляет к общей карте команды: личное и по часам (лимит дел, заморозка, «Внимание», время суток).
     // Камни и груз команды — из уже прочитанного членства (раньше команда читалась из базы второй раз).
-    const own = { returnedBlocks, quarryNew, seenWrecks, seenPassages, arrivals, status: game.status, startedAt: game.startedAt, gameName: game.name, deedLimit, deedsFrozenUntil, visits, deedsFrozenReason: deedsFrozenUntil ? m.deedsFrozenReason : null, daytime, team: { id: m.team.id, name: m.team.name, color: m.team.color, avatarId: m.team.avatarId, startNodeKey: m.team.startNodeKey, stones: m.team.stones, cargoBlocks: m.team.cargoBlocks } };
+    // Празднование победы (решение владельца 26.11): салют видят все — и победители, и выбывшие; null — не празднуют.
+    const own = { returnedBlocks, quarryNew, seenWrecks, seenPassages, arrivals, victory: victoryOf(game), status: game.status, startedAt: game.startedAt, gameName: game.name, deedLimit, deedsFrozenUntil, visits, deedsFrozenReason: deedsFrozenUntil ? m.deedsFrozenReason : null, daytime, team: { id: m.team.id, name: m.team.name, color: m.team.color, avatarId: m.team.avatarId, startNodeKey: m.team.startNodeKey, stones: m.team.stones, cargoBlocks: m.team.cargoBlocks } };
     // У приложения уже эта версия карты (ревизия скорости, этап 2): отдаём только добавки — около килобайта вместо всей
     // карты. Так приложение сверяется с сервером без скачивания карты; саму карту оно получает «разницей» по событиям.
     const have = Number((request.query as { have?: string }).have);
@@ -192,12 +194,12 @@ export async function teamMapRoutes(app: FastifyInstance): Promise<void> {
     const team = await prisma.team.findFirst({ where: { id: teamId, gameId: id }, select: { id: true, name: true, color: true, avatarId: true, startNodeKey: true, index: true } });
     if (!team) return reply.code(404).send({ error: "not_found", message: err(request, "Команда не найдена") });
     const teamOut = { id: team.id, name: team.name, color: team.color, startNodeKey: team.startNodeKey };
-    if (game.status === "DRAFT") return { status: game.status, teamIndex: team.index, team: teamOut, hexes: [], revealed: [], edges: [], tasks: [], cities: [], peeked: [] };
+    if (game.status === "DRAFT") return { status: game.status, teamIndex: team.index, team: teamOut, hexes: [], revealed: [], edges: [], tasks: [], cities: [], peeked: [], victory: null };
     const map = await getTeamMap(id, team.id);
     // Участники — чтобы в карточке дела «глазами команды» показать, кто его взял.
     const members = (await prisma.membership.findMany({ where: { teamId: team.id }, select: { user: { select: { id: true, nickname: true, displayName: true } } } })).map((m) => m.user);
     // Тайные дела: сдачи скрыты и здесь — администратор смотрит их во вкладке проверки.
-    return { status: game.status, teamIndex: team.index, team: teamOut, ...map, members, tasks: map.tasks.map((t) => hideSecret(t, "")) };
+    return { status: game.status, teamIndex: team.index, team: teamOut, ...map, members, tasks: map.tasks.map((t) => hideSecret(t, "")), victory: victoryOf(game) };
   });
 
   app.post("/api/games/:id/edge-tasks/:taskId/take", locked((r) => ["take:" + r.user!.id, byTask(r)], async (request, reply) => {
@@ -543,7 +545,7 @@ export async function teamMapRoutes(app: FastifyInstance): Promise<void> {
     });
     const [pending, game] = await Promise.all([
       prisma.teamEdgeTask.count({ where: { gameId: id, status: "SUBMITTED" } }),
-      prisma.game.findUnique({ where: { id }, select: { startedAt: true } }),
+      prisma.game.findUnique({ where: { id }, select: { startedAt: true, status: true, settings: true, victoryAt: true, victoryTeamId: true } }),
     ]);
     // Даты нужны для ползунка времени на карте админа: состояние на любой день игры.
     const cityStates = await prisma.teamCityState.findMany({ where: { gameId: id }, select: { teamId: true, nodeKey: true, orderSolved: true, doneTasks: true, capturedAt: true, isCapital: true } });
@@ -551,6 +553,8 @@ export async function teamMapRoutes(app: FastifyInstance): Promise<void> {
     return {
       pending,
       startedAt: game?.startedAt ?? null,
+      // Празднование победы (решение владельца 26.11): салют и у администратора.
+      victory: game ? victoryOf(game) : null,
       battles,
       cities: cityStates.map((s) => ({ teamId: s.teamId, nodeKey: s.nodeKey, orderSolved: s.orderSolved, done: s.doneTasks.length, capturedAt: s.capturedAt?.toISOString() ?? null, isCapital: s.isCapital })),
       teams: teams.map((t) => ({

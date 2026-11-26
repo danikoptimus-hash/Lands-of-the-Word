@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ComponentType } from "react";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
-import { api, ApiError, apiReady, prefetch, ready, type MapEdgeDto, type MapHexDto, type MapNodeDto, type StormSlot } from "../lib/api";
+import { api, ApiError, apiReady, prefetch, ready, type MapEdgeDto, type MapHexDto, type MapNodeDto, type StormSlot, type VictoryDto } from "../lib/api";
 import { AdminMap, type BattleProgress, type CityProgress, type MapFocus, type TeamProgress } from "./AdminMap";
 import { collectMoves, progressAt, TimelineDock } from "./Timeline";
 import { useCoalesced, useGameEvents } from "../lib/useGameEvents";
@@ -35,7 +35,7 @@ interface GameDto { id: string; name: string; createdById?: string; status: stri
 type Tab = "overview" | "map" | "teams" | "deeds" | "review" | "analytics" | "awards" | "settings";
 const TABS: Tab[] = ["overview", "map", "teams", "deeds", "review", "analytics", "awards", "settings"];
 /** Аналитика игры грузится отдельным файлом: графики нужны только администратору (решение владельца 23.10). */
-type Progress = { teams: TeamProgress[]; startedAt: string | null; cities: CityProgress[]; battles: BattleProgress[] };
+type Progress = { /** Победа над последней столицей (решение владельца 26.11): окно празднования, салют на карте. */ victory?: VictoryDto | null; teams: TeamProgress[]; startedAt: string | null; cities: CityProgress[]; battles: BattleProgress[] };
 
 /**
  * Страница игры для администратора: карта во весь экран, разделы (обзор, команды, дела, проверка, настройки) —
@@ -192,7 +192,7 @@ export function GamePage() {
     <div className={"admin-screen" + (open ? " with-popup" : "")} ref={setScreenEl}>
       <div className="admin-map-area">
         {hasMap ? (
-          <AdminMap fullscreen at={at} gameId={game.id} timeZone={(game.settings as { rules?: { timeZone?: string } }).rules?.timeZone} storms={(game.settings as { rules?: { storms?: StormSlot[] } }).rules?.storms} hexes={hexes} nodes={nodes} edges={edges} progress={shown} cities={shownCities} battles={at ? [] : progress?.battles ?? null} version={version} onReview={() => setTab("review")} focus={mapFocus} />
+          <AdminMap fullscreen at={at} gameId={game.id} timeZone={(game.settings as { rules?: { timeZone?: string } }).rules?.timeZone} storms={(game.settings as { rules?: { storms?: StormSlot[] } }).rules?.storms} hexes={hexes} nodes={nodes} edges={edges} progress={shown} cities={shownCities} battles={at ? [] : progress?.battles ?? null} victory={progress?.victory ?? null} version={version} onReview={() => setTab("review")} focus={mapFocus} />
         ) : (
           <div className="admin-empty">
             <div className="card">
