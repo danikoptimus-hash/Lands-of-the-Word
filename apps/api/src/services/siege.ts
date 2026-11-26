@@ -5,7 +5,7 @@ import { fmtDate, msg } from "./i18n.js";
 import { onCityOwned } from "./teamMap.js";
 import { days, rulesOf, type Rules } from "./rules.js";
 import { isLocked } from "./battles.js";
-import type { Prisma } from "@prisma/client";
+import type { Prisma, Siege } from "@prisma/client";
 import { journal, teamNames } from "./journal.js";
 import { peaceBetween } from "./peace.js";
 import { activeGameEnds, contestVoid, defeatOps, dueBeforeEnd } from "./defeat.js";
@@ -24,11 +24,18 @@ async function pointsOf(gameId: string, teamId: string, from: Date, to: Date, ru
   return rows.reduce((a, r) => a + (r.deed.siegePoints ?? rules.siegeDeedPoints), 0);
 }
 
-/** Пересчёт баллов идущих осад (для показа) и разрешение завершившихся. Вызывается из sweep. */
-export async function sweepSieges(gameId?: string, now = new Date()): Promise<void> {
+/** Осада, срок которой вышел и которую можно разобрать, с баллами сторон к сроку. */
+export interface DueSiege { siege: Siege; a: number; d: number }
+
+/**
+ * Пересчёт баллов идущих осад (для показа) и список тех, чей срок вышел и которые можно разобрать (не позже конца игры).
+ * Разбирает их обход (services/battles.ts) вместе с просроченными ответами — по времени срока (третий круг разбора, 26.11).
+ */
+export async function dueSieges(gameId?: string, now = new Date()): Promise<DueSiege[]> {
   // Только идущие партии (второй круг разбора, 26.11): в завершённой осада не разрешается.
   const ends = await activeGameEnds(gameId);
   const sieges = await prisma.siege.findMany({ where: { gameId: { in: [...ends.keys()] }, status: "ACTIVE" } });
+  const due: DueSiege[] = [];
   for (const s of sieges) {
     const rules = rulesOf((await prisma.game.findUnique({ where: { id: s.gameId }, select: { settings: true } }))?.settings);
     const until = s.endsAt.getTime() < now.getTime() ? s.endsAt : now;
@@ -37,28 +44,35 @@ export async function sweepSieges(gameId?: string, now = new Date()): Promise<vo
     if (s.endsAt.getTime() > now.getTime()) continue;
     // Срок осады позже конца игры, а обход пришёл, когда вышли оба: исхода нет, осаду снимет завершение игры.
     if (!dueBeforeEnd(s.endsAt, ends.get(s.gameId) ?? null, now)) continue;
-    // Срок вышел: больше баллов — город переходит; равенство — остаётся у хранителей.
-    const owner = await prisma.teamCityState.findFirst({ where: { gameId: s.gameId, nodeKey: s.nodeKey, capturedAt: { not: null } } });
-    const book = (await prisma.mapNode.findUnique({ where: { gameId_key: { gameId: s.gameId, key: s.nodeKey } }, select: { bookCode: true } }))?.bookCode ?? "";
-    // Хозяин сменился, партия празднует победу или сторона выбыла (страховка, 26.11) — осада снимается без исхода.
-    if (!owner || owner.teamId !== s.defenderId || (await contestVoid(s.gameId, s.attackerId, s.defenderId))) { await prisma.siege.update({ where: { id: s.id }, data: { status: "CANCELLED", resolvedAt: now } }); publish(s.gameId, { type: "battles" }); continue; }
-    const [an, dn] = await teamNames(s.attackerId, s.defenderId);
-    if (a > d) {
-      journal(s.gameId, "siege_won", { everyone: true, teamId: s.attackerId, vars: { team: an, other: dn, book } });
-      await prisma.siege.update({ where: { id: s.id }, data: { status: "WON", resolvedAt: now, attackerPoints: a, defenderPoints: d } });
-      await transferCity(s.gameId, s.nodeKey, s.defenderId, s.attackerId, 0);
-      notifyTeam(s.gameId, s.attackerId, "осада города {book} удалась", "Дел за время осады: у вас {a}, у хранителей {d}. Город теперь ваш.", { book, a, d });
-      notifyTeam(s.gameId, s.defenderId, "город {book} взят осадой", "Дел за время осады: у претендентов {a}, у вас {d}. Город перешёл претендентам; его можно вернуть по тем же правилам.", { book, a, d });
-    } else {
-      journal(s.gameId, "siege_repelled", { everyone: true, teamId: s.defenderId, vars: { team: an, other: dn, book } });
-      await prisma.siege.update({ where: { id: s.id }, data: { status: "REPELLED", resolvedAt: now, attackerPoints: a, defenderPoints: d } });
-      notifyTeam(s.gameId, s.defenderId, "осада города {book} отбита", "Дел за время осады: у вас {d}, у претендентов {a}. Город остаётся вашим.", { book, a, d });
-      notifyTeam(s.gameId, s.attackerId, "осада города {book} не удалась", "Дел за время осады: у вас {a}, у хранителей {d}. Город остаётся у хранителей.", { book, a, d });
-    }
-    publish(s.gameId, { type: "battles" });
-    publish(s.gameId, { type: "map" });
-    publish(s.gameId, { type: "cities" });
+    due.push({ siege: s, a, d });
   }
+  return due;
+}
+
+/** Разбор осады, срок которой вышел: больше баллов — город переходит; равенство — остаётся у хранителей. */
+export async function resolveSiege({ siege: s, a, d }: DueSiege, now = new Date()): Promise<void> {
+  // Пока шёл обход, осаду могло снять более раннее событие (выбывание стороны, празднование).
+  if ((await prisma.siege.findUnique({ where: { id: s.id }, select: { status: true } }))?.status !== "ACTIVE") return;
+  const owner = await prisma.teamCityState.findFirst({ where: { gameId: s.gameId, nodeKey: s.nodeKey, capturedAt: { not: null } } });
+  const book = (await prisma.mapNode.findUnique({ where: { gameId_key: { gameId: s.gameId, key: s.nodeKey } }, select: { bookCode: true } }))?.bookCode ?? "";
+  // Хозяин сменился, партия празднует победу или сторона выбыла (страховка, 26.11) — осада снимается без исхода.
+  if (!owner || owner.teamId !== s.defenderId || (await contestVoid(s.gameId, s.attackerId, s.defenderId))) { await prisma.siege.update({ where: { id: s.id }, data: { status: "CANCELLED", resolvedAt: now } }); publish(s.gameId, { type: "battles" }); return; }
+  const [an, dn] = await teamNames(s.attackerId, s.defenderId);
+  if (a > d) {
+    journal(s.gameId, "siege_won", { everyone: true, teamId: s.attackerId, vars: { team: an, other: dn, book } });
+    await prisma.siege.update({ where: { id: s.id }, data: { status: "WON", resolvedAt: now, attackerPoints: a, defenderPoints: d } });
+    await transferCity(s.gameId, s.nodeKey, s.defenderId, s.attackerId, 0);
+    notifyTeam(s.gameId, s.attackerId, "осада города {book} удалась", "Дел за время осады: у вас {a}, у хранителей {d}. Город теперь ваш.", { book, a, d });
+    notifyTeam(s.gameId, s.defenderId, "город {book} взят осадой", "Дел за время осады: у претендентов {a}, у вас {d}. Город перешёл претендентам; его можно вернуть по тем же правилам.", { book, a, d });
+  } else {
+    journal(s.gameId, "siege_repelled", { everyone: true, teamId: s.defenderId, vars: { team: an, other: dn, book } });
+    await prisma.siege.update({ where: { id: s.id }, data: { status: "REPELLED", resolvedAt: now, attackerPoints: a, defenderPoints: d } });
+    notifyTeam(s.gameId, s.defenderId, "осада города {book} отбита", "Дел за время осады: у вас {d}, у претендентов {a}. Город остаётся вашим.", { book, a, d });
+    notifyTeam(s.gameId, s.attackerId, "осада города {book} не удалась", "Дел за время осады: у вас {a}, у хранителей {d}. Город остаётся у хранителей.", { book, a, d });
+  }
+  publish(s.gameId, { type: "battles" });
+  publish(s.gameId, { type: "map" });
+  publish(s.gameId, { type: "cities" });
 }
 
 /** Смена владельца города без испытания (осада): уровень защиты задаётся явно, максимум и закрепление сбрасываются. */
