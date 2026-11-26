@@ -28,8 +28,8 @@ vi.mock("./services/labelsPdf.js", async (importOriginal) => {
  */
 const app = await buildApp({ NODE_ENV: "test", SESSION_SECRET: "test-secret-please" });
 const stamp = Date.now() % 100000;
-const nicks = { admin: `vi_adm_${stamp}`, cap1: `vi_c1_${stamp}`, cap2: `vi_c2_${stamp}`, m2: `vi_m2_${stamp}` };
-const ck: Record<keyof typeof nicks, string> = { admin: "", cap1: "", cap2: "", m2: "" };
+const nicks = { admin: `vi_adm_${stamp}`, cap1: `vi_c1_${stamp}`, cap2: `vi_c2_${stamp}`, m2: `vi_m2_${stamp}`, cap3: `vi_c3_${stamp}` };
+const ck: Record<keyof typeof nicks, string> = { admin: "", cap1: "", cap2: "", m2: "", cap3: "" };
 const post = (url: string, cookie: string, payload: unknown = {}) => app.inject({ method: "POST", url, headers: { cookie }, payload: payload as Record<string, unknown> });
 const get = (url: string, cookie: string, headers: Record<string, string> = {}) => app.inject({ method: "GET", url, headers: { cookie, ...headers } });
 const patch = (url: string, cookie: string, payload: unknown) => app.inject({ method: "PATCH", url, headers: { cookie }, payload: payload as Record<string, unknown> });
@@ -37,17 +37,20 @@ const register = async (nickname: string) => (await registerVerified(app, { nick
 const tasksOf = async (code: string) => (JSON.parse(await readFile(new URL(`../../../content/cities/${code}.json`, import.meta.url), "utf8")) as { tasks: unknown[] }).tasks.map((_, i) => i);
 const HOUR = 3_600_000;
 
-interface Setup { gameId: string; team1: string; team2: string; rutKey: string; jonKey: string; estKey: string }
+interface Setup { gameId: string; team1: string; team2: string; team3: string; rutKey: string; jonKey: string; estKey: string; exoKey: string }
 const games: Setup[] = [];
 const events: Array<{ gameId: string; type: string; teamId?: string }> = [];
 onPublish((gameId, ev) => events.push({ gameId, type: ev.type, teamId: ev.teamId }));
 
-async function setupGame(name: string, endsAt: string | null): Promise<Setup> {
+/** Третья команда («Пустыня», столица — Исход) — только для проверки порядка разбора (three = true). */
+async function setupGame(name: string, endsAt: string | null, three = false): Promise<Setup> {
   const invite = async (gameId: string, teamId: string, by: string, role: "CAPTAIN" | "MEMBER" = "MEMBER") => (await post(`/api/games/${gameId}/teams/${teamId}/invites`, by, { role })).json().invite.token as string;
-  const gameId = (await post("/api/games", ck.admin, { name, teamCount: 2 })).json().game.id as string;
+  const gameId = (await post("/api/games", ck.admin, { name, teamCount: three ? 3 : 2 })).json().game.id as string;
   await post(`/api/games/${gameId}/generate`, ck.admin);
   const team1 = (await post(`/api/games/${gameId}/teams`, ck.admin, { name: "Ковчег" })).json().team.id as string;
   const team2 = (await post(`/api/games/${gameId}/teams`, ck.admin, { name: "Странники" })).json().team.id as string;
+  const team3 = three ? (await post(`/api/games/${gameId}/teams`, ck.admin, { name: "Пустыня" })).json().team.id as string : "";
+  if (three) await post(`/api/invites/${await invite(gameId, team3, ck.admin, "CAPTAIN")}/accept`, ck.cap3);
   await post(`/api/invites/${await invite(gameId, team1, ck.admin, "CAPTAIN")}/accept`, ck.cap1);
   await post(`/api/invites/${await invite(gameId, team2, ck.admin, "CAPTAIN")}/accept`, ck.cap2);
   await post(`/api/invites/${await invite(gameId, team2, ck.cap2)}/accept`, ck.m2);
@@ -58,7 +61,7 @@ async function setupGame(name: string, endsAt: string | null): Promise<Setup> {
   if (rules.statusCode !== 200) throw new Error(`settings not set: ${rules.body}`);
   expect((await post(`/api/games/${gameId}/start`, ck.admin)).statusCode).toBe(200);
   const keyOf = async (bookCode: string) => (await prisma.mapNode.findFirstOrThrow({ where: { gameId, bookCode } })).key;
-  const [rutKey, jonKey, estKey] = await Promise.all([keyOf("rut"), keyOf("jon"), keyOf("est")]);
+  const [rutKey, jonKey, estKey, exoKey] = await Promise.all([keyOf("rut"), keyOf("jon"), keyOf("est"), keyOf("exo")]);
   const [rut, jon, est] = await Promise.all([tasksOf("rut"), tasksOf("jon"), tasksOf("est")]);
   // «Ковчег» дошёл до Руфи и Есфири и решил их задания; Есфирь — второй город «Странников».
   await prisma.teamNodeState.createMany({ data: [{ teamId: team1, nodeKey: rutKey }, { teamId: team1, nodeKey: estKey }, { teamId: team2, nodeKey: rutKey }, { teamId: team2, nodeKey: estKey }], skipDuplicates: true });
@@ -69,7 +72,8 @@ async function setupGame(name: string, endsAt: string | null): Promise<Setup> {
     { gameId, teamId: team2, nodeKey: rutKey, orderSolved: true, doneTasks: rut, capturedAt: new Date(), firstCapturedAt: new Date(), isCapital: true },
     { gameId, teamId: team2, nodeKey: estKey, orderSolved: true, doneTasks: est, capturedAt: new Date(), firstCapturedAt: new Date() },
   ] });
-  const s = { gameId, team1, team2, rutKey, jonKey, estKey };
+  if (three) await prisma.teamCityState.create({ data: { gameId, teamId: team3, nodeKey: exoKey, orderSolved: true, capturedAt: new Date(), firstCapturedAt: new Date(), isCapital: true } });
+  const s = { gameId, team1, team2, team3, rutKey, jonKey, estKey, exoKey };
   games.push(s);
   return s;
 }
@@ -323,5 +327,50 @@ describe("празднование победы", () => {
     expect((await prisma.siege.findUniqueOrThrow({ where: { id: siege.id } })).status).toBe("ACTIVE");
     expect((await prisma.team.findUniqueOrThrow({ where: { id: I.team2 } })).status).not.toBe("defeated");
     expect((await prisma.teamCityState.findUniqueOrThrow({ where: { teamId_nodeKey: { teamId: I.team2, nodeKey: I.rutKey } } })).capturedAt).toBeTruthy();
+  });
+  it("J: вызов, сгорающий после конца игры, и стена, чья минута после конца, — не трогаются; их снимает конец по сроку", async () => {
+    const J = await setupGame("Победа J", null);
+    // Конец игры — минуту назад. Вызов Руфи не отправлен, его срок вышел 20 с назад; за ним в очереди ещё один.
+    // Ответ Есфири идёт до +30 с: минута стены (−30 с) — уже после конца игры.
+    const burnt = await prisma.battle.create({ data: { gameId: J.gameId, nodeKey: J.rutKey, bookCode: "rut", attackerId: J.team1, defenderId: J.team2, bid: 10, status: "ATTACK", startedAt: new Date(Date.now() - HOUR), attackDeadline: new Date(Date.now() - 20_000) } });
+    const queued = await prisma.battle.create({ data: { gameId: J.gameId, nodeKey: J.rutKey, bookCode: "rut", attackerId: J.team1, defenderId: J.team2, bid: 12, status: "QUEUED" } });
+    const wall = await prisma.battle.create({ data: { gameId: J.gameId, nodeKey: J.estKey, bookCode: "est", attackerId: J.team1, defenderId: J.team2, bid: 10, status: "DEFENSE", startedAt: new Date(Date.now() - HOUR), defenseDeadline: new Date(Date.now() + 30_000) } });
+    await setSettings(J.gameId, { endsAt: new Date(Date.now() - 60_000).toISOString() });
+    await sweep(J.gameId);
+    expect(await gameRow(J.gameId)).toMatchObject({ status: "FINISHED", finishReason: "time_limit" });
+    expect((await prisma.battle.findUniqueOrThrow({ where: { id: burnt.id } })).status).toBe("CANCELLED");
+    expect((await prisma.battle.findUniqueOrThrow({ where: { id: queued.id } })).status).toBe("CANCELLED");
+    expect(await prisma.battle.findUniqueOrThrow({ where: { id: wall.id } })).toMatchObject({ status: "CANCELLED", wallAppliedAt: null });
+    expect((await prisma.teamCityState.findUniqueOrThrow({ where: { teamId_nodeKey: { teamId: J.team1, nodeKey: J.rutKey } } })).attackPenalty).toBe(0);
+    expect(await prisma.journal.count({ where: { gameId: J.gameId, kind: { in: ["trial_burnt", "wall_applied"] } } })).toBe(0);
+  });
+
+  it("K: шаг обхода раньше проверки срока упал — игра всё равно завершается по сроку", async () => {
+    const K = await setupGame("Победа K", null);
+    // Испытание за город, которого нет на карте: его разбор падает (до правки — каждую минуту, и срок не проверялся).
+    await prisma.battle.create({ data: { gameId: K.gameId, nodeKey: "нет-такого", bookCode: "rut", attackerId: K.team1, defenderId: K.team2, bid: 10, status: "DEFENSE", startedAt: new Date(Date.now() - HOUR), defenseDeadline: new Date(Date.now() - 5 * 60_000) } });
+    await setSettings(K.gameId, { endsAt: new Date(Date.now() - 60_000).toISOString() });
+    await expect(sweep(K.gameId)).rejects.toThrow();
+    expect(await gameRow(K.gameId)).toMatchObject({ status: "FINISHED", finishReason: "time_limit" });
+  });
+
+  it("L: опоздавший обход разбирает просроченные ответы и осады по времени срока, а не по порядку строк", async () => {
+    const L = await setupGame("Победа L", null, true);
+    const deed = await prisma.deed.findFirstOrThrow({ where: { gameId: L.gameId } });
+    // Первым в базу ложится более поздний срок: «Странники» не дождались ответа столицы «Пустыни» 2 мин назад.
+    const late = await prisma.battle.create({ data: { gameId: L.gameId, nodeKey: L.exoKey, bookCode: "exo", attackerId: L.team2, defenderId: L.team3, bid: 10, status: "DEFENSE", startedAt: new Date(Date.now() - HOUR), defenseDeadline: new Date(Date.now() - 2 * 60_000) } });
+    // Раньше всех (4 мин назад) кончилась осада «Ковчегом» столицы «Странников», ещё раньше — вызов им же Есфири (5 мин).
+    const siege = await prisma.siege.create({ data: { gameId: L.gameId, nodeKey: L.rutKey, attackerId: L.team1, defenderId: L.team2, startedAt: new Date(Date.now() - HOUR), endsAt: new Date(Date.now() - 4 * 60_000) } });
+    const early = await prisma.battle.create({ data: { gameId: L.gameId, nodeKey: L.estKey, bookCode: "est", attackerId: L.team1, defenderId: L.team2, bid: 10, status: "DEFENSE", startedAt: new Date(Date.now() - HOUR), defenseDeadline: new Date(Date.now() - 5 * 60_000) } });
+    await prisma.teamEdgeTask.create({ data: { gameId: L.gameId, teamId: L.team1, fromKey: "l-1", toKey: "l-2", deedId: deed.id, status: "APPROVED", decidedAt: new Date(Date.now() - 30 * 60_000) } });
+    await sweep(L.gameId);
+    // По срокам: Есфирь взята, потом осада взяла столицу «Странников» — они выбыли, и их вызов «Пустыне» снят.
+    expect((await prisma.battle.findUniqueOrThrow({ where: { id: early.id } })).status).toBe("WON");
+    expect((await prisma.siege.findUniqueOrThrow({ where: { id: siege.id } })).status).toBe("WON");
+    expect((await prisma.battle.findUniqueOrThrow({ where: { id: late.id } })).status).toBe("CANCELLED");
+    expect((await prisma.team.findUniqueOrThrow({ where: { id: L.team3 } })).status).not.toBe("defeated");
+    expect((await prisma.teamCityState.findFirstOrThrow({ where: { gameId: L.gameId, nodeKey: L.exoKey, capturedAt: { not: null } } })).teamId).toBe(L.team3);
+    // В строю две команды — празднования нет.
+    expect(await gameRow(L.gameId)).toMatchObject({ status: "ACTIVE", victoryAt: null });
   });
 });
