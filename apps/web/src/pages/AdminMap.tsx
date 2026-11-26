@@ -29,7 +29,9 @@ import { FaunaLayer, trimRoute, type FireSite, type WreckSpec } from "./Fauna";
 import { css, stormLight, useDaytime, useStormPicture } from "../lib/daytime";
 import { StormLayer } from "./StormLayer";
 import { FireworksLayer, type FireworkSite } from "./FireworksLayer";
-import type { StormSlot } from "../lib/api";
+import { VictoryFireworksLayer } from "./VictoryFireworksLayer";
+import { victoryWindow } from "../lib/victoryFx";
+import type { StormSlot, VictoryDto } from "../lib/api";
 import { LakesLayer } from "./Lakes";
 import { kindLabel } from "./RecipientsBlock";
 import { IsletsLayer, useIslets } from "./Islets";
@@ -91,7 +93,7 @@ function rewindTeamMap(map: MyMapDto, team: TeamProgress, teams: TeamProgress[],
   };
 }
 
-export function AdminMap({ gameId, hexes, nodes, edges, progress, cities, battles, version, onReview, fullscreen = false, timeZone, storms, at = null, focus = null }: { /** Расписание штормов (решение владельца 24.10): администратору буря показывается картинкой, без запретов. */ storms?: StormSlot[]; /** «Посмотреть на карте»: при смене nonce карта администратора центрируется на стороне и подсвечивает её. */ focus?: MapFocus | null; /** Момент ползунка истории: карта «глазами команды» урезается к нему. */ at?: Date | null; /** Часовой пояс игры: по нему карта администратора красится по времени суток, как у команд. */ timeZone?: string; /** Во весь экран (страница игры): карта заполняет контейнер, переключатель «чьими глазами» и легенда — поверх. */ fullscreen?: boolean; gameId: string; hexes: MapHexDto[]; nodes: MapNodeDto[]; edges: MapEdgeDto[]; progress: TeamProgress[] | null; cities: CityProgress[] | null; battles: BattleProgress[] | null; version: number; onReview?: () => void }) {
+export function AdminMap({ gameId, hexes, nodes, edges, progress, cities, battles, version, onReview, fullscreen = false, timeZone, storms, at = null, focus = null, victory = null }: { /** Победа над последней столицей (решение владельца 26.11): салют по всей карте, пока идёт празднование; в режиме истории его нет. */ victory?: VictoryDto | null; /** Расписание штормов (решение владельца 24.10): администратору буря показывается картинкой, без запретов. */ storms?: StormSlot[]; /** «Посмотреть на карте»: при смене nonce карта администратора центрируется на стороне и подсвечивает её. */ focus?: MapFocus | null; /** Момент ползунка истории: карта «глазами команды» урезается к нему. */ at?: Date | null; /** Часовой пояс игры: по нему карта администратора красится по времени суток, как у команд. */ timeZone?: string; /** Во весь экран (страница игры): карта заполняет контейнер, переключатель «чьими глазами» и легенда — поверх. */ fullscreen?: boolean; gameId: string; hexes: MapHexDto[]; nodes: MapNodeDto[]; edges: MapEdgeDto[]; progress: TeamProgress[] | null; cities: CityProgress[] | null; battles: BattleProgress[] | null; version: number; onReview?: () => void }) {
   const size = HEX_SIZE;
   const { notify } = useUi();
   const hexKey = hexes.map((h) => `${h.q},${h.r}`).join(";");
@@ -172,6 +174,8 @@ export function AdminMap({ gameId, hexes, nodes, edges, progress, cities, battle
   const dt = useMemo(() => (stormSt.t > 0 ? { ...dt0, light: stormLight(dt0.light, stormSt.t) } : dt0), [dt0, stormSt.t]);
   const imgPhase = dt.t >= 0.5 ? dt.to : dt.from;
   const fires = useMemo<FireSite[]>(() => nodes.filter((n) => n.kind === "CITY" || n.kind === "START").map((n) => { const p = nodePos(n.key, size); return { x: p.x, y: p.y - size * 0.08, r: size * (n.kind === "START" ? 0.45 : 0.38) }; }), [nodes, size]);
+  const victoryWin = useMemo(() => (at ? null : victoryWindow(victory, Date.now())), [victory, at]);
+  const victoryAnchors = useMemo(() => fires.map((f) => ({ x: f.x, y: f.y })), [fires]);
   const edgeSet = useMemo(() => new Set(edges.map((e) => [e.aKey, e.bKey].sort().join("|"))), [edges]);
   const islandCenters = useMemo(() => islandGeometry(hexes, size), [hexes, size]);
   // «Глазами команды»: карта, какой её видит выбранная команда; обновляется вместе с остальным по событиям игры.
@@ -419,6 +423,7 @@ export function AdminMap({ gameId, hexes, nodes, edges, progress, cities, battle
           <FaunaLayer vp={vp} hexes={hexes} islets={islets} size={size} seed={gameId} light={dt.light} fires={fires} routes={glRoutes ? [] : routeSpecs} wrecks={wreckSpecs}
             between={glRoutes ? <RoutesGL vp={vp} routes={routeSpecs} onUnsupported={() => setGlRoutes(false)} /> : null} />
           {fireworkSites.length > 0 && !perfOff("fireworks") && <FireworksLayer vp={vp} sites={fireworkSites} clock={Date.now} timeZone={timeZone ?? "Asia/Tashkent"} />}
+          {victoryWin && !perfOff("victory") && <VictoryFireworksLayer vp={vp} win={victoryWin} clock={Date.now} timeZone={timeZone ?? "Asia/Tashkent"} anchors={victoryAnchors} />}
           {stormSt.t > 0 && <StormLayer t={stormSt.t} />}
           {/* Подписи городов и метки — отдельным слоем над живностью и маршрутами: название города выше линии корабля (решение владельца 06.10). */}
           <WorldSvg vp={vp} bounds={bounds} overlay>
