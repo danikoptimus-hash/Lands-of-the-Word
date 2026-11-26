@@ -131,7 +131,9 @@ export function VictoryFireworksLayer({ vp, win, clock, timeZone, anchors }: {
     let T = 0, nextEvent = 0.15, nextBarrage = rnd(6, 11), barrageEnd = -1, finalDone = true;
     let flash = 0, flashCol = C_WARM, energy = 0, bright = 1, brightAt = -1e9;
     let peak = 0, sumParts = 0, sumFrames = 0, frameMs = 0, burstsLive = 0;
-    const burstTimes: number[] = [];
+    /** Когда каждый разрыв перестанет быть виден (для счёта «сколько разрывов на экране сейчас»). */
+    const burstEnds: number[] = [];
+    const SEE: Record<ShellType, number> = { chrys: 2.6, peony: 2.1, ring: 2.2, ring2: 2.2, palm: 3, willow: 4.2, rain: 3.4, spiral: 2.3, crossette: 2.1, strobe: 3 };
     const stats = { cap: CAP, parts: 0, peak: 0, avgParts: 0, bursts: 0, frameMs: 0, frames: 0, barrage: false, T: 0, rockets: 0 };
     if (winRef.current.debug) (window as unknown as { __victoryFx?: unknown }).__victoryFx = stats;
 
@@ -260,7 +262,7 @@ export function VictoryFireworksLayer({ vp, win, clock, timeZone, anchors }: {
       addGlow(cx, cy, R * u * 0.45, 0.22, C_WARM, 0.95);
       if (R > 100 * screenU()) addGlow(cx, cy, R * u * 1.25, 0.9, c1, Math.min(0.42, 0.12 + R / 900));
       if (sh.big > 0) { flash = Math.max(flash, sh.big); flashCol = c1; }
-      burstTimes.push(T);
+      burstEnds.push(T + SEE[sh.type]);
       recent.push({ x: cx, y: cy, at: T }); if (recent.length > 8) recent.shift();
     };
 
@@ -386,7 +388,7 @@ export function VictoryFireworksLayer({ vp, win, clock, timeZone, anchors }: {
       if (T < nextEvent) return;
       if (barrage && T >= barrageEnd - 0.7) { nextEvent = T + 0.25; return; }
       event(barrage);
-      nextEvent = T + (barrage ? rnd(0.12, 0.3) : rnd(0.85, 1.9));
+      nextEvent = T + (barrage ? rnd(0.12, 0.3) : rnd(1, 2.2));
       // Ракет много, а звёзд почти потолок — не добавляем новых залпов, пока не освободится место.
       if (n > CAP - 300) nextEvent = T + 0.6;
     };
@@ -426,9 +428,8 @@ export function VictoryFireworksLayer({ vp, win, clock, timeZone, anchors }: {
       for (let i = glows.length - 1; i >= 0; i--) { const g = glows[i]!; g.age += dt; if (g.age >= g.life) glows.splice(i, 1); }
       flash *= Math.exp(-dt * 4.5);
       if (flash < 0.01) flash = 0;
-      const cut = T - 3.2;
-      while (burstTimes.length && burstTimes[0]! < cut) burstTimes.shift();
-      burstsLive = burstTimes.length;
+      for (let i = burstEnds.length - 1; i >= 0; i--) if (burstEnds[i]! < T) burstEnds.splice(i, 1);
+      burstsLive = burstEnds.length;
     };
 
     const draw = () => {
@@ -515,7 +516,7 @@ export function VictoryFireworksLayer({ vp, win, clock, timeZone, anchors }: {
     // ——— Запуск и остановка цикла кадров ———
     const shouldBurn = () => victoryFxOn(winRef.current, clockRef.current(), tzRef.current);
     const under = coverGate();
-    const reset = () => { n = 0; rockets.length = 0; glows.length = 0; queue.length = 0; burstTimes.length = 0; recent.length = 0; flash = 0; energy = 0; };
+    const reset = () => { n = 0; rockets.length = 0; glows.length = 0; queue.length = 0; burstEnds.length = 0; recent.length = 0; flash = 0; energy = 0; };
     const loop = (now: number) => {
       raf = requestAnimationFrame(loop);
       if (document.hidden) return;

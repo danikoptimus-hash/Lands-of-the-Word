@@ -12,7 +12,7 @@ function App() {
   const vp = useMemo(() => ({ view: view.current, viewRef: view, subscribe: (fn: any) => { subs.current.add(fn); return () => subs.current.delete(fn); } }), []);
   const apply = () => { const v = view.current; if (bg.current) bg.current.style.transform = `translate(${v.tx}px,${v.ty}px) scale(${v.k})`; subs.current.forEach((f) => f(v)); };
   useEffect(() => { (window as any).__setView = (v: any) => { Object.assign(view.current, v); apply(); }; apply(); }, []);
-  const win = useMemo(() => victoryWindow(null, Date.now())!, []);
+  const win = useMemo(() => (q.get("raw") ? { at: Date.now() - 30 * 3600e3, until: Date.now() + 42 * 3600e3 } : victoryWindow(null, Date.now())!), []);
   const anchors = useMemo(() => [{ x: 300, y: 500 }, { x: 700, y: 900 }, { x: 1100, y: 600 }, { x: 500, y: 1300 }], []);
   const land = [[300, 500, 380, 260], [700, 900, 420, 300], [1100, 600, 300, 250], [500, 1300, 360, 240], [1300, 1200, 300, 200]];
   return (
@@ -24,7 +24,7 @@ function App() {
           {[[300, 500], [700, 900], [1100, 600], [500, 1300]].map(([x, y], i) => <circle key={i} cx={x} cy={y} r={26} fill="#a05a3a" stroke="#fff" strokeWidth={4} />)}
         </svg>
       </div>
-      <VictoryFireworksLayer vp={vp as any} win={win} clock={Date.now} timeZone="Asia/Tashkent" anchors={anchors} />
+      <VictoryFireworksLayer vp={vp as any} win={win} clock={Date.now} timeZone="UTC" anchors={anchors} />
     </div>
   );
 }
