@@ -13,6 +13,7 @@ import { layWallBeforeDeadline, wallOf } from "./wall.js";
 import { answerCap } from "./learned.js";
 import { days, rulesOf, type Rules } from "./rules.js";
 import { sweepSieges } from "./siege.js";
+import { contestVoid, defeatOps } from "./defeat.js";
 import { sinkDueWrecks } from "./wrecks.js";
 import { BOOKS } from "@lotw/domain";
 
@@ -378,6 +379,11 @@ export async function afterReject(b: BattleWithEntries, side: "ATTACK" | "DEFENS
 /** Город взят: смена владельца, уровень защиты = ставка; потеря столицы = поражение хранителей. */
 export async function resolveWon(b: Battle): Promise<void> {
   const now = new Date();
+  if (await contestVoid(b.gameId, b.attackerId, b.defenderId)) {
+    await prisma.battle.updateMany({ where: { id: b.id, status: "DEFENSE" }, data: { status: "CANCELLED", resolvedAt: now } });
+    publish(b.gameId, { type: "battles" });
+    return;
+  }
   const level = b.bid;
   const defenderState = await prisma.teamCityState.findUnique({ where: { teamId_nodeKey: { teamId: b.defenderId, nodeKey: b.nodeKey } } });
   const attackerState = await prisma.teamCityState.findUnique({ where: { teamId_nodeKey: { teamId: b.attackerId, nodeKey: b.nodeKey } } });
@@ -396,16 +402,11 @@ export async function resolveWon(b: Battle): Promise<void> {
     prisma.passageRequest.updateMany({ where: { gameId: b.gameId, nodeKey: b.nodeKey, status: { in: ["APPROVED", "PENDING"] } }, data: { status: "REVOKED", decidedAt: now } }),
   ];
   if (wasCapital) {
-    ops.push(prisma.team.update({ where: { id: b.defenderId }, data: { status: "defeated" } }));
     // Победа (решение владельца 08.11): над всеми городами команды, взявшей чужую столицу, до конца дня салют.
     ops.push(prisma.team.update({ where: { id: b.attackerId }, data: { triumphAt: now } }));
-    // Остальные города выбывшей команды пустеют (в интерфейсе «опустевший город», в коде ruined): их берут выполнением заданий, без ключа и без испытания.
-    const others = await prisma.teamCityState.findMany({ where: { teamId: b.defenderId, capturedAt: { not: null }, NOT: { nodeKey: b.nodeKey } }, select: { nodeKey: true } });
-    if (others.length) ops.push(prisma.mapNode.updateMany({ where: { gameId: b.gameId, key: { in: others.map((o) => o.nodeKey) } }, data: { ruined: true, defenseLevel: 0, lockedUntil: null } }));
-    ops.push(prisma.teamCityState.updateMany({ where: { teamId: b.defenderId, capturedAt: { not: null } }, data: { capturedAt: null, isCapital: false, secondCapital: false } }));
-    ops.push(prisma.battle.updateMany({ where: { gameId: b.gameId, status: { in: ["QUEUED", "ATTACK", "DEFENSE"] }, OR: [{ attackerId: b.defenderId }, { defenderId: b.defenderId }], NOT: { id: b.id } }, data: { status: "CANCELLED", resolvedAt: now } }));
-    // Взятые дела выбывшей команды возвращаются: команда заморожена до перевода участников.
-    ops.push(prisma.teamEdgeTask.updateMany({ where: { teamId: b.defenderId, status: "TAKEN" }, data: { status: "OPEN", takenById: null, takenAt: null } }));
+    // Хранители выбывают: их города пустеют, их испытания и осады сняты, дела возвращены (services/defeat.ts). Этот
+    // вызов уже записан взятым первой операцией транзакции, отмена его не задевает.
+    ops.push(...(await defeatOps(b.gameId, b.defenderId, b.nodeKey, now)));
   }
   await prisma.$transaction(ops);
   await onCityOwned(b.gameId, b.nodeKey, b.attackerId);
@@ -445,7 +446,6 @@ export function sweep(gameId?: string): Promise<void> {
 }
 async function sweepNow(gameId?: string): Promise<void> {
   const now = new Date();
-  await checkTimeLimits(gameId);
   await expirePassages(gameId);
   // Сгорает вызов, не отправленный на проверку за срок, и вызов, одобренный, но не начатый за срок (решение владельца 01.11); на проверке срок стоит.
   const burnt = await prisma.battle.findMany({ where: { ...(gameId ? { gameId } : {}), status: "ATTACK", attackDeadline: { lt: now }, OR: [{ attackDoneAt: null }, { attackApprovedAt: { not: null } }] } });
@@ -479,6 +479,9 @@ async function sweepNow(gameId?: string): Promise<void> {
   const lost = await prisma.battle.findMany({ where: { ...(gameId ? { gameId } : {}), status: "DEFENSE", defenseDeadline: { lt: now }, defenseDoneAt: null } });
   for (const b of lost) await resolveWon(b);
   await sweepSieges(gameId, now);
+  // Срок игры — после разбора просроченного (разбор празднования, 26.11): город, взятый до срока игры (ответ не дан,
+  // осада кончилась), достаётся претендентам, и взятие последней столицы даёт празднование, а не конец по сроку.
+  await checkTimeLimits(gameId);
   await sinkDueWrecks(gameId, now);
   // Еженедельная летопись не рассылается (решение владельца 25.10: «у команд и так летопись ведётся»).
   if (!gameId) await sweepDigests(now);
@@ -503,6 +506,7 @@ export async function warOptions(gameId: string, teamId: string, nodeKey: string
     prisma.battle.findFirst({ where: { gameId, nodeKey, attackerId: teamId, status: { in: ["QUEUED", "ATTACK", "DEFENSE"] } } }),
     gameRules(gameId),
   ]);
+  const celebrating = (await prisma.game.findUnique({ where: { id: gameId }, select: { victoryAt: true } }))?.victoryAt != null;
   const penalty = state?.attackPenalty ?? 0;
   const minBid = minBidFor(node.defenseLevel, penalty, rules);
   // Предел ответа (решение владельца 31.10): ставка не выше того, что хранители могут ответить, — участники × стихи книги.
@@ -513,7 +517,8 @@ export async function warOptions(gameId: string, teamId: string, nodeKey: string
   const studied = Boolean(content && state?.orderSolved && content.tasks.every((_, i) => state!.doneTasks.includes(i)));
   const locked = isLocked(node);
   let reason: string | null = null;
-  if (node.ruined) reason = "Город опустел: его берут, решив задания, без ключа и без испытания";
+  if (celebrating) reason = "Празднование победы: вызовов и осад больше нет";
+  else if (node.ruined) reason = "Город опустел: его берут, решив задания, без ключа и без испытания";
   else if (!owner) reason = "Город свободен: его берут ключом из конверта, а не испытанием";
   else if (owner.teamId === teamId) reason = "Это ваш город";
   else if (team.status === "defeated") reason = "Ваша команда выбыла из игры";

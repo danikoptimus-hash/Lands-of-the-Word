@@ -95,8 +95,9 @@ const EN: Record<string, string> = {
   // Празднование победы (решение владельца 26.11)
   "победа": "victory",
   "победа команды «{team}»": "victory of team “{team}”",
-  "Победа! Все столицы взяты. Трое суток празднования — до {date}: занимайте опустевшие города": "Victory! All capitals are taken. Three days of celebration — until {date}: occupy the deserted cities",
-  "Игра «{game}»: все столицы взяты, победила команда «{team}». Трое суток празднования — до {date}, затем игра завершится сама.": "The game “{game}”: all capitals are taken, team “{team}” has won. Three days of celebration — until {date}, then the game ends by itself.",
+  "Победа! Последняя чужая столица взята. Трое суток празднования — до {date}: занимайте опустевшие города": "Victory! The last rival capital is taken. Three days of celebration — until {date}: occupy the deserted cities",
+  "Игра «{game}»: взята последняя чужая столица, победила команда «{team}». Трое суток празднования — до {date}, затем игра завершится сама.": "The game “{game}”: the last rival capital is taken, team “{team}” has won. Three days of celebration — until {date}, then the game ends by itself.",
+  "Празднование победы: вызовов и осад больше нет": "The victory celebration is on: no more challenges or sieges",
   " Победила команда «{team}».": " The winning team is “{team}”.",
   // испытания
   "вызов городу {book} отменён": "challenge to the city of {book} cancelled",

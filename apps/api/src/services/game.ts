@@ -118,22 +118,29 @@ export function victoryOf(game: { status: string; victoryAt: Date | null; victor
 }
 const fmtIn = (d: Date, locale: Locale, timeZone: string) => d.toLocaleString(locale === "en" ? "en-GB" : "ru-RU", { timeZone, day: "numeric", month: "long", hour: "2-digit", minute: "2-digit" });
 
-/** Вход в празднование: один раз за партию (под замком игры и условием «ещё не праздновали»). true — вошли сейчас. */
+/**
+ * Вход в празднование: один раз за партию (под замком игры и условием «ещё не праздновали»). true — вошли сейчас.
+ * Срок пишется в настройки одним ключом поверх того, что в базе (services/gameSettings.ts). Все идущие испытания и осады
+ * партии снимаются, новых в празднование нет: город победителя отнять нельзя никаким путём (разбор, 26.11).
+ */
 export async function startVictory(gameId: string, teamId: string, now = new Date()): Promise<boolean> {
-  const entered = await withLock("game:" + gameId, async () => {
-    const game = await prisma.game.findUnique({ where: { id: gameId }, select: { status: true, victoryAt: true, settings: true, name: true } });
-    if (!game || game.status !== "ACTIVE" || game.victoryAt) return null;
-    const until = new Date(now.getTime() + VICTORY_MS);
-    const settings = { ...((game.settings ?? {}) as Record<string, unknown>), endsAt: until.toISOString() };
-    const r = await prisma.game.updateMany({ where: { id: gameId, status: "ACTIVE", victoryAt: null }, data: { victoryAt: now, victoryTeamId: teamId, settings } });
-    return r.count === 1 ? { until, name: game.name, timeZone: rulesOf(settings).timeZone } : null;
-  });
+  const until = new Date(now.getTime() + VICTORY_MS);
+  const entered = await withLock("game:" + gameId, () => prisma.$transaction(async (tx) => {
+    const r = await tx.game.updateMany({ where: { id: gameId, status: "ACTIVE", victoryAt: null }, data: { victoryAt: now, victoryTeamId: teamId } });
+    if (r.count !== 1) return null;
+    await tx.$executeRaw`UPDATE "Game" SET "settings" = COALESCE("settings", '{}'::jsonb) || ${JSON.stringify({ endsAt: until.toISOString() })}::jsonb WHERE "id" = ${gameId}`;
+    await tx.battle.updateMany({ where: { gameId, status: { in: ["QUEUED", "ATTACK", "DEFENSE"] } }, data: { status: "CANCELLED", resolvedAt: now } });
+    await tx.siege.updateMany({ where: { gameId, status: "ACTIVE" }, data: { status: "CANCELLED", resolvedAt: now } });
+    const game = await tx.game.findUniqueOrThrow({ where: { id: gameId }, select: { name: true, settings: true } });
+    return { name: game.name, timeZone: rulesOf(game.settings).timeZone };
+  }));
   if (!entered) return false;
   // Салют видят все — победители, выбывшие и администраторы: событие общее, открытые карты перечитываются сразу.
   publish(gameId, { type: "game" });
+  publish(gameId, { type: "battles" });
   const team = await prisma.team.findUnique({ where: { id: teamId }, select: { name: true } });
-  notifyTeam(gameId, teamId, "победа", (locale) => msg(locale, "Победа! Все столицы взяты. Трое суток празднования — до {date}: занимайте опустевшие города", { date: fmtIn(entered.until, locale, entered.timeZone) }));
-  notifyAdmins(gameId, "победа команды «{team}»", (locale) => msg(locale, "Игра «{game}»: все столицы взяты, победила команда «{team}». Трое суток празднования — до {date}, затем игра завершится сама.", { game: entered.name, team: team?.name ?? "", date: fmtIn(entered.until, locale, entered.timeZone) }), { team: team?.name ?? "" });
+  notifyTeam(gameId, teamId, "победа", (locale) => msg(locale, "Победа! Последняя чужая столица взята. Трое суток празднования — до {date}: занимайте опустевшие города", { date: fmtIn(until, locale, entered.timeZone) }));
+  notifyAdmins(gameId, "победа команды «{team}»", (locale) => msg(locale, "Игра «{game}»: взята последняя чужая столица, победила команда «{team}». Трое суток празднования — до {date}, затем игра завершится сама.", { game: entered.name, team: team?.name ?? "", date: fmtIn(until, locale, entered.timeZone) }), { team: team?.name ?? "" });
   return true;
 }
 

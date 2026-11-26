@@ -11,6 +11,7 @@ import { err } from "../services/i18n.js";
 import { effectiveNodeCount, recommendedDeedCount } from "./deeds.js";
 import { finishGame, leader, standings, victoryOf } from "../services/game.js";
 import { locked } from "../services/lock.js";
+import { setSettings } from "../services/gameSettings.js";
 import { ensureFrontier } from "../services/teamMap.js";
 import { assignRecipients, ensureCityCodes } from "../services/recipients.js";
 import { rulesOf, rulesPatchSchema } from "../services/rules.js";
@@ -170,8 +171,10 @@ export async function gameRoutes(app: FastifyInstance): Promise<void> {
     }
     const prev = (game.settings ?? {}) as Record<string, unknown>;
     const { rules: rulesPatch, ...rest } = body.settings ?? {};
-    const settings = { ...prev, ...rest, ...(rulesPatch ? { rules: { ...rulesOf(prev), ...rulesPatch } } : {}) };
-    const updated = await prisma.game.update({ where: { id }, data: { name: body.name, teamCount: body.teamCount, settings } });
+    // Пишутся только присланные ключи, поверх настроек в базе (services/gameSettings.ts): копия, прочитанная в начале
+    // запроса, не затирает чужих ключей. Правила (rules) пишет только этот маршрут — под замком игры, из свежего чтения.
+    await setSettings(id, { ...rest, ...(rulesPatch ? { rules: { ...rulesOf(prev), ...rulesPatch } } : {}) });
+    const updated = await prisma.game.update({ where: { id }, data: { name: body.name, teamCount: body.teamCount } });
     publish(id, { type: "game" });
     return { game: updated };
   }));
@@ -223,7 +226,8 @@ export async function gameRoutes(app: FastifyInstance): Promise<void> {
       }),
       prisma.mapEdge.createMany({ data: map.edges.map((e) => ({ gameId: id, aKey: e.a, bKey: e.b })) }),
       // Сводка карты хранится в настройках, чтобы шаг «Карта» показывал её и после перезагрузки страницы.
-      prisma.game.update({ where: { id }, data: { mapSeed: seed, settings: { ...(game.settings as object), mapStats: { startDistances: map.stats.startDistances, minCityGap: map.stats.minCityGap, avgCityGap: map.stats.avgCityGap } } } }),
+      prisma.game.update({ where: { id }, data: { mapSeed: seed } }),
+      setSettings(id, { mapStats: { startDistances: map.stats.startDistances, minCityGap: map.stats.minCityGap, avgCityGap: map.stats.avgCityGap } }),
     ]);
     dropStaticMap(id);
     publish(id, { type: "map" });

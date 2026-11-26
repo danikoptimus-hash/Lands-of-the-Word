@@ -128,13 +128,13 @@ export function VictoryFireworksLayer({ vp, win, clock, timeZone, anchors }: {
     const glows: Glow[] = [];
     const queue: Array<{ at: number; run: () => void }> = [];
     const recent: Array<{ x: number; y: number; at: number }> = [];
-    let T = 0, nextEvent = 0.15, nextBarrage = rnd(6, 11), barrageEnd = -1, finalDone = true;
+    let lastEnd = -1e9, T = 0, nextEvent = 0.15, nextBarrage = rnd(6, 11), barrageEnd = -1, finalDone = true;
     let flash = 0, flashCol = C_WARM, energy = 0, bright = 1, brightAt = -1e9;
     let peak = 0, sumParts = 0, sumFrames = 0, frameMs = 0, burstsLive = 0;
     /** Когда каждый разрыв перестанет быть виден (для счёта «сколько разрывов на экране сейчас»). */
     const burstEnds: number[] = [];
     const SEE: Record<ShellType, number> = { chrys: 2.6, peony: 2.1, ring: 2.2, ring2: 2.2, palm: 3, willow: 4.2, rain: 3.4, spiral: 2.3, crossette: 2.1, strobe: 3 };
-    const stats = { cap: CAP, parts: 0, peak: 0, avgParts: 0, bursts: 0, frameMs: 0, frames: 0, barrage: false, T: 0, rockets: 0 };
+    const stats = { cap: CAP, parts: 0, peak: 0, avgParts: 0, bursts: 0, frameMs: 0, frames: 0, barrage: false, calm: false, T: 0, rockets: 0 };
     if (winRef.current.debug) (window as unknown as { __victoryFx?: unknown }).__victoryFx = stats;
 
     // ——— Пересчёт «пикселей экрана» в единицы карты ———
@@ -220,13 +220,13 @@ export function VictoryFireworksLayer({ vp, win, clock, timeZone, anchors }: {
         }
         case "willow": {
           const life = rnd(3.8, 4.8), drag = 1.5, v0 = speedFor(R * 0.78, drag, life * 0.5);
-          sphere(cnt(170), v0, u, (vx, vy) => star(cx, cy, vx, vy, life * rnd(0.85, 1.1), rng() < 0.85 ? C_GOLD : C_AMBER, 6, gU(52), drag, 0.6, 2.1));
+          sphere(cnt(170), v0, u, (vx, vy) => star(cx, cy, vx, vy, life * rnd(0.85, 1.1), rng() < 0.85 ? C_GOLD : C_AMBER, 6, gU(52), drag, 0.45, 2.1, rnd(8, 16)));
           break;
         }
         case "rain": {
           const m = cnt(150);
           for (let i = 0; i < m; i++) {
-            star(cx + rnd(-1.15, 1.15) * R * u, cy + rnd(-0.35, 0.1) * R * u, rnd(-6, 6) * u, rnd(-34, 8) * u, rnd(2.5, 3.8), rng() < 0.82 ? C_GOLD : C_WARM, 6, gU(40), 0.4, 0.65, 1.9, 0, -rnd(0, 1.1));
+            star(cx + rnd(-1.15, 1.15) * R * u, cy + rnd(-0.35, 0.1) * R * u, rnd(-6, 6) * u, rnd(-34, 8) * u, rnd(2.5, 3.8), rng() < 0.82 ? C_GOLD : C_WARM, 6, gU(40), 0.4, 0.34, 1.9, rnd(9, 18), -rnd(0, 1.1));
           }
           break;
         }
@@ -384,11 +384,11 @@ export function VictoryFireworksLayer({ vp, win, clock, timeZone, anchors }: {
       if (barrageEnd < 0 && T >= nextBarrage) { barrageEnd = T + rnd(3.2, 4.8); finalDone = false; }
       const barrage = barrageEnd > 0;
       if (barrage && !finalDone && T >= barrageEnd - 0.7) { finalDone = true; grand(); }
-      if (barrage && T >= barrageEnd) { barrageEnd = -1; nextBarrage = T + rnd(20, 40); nextEvent = Math.max(nextEvent, T + 1.4); }
+      if (barrage && T >= barrageEnd) { barrageEnd = -1; lastEnd = T; nextBarrage = T + rnd(20, 40); nextEvent = Math.max(nextEvent, T + 1.4); }
       if (T < nextEvent) return;
       if (barrage && T >= barrageEnd - 0.7) { nextEvent = T + 0.25; return; }
       event(barrage);
-      nextEvent = T + (barrage ? rnd(0.12, 0.3) : rnd(1, 2.2));
+      nextEvent = T + (barrage ? rnd(0.09, 0.2) : rnd(1, 2.2));
       // Ракет много, а звёзд почти потолок — не добавляем новых залпов, пока не освободится место.
       if (n > CAP - 300) nextEvent = T + 0.6;
     };
@@ -485,7 +485,7 @@ export function VictoryFireworksLayer({ vp, win, clock, timeZone, anchors }: {
         const fr = FR[i]!;
         if (kind === 1) { if (((age * fr + PH[i]! / 6.2832) % 1) > 0.34) continue; a = Math.max(a, 0.55); }
         else if (fr > 0 && t > 0.35) a *= 0.45 + 0.55 * Math.sin(age * fr + PH[i]!);
-        else if (kind === 6 && fr > 0) a *= 0.8 + 0.2 * Math.sin(age * fr * 3 + PH[i]!);
+        else if (kind === 6 && fr > 0) a *= 0.6 + 0.4 * Math.sin(age * fr * 2 + PH[i]!);
         if (a <= 0.04) continue;
         const al = alphaLevel(a), tl = Math.min(TAIL[i]!, age);
         if (tl > 0.02 && kind !== 1) {
@@ -539,7 +539,7 @@ export function VictoryFireworksLayer({ vp, win, clock, timeZone, anchors }: {
       if (stats && winRef.current.debug) {
         const ms = performance.now() - t0; frameMs = frameMs ? frameMs * 0.9 + ms * 0.1 : ms;
         peak = Math.max(peak, n); sumParts += n; sumFrames++;
-        stats.parts = n; stats.peak = peak; stats.avgParts = Math.round(sumParts / sumFrames); stats.bursts = burstsLive; stats.frameMs = Math.round(frameMs * 100) / 100; stats.frames = sumFrames; stats.barrage = barrageEnd > 0; stats.T = Math.round(T * 10) / 10; stats.rockets = rockets.length;
+        stats.parts = n; stats.peak = peak; stats.avgParts = Math.round(sumParts / sumFrames); stats.bursts = burstsLive; stats.frameMs = Math.round(frameMs * 100) / 100; stats.frames = sumFrames; stats.barrage = barrageEnd > 0 || T - lastEnd < 5; stats.calm = barrageEnd < 0 && T - lastEnd > 6; stats.T = Math.round(T * 10) / 10; stats.rockets = rockets.length;
       }
     };
     const start = () => {
