@@ -200,8 +200,10 @@ export async function battleRoutes(app: FastifyInstance): Promise<void> {
     if (!m) return;
     if (!(await assertAwake(request, reply, id))) return;
     if (!isLeader(m)) return reply.code(403).send({ error: "forbidden", message: err(request, "Осаду объявляет капитан") });
-    const game = await prisma.game.findUnique({ where: { id }, select: { status: true } });
+    const game = await prisma.game.findUnique({ where: { id }, select: { status: true, victoryAt: true } });
     if (game?.status !== "ACTIVE") return reply.code(409).send({ error: "conflict", message: err(request, "Игра не идёт") });
+    // Празднование победы (решение владельца 26.11, разбор): город победителя в эти трое суток отнять нельзя.
+    if (game.victoryAt) return reply.code(409).send({ error: "victory", message: err(request, "Празднование победы: вызовов и осад больше нет") });
     const reached = await prisma.teamNodeState.findUnique({ where: { teamId_nodeKey: { teamId: m.team.id, nodeKey } } });
     if (!reached) return reply.code(403).send({ error: "forbidden", message: err(request, "Ваша команда ещё не дошла до этого города") });
     await sweep(id);
@@ -318,8 +320,10 @@ export async function battleRoutes(app: FastifyInstance): Promise<void> {
     if (!m) return;
     if (!(await assertAwake(request, reply, id))) return;
     if (!isLeader(m)) return reply.code(403).send({ error: "forbidden", message: err(request, "Вызов бросает капитан") });
-    const game = await prisma.game.findUnique({ where: { id }, select: { status: true, name: true } });
+    const game = await prisma.game.findUnique({ where: { id }, select: { status: true, name: true, victoryAt: true } });
     if (game?.status !== "ACTIVE") return reply.code(409).send({ error: "conflict", message: err(request, "Игра не идёт") });
+    // Празднование победы (решение владельца 26.11, разбор): город победителя в эти трое суток отнять нельзя.
+    if (game.victoryAt) return reply.code(409).send({ error: "victory", message: err(request, "Празднование победы: вызовов и осад больше нет") });
     const reached = await prisma.teamNodeState.findUnique({ where: { teamId_nodeKey: { teamId: m.team.id, nodeKey } } });
     if (!reached) return reply.code(403).send({ error: "forbidden", message: err(request, "Ваша команда ещё не дошла до этого города") });
     await sweep(id);

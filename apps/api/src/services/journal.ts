@@ -5,6 +5,7 @@ import { notifyTeam } from "./notify.js";
 import { msg, toLocale, type Locale } from "./i18n.js";
 import { rulesOf } from "./rules.js";
 import { standings } from "./game.js";
+import { setSettings } from "./gameSettings.js";
 
 /**
  * Журнал событий игры (решения владельца 18.09, глава 4). Одна запись — одно событие: вид (kind), команда, участник,
@@ -363,8 +364,7 @@ export async function sweepChronicles(now = new Date()): Promise<void> {
 export async function sendChronicle(gameId: string, now = new Date()): Promise<string[]> {
   const from = new Date(now.getTime() - 7 * 86_400_000);
   const ru = await chronicleLines(gameId, from, now, "ru");
-  const game = await prisma.game.findUniqueOrThrow({ where: { id: gameId }, select: { settings: true } });
-  await prisma.game.update({ where: { id: gameId }, data: { settings: { ...(game.settings as object), lastChronicleAt: now.toISOString() } } });
+  await setSettings(gameId, { lastChronicleAt: now.toISOString() });
   journal(gameId, "chronicle", { everyone: true, text: ru.join("\n"), vars: { from: from.toISOString(), to: now.toISOString() } });
   const en = await chronicleLines(gameId, from, now, "en");
   const teams = await prisma.team.findMany({ where: { gameId }, select: { id: true } });

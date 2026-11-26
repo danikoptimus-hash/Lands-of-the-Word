@@ -4,6 +4,7 @@ import { activeMsBetween, addAwakeMs } from "@lotw/domain";
 import { rulesOf } from "./services/rules.js";
 import { buildApp } from "./app.js";
 import { prisma } from "./db.js";
+import { sweep } from "./services/battles.js";
 import { cleanupFixtures, readyForStart, registerVerified, setGamePhase } from "./testAuth.js";
 
 const app = await buildApp({ NODE_ENV: "test", SESSION_SECRET: "test-secret-please" });
@@ -297,7 +298,13 @@ describe("битва за город", () => {
     expect(defeated.status).toBe("defeated");
     const node = await prisma.mapNode.findUniqueOrThrow({ where: { gameId_key: { gameId, key: rutKey } } });
     expect(node.defenseLevel).toBe(20);
-    // Из двух команд в строю осталась одна — игра завершена, победитель определён.
+    // Из двух команд в строю осталась одна — трое суток празднования (решение владельца 26.11, подробно —
+    // victory.test.ts): игра идёт, победитель известен, «Итогов» ещё нет; по сроку обход завершает игру.
+    const celebrating = await prisma.game.findUniqueOrThrow({ where: { id: gameId } });
+    expect(celebrating).toMatchObject({ status: "ACTIVE", victoryTeamId: team2, winnerTeamId: null });
+    expect((await get(`/api/games/${gameId}/standings`, p2Cookie)).json().victory.teamId).toBe(team2);
+    await prisma.game.update({ where: { id: gameId }, data: { settings: { ...(celebrating.settings as object), endsAt: new Date(Date.now() - 1000).toISOString() } } });
+    await sweep(gameId);
     const game = await prisma.game.findUniqueOrThrow({ where: { id: gameId } });
     expect(game.status).toBe("FINISHED");
     expect(game.winnerTeamId).toBe(team2);
