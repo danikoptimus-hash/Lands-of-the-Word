@@ -92,6 +92,11 @@ const EN: Record<string, string> = {
   "вышел срок игры": "the game's time limit ran out",
   "администратор завершил игру": "an administrator ended the game",
   "Игра «{game}» завершена: {why}.": "The game “{game}” is over: {why}.",
+  // Празднование победы (решение владельца 26.11)
+  "победа": "victory",
+  "победа команды «{team}»": "victory of team “{team}”",
+  "Победа! Все столицы взяты. Трое суток празднования — до {date}: занимайте опустевшие города": "Victory! All capitals are taken. Three days of celebration — until {date}: occupy the deserted cities",
+  "Игра «{game}»: все столицы взяты, победила команда «{team}». Трое суток празднования — до {date}, затем игра завершится сама.": "The game “{game}”: all capitals are taken, team “{team}” has won. Three days of celebration — until {date}, then the game ends by itself.",
   " Победила команда «{team}».": " The winning team is “{team}”.",
   // испытания
   "вызов городу {book} отменён": "challenge to the city of {book} cancelled",

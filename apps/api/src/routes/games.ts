@@ -9,7 +9,8 @@ import { dropStaticMap } from "../services/gameMap.js";
 import { requireUser } from "../auth.js";
 import { err } from "../services/i18n.js";
 import { effectiveNodeCount, recommendedDeedCount } from "./deeds.js";
-import { finishGame, leader, standings } from "../services/game.js";
+import { finishGame, leader, standings, victoryOf } from "../services/game.js";
+import { locked } from "../services/lock.js";
 import { ensureFrontier } from "../services/teamMap.js";
 import { assignRecipients, ensureCityCodes } from "../services/recipients.js";
 import { rulesOf, rulesPatchSchema } from "../services/rules.js";
@@ -152,7 +153,8 @@ export async function gameRoutes(app: FastifyInstance): Promise<void> {
   });
 
   /** Настройки игры можно менять только до старта. Если меняется число команд — карту надо перегенерировать. */
-  app.patch("/api/games/:id", async (request, reply) => {
+  // Под замком игры: вход в празднование победы (services/game.ts) тоже переписывает настройки — срок партии.
+  app.patch("/api/games/:id", locked((r) => "game:" + (r.params as { id: string }).id, async (request, reply) => {
     const { id } = request.params as { id: string };
     const game = await loadGameForAdmin(request, reply, id);
     if (!game) return;
@@ -172,7 +174,7 @@ export async function gameRoutes(app: FastifyInstance): Promise<void> {
     const updated = await prisma.game.update({ where: { id }, data: { name: body.name, teamCount: body.teamCount, settings } });
     publish(id, { type: "game" });
     return { game: updated };
-  });
+  }));
 
   app.get("/api/games/:id", async (request, reply) => {
     const { id } = request.params as { id: string };
@@ -185,7 +187,7 @@ export async function gameRoutes(app: FastifyInstance): Promise<void> {
     ]);
     const { admins, ...rest } = game;
     // observer — наблюдатель: администратор платформы, не администратор игры (только чтение).
-    return { game: { ...rest, settings: { ...(rest.settings as Record<string, unknown>), rules: rulesOf(rest.settings) } }, hexes, nodes, edges, observer: isObserver(request, admins) };
+    return { game: { ...rest, settings: { ...(rest.settings as Record<string, unknown>), rules: rulesOf(rest.settings) } }, hexes, nodes, edges, observer: isObserver(request, admins), victory: victoryOf(game) };
   });
 
   /** Генерация (или перегенерация) карты. Пока игра в статусе DRAFT — можно сколько угодно раз. */
@@ -232,7 +234,7 @@ export async function gameRoutes(app: FastifyInstance): Promise<void> {
   /** Итоги: положение команд (города, столицы), победитель. Видят админы и участники. */
   app.get("/api/games/:id/standings", async (request, reply) => {
     const { id } = request.params as { id: string };
-    const game = await prisma.game.findUnique({ where: { id }, select: { status: true, finishedAt: true, winnerTeamId: true, finishReason: true, settings: true, admins: { select: { userId: true } }, teams: { select: { members: { select: { userId: true } } } } } });
+    const game = await prisma.game.findUnique({ where: { id }, select: { status: true, finishedAt: true, winnerTeamId: true, finishReason: true, settings: true, victoryAt: true, victoryTeamId: true, admins: { select: { userId: true } }, teams: { select: { members: { select: { userId: true } } } } } });
     if (!game) return reply.code(404).send({ error: "not_found", message: err(request, "Игра не найдена") });
     const uid = request.user!.id;
     const allowed = adminOrObserver(request, game.admins) || game.teams.some((t) => t.members.some((m) => m.userId === uid));
@@ -241,7 +243,7 @@ export async function gameRoutes(app: FastifyInstance): Promise<void> {
     // Во время игры команды видят только взятые города: «города на пути» — разведданные (решение владельца 18.09).
     const table = await standingsView(id, "");
     const rows = table.rows.map((r) => (isAdmin || game.status === "FINISHED" ? r : { ...r, citiesOnPath: [] }));
-    return { status: game.status, finishedAt: game.finishedAt, winnerTeamId: game.winnerTeamId, finishReason: game.finishReason, endsAt: (game.settings as { endsAt?: string | null }).endsAt ?? null, standings: rows, leaderTeamId: game.status === "ACTIVE" ? table.leaderTeamId : null };
+    return { status: game.status, finishedAt: game.finishedAt, winnerTeamId: game.winnerTeamId, finishReason: game.finishReason, endsAt: (game.settings as { endsAt?: string | null }).endsAt ?? null, standings: rows, leaderTeamId: game.status === "ACTIVE" ? table.leaderTeamId : null, victory: victoryOf(game) };
   });
 
   /** Админ завершает игру вручную: победитель — команда с наибольшим числом городов, если не указан явно. */
@@ -251,7 +253,8 @@ export async function gameRoutes(app: FastifyInstance): Promise<void> {
     if (!game) return;
     if (game.status !== "ACTIVE") return reply.code(409).send({ error: "conflict", message: err(request, "Игра не идёт") });
     const body = z.object({ winnerTeamId: z.string().nullable().optional() }).parse(request.body ?? {});
-    const winner = body.winnerTeamId === undefined ? (await leader(id))?.teamId ?? null : body.winnerTeamId;
+    // В празднование победы (решение владельца 26.11) победитель по умолчанию — команда, взявшая последнюю столицу.
+    const winner = body.winnerTeamId === undefined ? victoryOf(game)?.teamId ?? (await leader(id))?.teamId ?? null : body.winnerTeamId;
     await finishGame(id, "manual", winner);
     return { ok: true, winnerTeamId: winner };
   });
