@@ -8,7 +8,7 @@ import { isLocked } from "./battles.js";
 import type { Prisma } from "@prisma/client";
 import { journal, teamNames } from "./journal.js";
 import { peaceBetween } from "./peace.js";
-import { contestVoid, defeatOps } from "./defeat.js";
+import { activeGameEnds, contestVoid, defeatOps, dueBeforeEnd } from "./defeat.js";
 
 /**
  * Осада делами (решение владельца 18.09). Город, где хранители отбились с максимумом (каждый участник выучил
@@ -26,13 +26,17 @@ async function pointsOf(gameId: string, teamId: string, from: Date, to: Date, ru
 
 /** Пересчёт баллов идущих осад (для показа) и разрешение завершившихся. Вызывается из sweep. */
 export async function sweepSieges(gameId?: string, now = new Date()): Promise<void> {
-  const sieges = await prisma.siege.findMany({ where: { ...(gameId ? { gameId } : {}), status: "ACTIVE" } });
+  // Только идущие партии (второй круг разбора, 26.11): в завершённой осада не разрешается.
+  const ends = await activeGameEnds(gameId);
+  const sieges = await prisma.siege.findMany({ where: { gameId: { in: [...ends.keys()] }, status: "ACTIVE" } });
   for (const s of sieges) {
     const rules = rulesOf((await prisma.game.findUnique({ where: { id: s.gameId }, select: { settings: true } }))?.settings);
     const until = s.endsAt.getTime() < now.getTime() ? s.endsAt : now;
     const [a, d] = await Promise.all([pointsOf(s.gameId, s.attackerId, s.startedAt, until, rules), pointsOf(s.gameId, s.defenderId, s.startedAt, until, rules)]);
     if (a !== s.attackerPoints || d !== s.defenderPoints) await prisma.siege.update({ where: { id: s.id }, data: { attackerPoints: a, defenderPoints: d } });
     if (s.endsAt.getTime() > now.getTime()) continue;
+    // Срок осады позже конца игры, а обход пришёл, когда вышли оба: исхода нет, осаду снимет завершение игры.
+    if (!dueBeforeEnd(s.endsAt, ends.get(s.gameId) ?? null, now)) continue;
     // Срок вышел: больше баллов — город переходит; равенство — остаётся у хранителей.
     const owner = await prisma.teamCityState.findFirst({ where: { gameId: s.gameId, nodeKey: s.nodeKey, capturedAt: { not: null } } });
     const book = (await prisma.mapNode.findUnique({ where: { gameId_key: { gameId: s.gameId, key: s.nodeKey } }, select: { bookCode: true } }))?.bookCode ?? "";

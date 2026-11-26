@@ -8,6 +8,7 @@ import { BOOKS } from "@lotw/domain";
 import { journal } from "./journal.js";
 import { withLock } from "./lock.js";
 import { rulesOf } from "./rules.js";
+import { gameEndMs, VICTORY_MS } from "./defeat.js";
 
 const bookName = (code: string) => BOOKS.find((b) => b.code === code)?.nameRu ?? code;
 
@@ -79,6 +80,8 @@ export async function finishGame(gameId: string, reason: "last_team" | "time_lim
     const r = await tx.game.updateMany({ where: { id: gameId, status: "ACTIVE" }, data: { status: "FINISHED", finishedAt: now, winnerTeamId, finishReason: reason } });
     if (r.count === 0) return false;
     await tx.battle.updateMany({ where: { gameId, status: { in: ["QUEUED", "ATTACK", "DEFENSE"] } }, data: { status: "CANCELLED", resolvedAt: now } });
+    // И осады: раньше они шли и в завершённой игре — город переходил, команда выбывала уже после конца (разбор, 26.11).
+    await tx.siege.updateMany({ where: { gameId, status: "ACTIVE" }, data: { status: "CANCELLED", resolvedAt: now } });
     return true;
   });
   if (!done) return;
@@ -104,7 +107,7 @@ export async function finishGame(gameId: string, reason: "last_team" | "time_lim
  * на момент победы + 72 ч (раньше он был, позже или не был вовсе); по сроку обход завершает её с этой командой
  * и причиной last_team. winnerTeamId до настоящего конца не ставится: по нему приложение показывает «Итоги».
  */
-export const VICTORY_MS = 72 * 3_600_000;
+export { VICTORY_MS } from "./defeat.js";
 export interface Victory { teamId: string; at: string; until: string }
 /**
  * Празднование, пока оно идёт (партия ACTIVE), иначе null. Конец — срок партии: администратор вправе его поменять;
@@ -112,8 +115,7 @@ export interface Victory { teamId: string; at: string; until: string }
  */
 export function victoryOf(game: { status: string; victoryAt: Date | null; victoryTeamId: string | null; settings: unknown }): Victory | null {
   if (game.status !== "ACTIVE" || !game.victoryAt || !game.victoryTeamId) return null;
-  const endsAt = Date.parse((game.settings as { endsAt?: string | null } | null)?.endsAt ?? "");
-  const until = Number.isFinite(endsAt) ? endsAt : game.victoryAt.getTime() + VICTORY_MS;
+  const until = gameEndMs(game)!;
   return { teamId: game.victoryTeamId, at: game.victoryAt.toISOString(), until: new Date(until).toISOString() };
 }
 const fmtIn = (d: Date, locale: Locale, timeZone: string) => d.toLocaleString(locale === "en" ? "en-GB" : "ru-RU", { timeZone, day: "numeric", month: "long", hour: "2-digit", minute: "2-digit" });

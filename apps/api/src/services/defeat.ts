@@ -32,8 +32,38 @@ export async function defeatOps(gameId: string, teamId: string, takenKey: string
  */
 export async function contestVoid(gameId: string, attackerId: string, defenderId: string): Promise<boolean> {
   const [game, out] = await Promise.all([
-    prisma.game.findUnique({ where: { id: gameId }, select: { victoryAt: true } }),
+    prisma.game.findUnique({ where: { id: gameId }, select: { status: true, victoryAt: true } }),
     prisma.team.count({ where: { id: { in: [attackerId, defenderId] }, status: "defeated" } }),
   ]);
-  return game?.victoryAt != null || out > 0;
+  // Партия не идёт (завершена, в том числе вручную) — испытаний и осад в ней больше нет (второй круг разбора, 26.11).
+  return game?.status !== "ACTIVE" || game.victoryAt != null || out > 0;
+}
+
+/** Трое суток празднования победы (решение владельца 26.11). Здесь, а не в game.ts: этот модуль не тянет за собой других. */
+export const VICTORY_MS = 72 * 3_600_000;
+
+/**
+ * Конец партии по часам (мс) или null — срока нет: срок из настроек, а в празднование без срока — победа + 72 ч
+ * (то же, что victoryOf в services/game.ts).
+ */
+export function gameEndMs(game: { settings: unknown; victoryAt: Date | null }): number | null {
+  const endsAt = Date.parse((game.settings as { endsAt?: string | null } | null)?.endsAt ?? "");
+  if (Number.isFinite(endsAt)) return endsAt;
+  return game.victoryAt ? game.victoryAt.getTime() + VICTORY_MS : null;
+}
+
+/**
+ * Можно ли разбирать испытание или осаду со сроком `due` (второй круг разбора, 26.11): обход опаздывает, и к нему
+ * может выйти уже и срок игры. Тогда разбирается только то, чей срок наступил не позже конца игры; остальное
+ * снимет завершение игры (finishGame) — иначе город, «взятый» после конца игры, давал бы празднование вместо конца по сроку.
+ */
+export function dueBeforeEnd(due: Date, end: number | null, now: Date): boolean {
+  if (due.getTime() > now.getTime()) return false;
+  return end === null || end > now.getTime() || due.getTime() <= end;
+}
+
+/** Идущие партии и их конец по часам — для обхода сроков. */
+export async function activeGameEnds(gameId?: string): Promise<Map<string, number | null>> {
+  const games = await prisma.game.findMany({ where: { ...(gameId ? { id: gameId } : {}), status: "ACTIVE" }, select: { id: true, settings: true, victoryAt: true } });
+  return new Map(games.map((g) => [g.id, gameEndMs(g)]));
 }

@@ -173,8 +173,10 @@ export async function gameRoutes(app: FastifyInstance): Promise<void> {
     const { rules: rulesPatch, ...rest } = body.settings ?? {};
     // Пишутся только присланные ключи, поверх настроек в базе (services/gameSettings.ts): копия, прочитанная в начале
     // запроса, не затирает чужих ключей. Правила (rules) пишет только этот маршрут — под замком игры, из свежего чтения.
-    await setSettings(id, { ...rest, ...(rulesPatch ? { rules: { ...rulesOf(prev), ...rulesPatch } } : {}) });
-    const updated = await prisma.game.update({ where: { id }, data: { name: body.name, teamCount: body.teamCount } });
+    const [, updated] = await prisma.$transaction([
+      setSettings(id, { ...rest, ...(rulesPatch ? { rules: { ...rulesOf(prev), ...rulesPatch } } : {}) }),
+      prisma.game.update({ where: { id }, data: { name: body.name, teamCount: body.teamCount } }),
+    ]);
     publish(id, { type: "game" });
     return { game: updated };
   }));
