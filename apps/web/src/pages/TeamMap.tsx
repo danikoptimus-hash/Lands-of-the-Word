@@ -21,6 +21,8 @@ import { FaunaLayer, trimRoute, type FireSite, type WreckSpec } from "./Fauna";
 import { css, stormLight, useDaytime, type Storm } from "../lib/daytime";
 import { StormLayer } from "./StormLayer";
 import { FireworksLayer, type FireworkSite } from "./FireworksLayer";
+import { VictoryFireworksLayer } from "./VictoryFireworksLayer";
+import { victoryWindow } from "../lib/victoryFx";
 import { LakesLayer } from "./Lakes";
 import { IsletsLayer, useIslets } from "./Islets";
 import { useSeabed } from "./Seabed";
@@ -220,6 +222,9 @@ function TeamMapInner({ map, myId, teamIndex, selectedTaskId, onSelect, onSelect
   const clockOff = useRef(0);
   useEffect(() => { if (srvNow) clockOff.current = srvNow - Date.now(); }, [srvNow]);
   const serverClock = useCallback(() => Date.now() + clockOff.current, []);
+  // Победа над последней столицей (решение владельца 26.11): трое суток празднования, салют по всей карте для всех команд.
+  const victoryWin = useMemo(() => victoryWindow(map.victory, serverClock()), [map.victory, serverClock]);
+  const victoryAnchors = useMemo(() => fires.map((f) => ({ x: f.x, y: f.y })), [fires]);
   useEffect(() => { reportPage("map"); }, []);
   const coast = useCoast(map.hexes, size);
   const islets = useIslets(map.hexes, size, bounds);
@@ -686,6 +691,7 @@ function TeamMapInner({ map, myId, teamIndex, selectedTaskId, onSelect, onSelect
       <FaunaLayer vp={vp} hexes={map.hexes} islets={islets} size={size} daily={daily} seed={map.gameId ?? map.team.id} clock={serverClock} light={light} fires={fires} routes={glRoutes ? [] : routeSpecs} wrecks={wreckSpecs}
         between={glRoutes ? <RoutesGL vp={vp} routes={routeSpecs} onUnsupported={() => setGlRoutes(false)} /> : null} />
       {fireworkSites.length > 0 && !perfOff("fireworks") && <FireworksLayer vp={vp} sites={fireworkSites} clock={serverClock} timeZone={map.daytime?.timeZone ?? "Asia/Tashkent"} />}
+      {victoryWin && !perfOff("victory") && <VictoryFireworksLayer vp={vp} win={victoryWin} clock={serverClock} timeZone={map.daytime?.timeZone ?? "Asia/Tashkent"} anchors={victoryAnchors} />}
       {storm && storm.t > 0 && <StormLayer t={storm.t} />}
       {/* Огонь приоритетных дел: большая часть — под слоем меток, малые языки у нижнего края кружка — над ним. */}
       {deedFires.length > 0 && <DeedFireLayer vp={vp} fires={deedFires} part="back" />}
