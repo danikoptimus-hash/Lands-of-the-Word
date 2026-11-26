@@ -132,7 +132,7 @@ export function VictoryFireworksLayer({ vp, win, clock, timeZone, anchors }: {
     let flash = 0, flashCol = C_WARM, energy = 0, bright = 1, brightAt = -1e9;
     let peak = 0, sumParts = 0, sumFrames = 0, frameMs = 0, burstsLive = 0;
     const burstTimes: number[] = [];
-    const stats = { cap: CAP, parts: 0, peak: 0, avgParts: 0, bursts: 0, frameMs: 0, frames: 0 };
+    const stats = { cap: CAP, parts: 0, peak: 0, avgParts: 0, bursts: 0, frameMs: 0, frames: 0, barrage: false, T: 0, rockets: 0 };
     if (winRef.current.debug) (window as unknown as { __victoryFx?: unknown }).__victoryFx = stats;
 
     // ——— Пересчёт «пикселей экрана» в единицы карты ———
@@ -194,7 +194,7 @@ export function VictoryFireworksLayer({ vp, win, clock, timeZone, anchors }: {
         case "ring": case "ring2": {
           const rings = sh.type === "ring2" ? 2 : 1;
           for (let k = 0; k < rings; k++) {
-            const RR = R * (k ? 0.55 : 1), life = rnd(1.9, 2.4), drag = 1.9, v0 = speedFor(RR, drag, life), tilt = rnd(0.2, 1), rot = rnd(0, 3.1416), cr = Math.cos(rot), sr = Math.sin(rot);
+            const RR = R * (k ? 0.55 : 1), life = rnd(1.9, 2.4), drag = 1.9, v0 = speedFor(RR, drag, life), tilt = rnd(0.35, 1), rot = rnd(0, 3.1416), cr = Math.cos(rot), sr = Math.sin(rot);
             const m = Math.round((34 + RR / 3.5) * Math.max(0.6, fill)), col = k ? c2 : c1, off = rnd(0, 6.28);
             for (let i = 0; i < m; i++) {
               const a = off + (i / m) * 6.2832 + rnd(-0.03, 0.03), ex = Math.cos(a) * v0 * u, ey = Math.sin(a) * v0 * u * tilt;
@@ -258,7 +258,7 @@ export function VictoryFireworksLayer({ vp, win, clock, timeZone, anchors }: {
       }
       // Зарево и вспышка: вспышка в центре всегда, зарево и подсветка всей карты — у крупных.
       addGlow(cx, cy, R * u * 0.45, 0.22, C_WARM, 0.95);
-      if (R > 100 * screenU()) addGlow(cx, cy, R * u * 1.25, 0.9, c1, Math.min(0.6, 0.18 + R / 600));
+      if (R > 100 * screenU()) addGlow(cx, cy, R * u * 1.25, 0.9, c1, Math.min(0.42, 0.12 + R / 900));
       if (sh.big > 0) { flash = Math.max(flash, sh.big); flashCol = c1; }
       burstTimes.push(T);
       recent.push({ x: cx, y: cy, at: T }); if (recent.length > 8) recent.shift();
@@ -278,7 +278,7 @@ export function VictoryFireworksLayer({ vp, win, clock, timeZone, anchors }: {
     type Cls = "small" | "medium" | "large" | "huge";
     const radius = (c: Cls) => {
       const u = screenU();
-      return (c === "small" ? rnd(42, 70) : c === "medium" ? rnd(82, 120) : c === "large" ? rnd(132, 188) : rnd(205, 270)) * u;
+      return (c === "small" ? rnd(55, 85) : c === "medium" ? rnd(95, 140) : c === "large" ? rnd(150, 215) : rnd(235, 315)) * u;
     };
     const bigOf = (c: Cls) => (c === "huge" ? 0.75 : c === "large" ? 0.38 : 0);
     const typeFor = (c: Cls): ShellType => {
@@ -291,7 +291,7 @@ export function VictoryFireworksLayer({ vp, win, clock, timeZone, anchors }: {
     const pickClass = (barrage: boolean): Cls => {
       const r = rng();
       if (barrage) return r < 0.1 ? "small" : r < 0.42 ? "medium" : r < 0.82 ? "large" : "huge";
-      return r < 0.24 ? "small" : r < 0.62 ? "medium" : r < 0.92 ? "large" : "huge";
+      return r < 0.18 ? "small" : r < 0.55 ? "medium" : r < 0.88 ? "large" : "huge";
     };
     const colors = (type: ShellType): [number, number] => {
       if (type === "willow" || type === "rain") return [C_GOLD, C_AMBER];
@@ -386,7 +386,7 @@ export function VictoryFireworksLayer({ vp, win, clock, timeZone, anchors }: {
       if (T < nextEvent) return;
       if (barrage && T >= barrageEnd - 0.7) { nextEvent = T + 0.25; return; }
       event(barrage);
-      nextEvent = T + (barrage ? rnd(0.1, 0.24) : rnd(0.55, 1.5));
+      nextEvent = T + (barrage ? rnd(0.12, 0.3) : rnd(0.85, 1.9));
       // Ракет много, а звёзд почти потолок — не добавляем новых залпов, пока не освободится место.
       if (n > CAP - 300) nextEvent = T + 0.6;
     };
@@ -437,7 +437,7 @@ export function VictoryFireworksLayer({ vp, win, clock, timeZone, anchors }: {
       ctx.clearRect(0, 0, W, H);
       ctx.globalCompositeOperation = "source-over";
       // Притемнение днём: на светлой воде и песке искры теряются; ночью притемнения нет.
-      const veil = energy * 0.3 * bright;
+      const veil = energy * 0.22 * bright;
       if (veil > 0.004) { ctx.fillStyle = `rgba(8,10,36,${veil.toFixed(3)})`; ctx.fillRect(0, 0, W, H); }
       ctx.setTransform(k * dpr, 0, 0, k * dpr, tx * dpr, ty * dpr);
       ctx.globalCompositeOperation = "lighter";
@@ -455,20 +455,22 @@ export function VictoryFireworksLayer({ vp, win, clock, timeZone, anchors }: {
       if (flash > 0.02) {
         const [h, s, l] = COLORS[flashCol]!;
         ctx.setTransform(1, 0, 0, 1, 0, 0);
-        ctx.fillStyle = `hsla(${h},${Math.min(80, s)}%,${l}%,${(flash * 0.12).toFixed(3)})`;
+        ctx.fillStyle = `hsla(${h},${Math.min(80, s)}%,${l}%,${(flash * 0.08).toFixed(3)})`;
         ctx.fillRect(0, 0, W, H);
         ctx.setTransform(k * dpr, 0, 0, k * dpr, tx * dpr, ty * dpr);
       }
-      // Ракеты.
+      // Ракеты: яркая головка с ореолом, короткое тело и длинный бледный хвост.
       for (const r of rockets) {
         const f = Math.min(1, r.age / r.T), ease = (q: number) => 1 - Math.pow(1 - Math.max(0, q), 2.2);
-        const e = ease(f), e1 = ease(f - 0.1), e2 = ease(f - 0.26);
+        const e = ease(f), e1 = ease(f - 0.05), e2 = ease(f - 0.16);
         const x = r.sx + (r.tx - r.sx) * e, y = r.sy + (r.ty - r.sy) * e;
         if (x < fx.vx0 || x > fx.vx1 || y < fx.vy0 || y > fx.vy1) continue;
-        seg(bidx(1, 1, C_WARM, 0), r.sx + (r.tx - r.sx) * e1, r.sy + (r.ty - r.sy) * e1, x, y);
-        seg(bidx(0, 0, C_GOLD, 3), r.sx + (r.tx - r.sx) * e2, r.sy + (r.ty - r.sy) * e2, r.sx + (r.tx - r.sx) * e1, r.sy + (r.ty - r.sy) * e1);
+        const px = (q: number) => r.sx + (r.tx - r.sx) * q, py = (q: number) => r.sy + (r.ty - r.sy) * q;
+        seg(bidx(0, 0, C_GOLD, 2), px(e1), py(e1), x, y);
+        seg(bidx(0, 0, C_AMBER, 4), px(e2), py(e2), px(e1), py(e1));
+        seg(bidx(1, 1, C_WARM, 0), x, y, x + 0.01, y);
       }
-      // Звёзды — по вёдрам цвета и яркости.
+      // Звёзды — по вёдрам цвета и яркости: тело шлейфа (тонкая линия цвета звезды) и яркая головка с ореолом.
       for (let i = 0; i < n; i++) {
         const age = AGE[i]!;
         if (age < 0) continue;
@@ -480,17 +482,17 @@ export function VictoryFireworksLayer({ vp, win, clock, timeZone, anchors }: {
         else if (kind === 4) a = (1 - t) * (1 - t);
         else a = Math.pow(1 - t, 1.15);
         const fr = FR[i]!;
-        if (kind === 1) { if (((age * fr + PH[i]! / 6.2832) % 1) > 0.34) continue; a = Math.max(a, 0.5); }
-        else if (fr > 0 && t > 0.35) a *= 0.5 + 0.5 * Math.sin(age * fr + PH[i]!);
+        if (kind === 1) { if (((age * fr + PH[i]! / 6.2832) % 1) > 0.34) continue; a = Math.max(a, 0.55); }
+        else if (fr > 0 && t > 0.35) a *= 0.45 + 0.55 * Math.sin(age * fr + PH[i]!);
         else if (kind === 6 && fr > 0) a *= 0.8 + 0.2 * Math.sin(age * fr * 3 + PH[i]!);
         if (a <= 0.04) continue;
-        const al = alphaLevel(a), hot = age < 0.11 || kind === 1 ? 1 : 0, thick = w >= 3 ? 1 : 0;
-        const tl = Math.min(TAIL[i]!, age);
+        const al = alphaLevel(a), tl = Math.min(TAIL[i]!, age);
         if (tl > 0.02 && kind !== 1) {
           const vx = VX[i]!, vy = VY[i]!;
-          seg(bidx(thick, hot, col, al), x - vx * tl, y - vy * tl, x, y);
-          if (TAIL[i]! > 0.3 && age > 0.2) seg(bidx(0, 0, col, Math.min(NA - 1, al + 3)), x - vx * tl * 2.3, y - vy * tl * 2.3, x - vx * tl, y - vy * tl);
-        } else seg(bidx(thick, hot, col, al), x, y, x + 0.01, y);
+          seg(bidx(0, 0, col, Math.min(NA - 1, al + 1)), x - vx * tl, y - vy * tl, x, y);
+          if (TAIL[i]! > 0.3 && age > 0.2) seg(bidx(0, 0, col, Math.min(NA - 1, al + 3)), x - vx * tl * 2.2, y - vy * tl * 2.2, x - vx * tl, y - vy * tl);
+        }
+        if (w >= 1.9) seg(bidx(1, t < 0.35 || kind === 1 ? 1 : 0, col, al), x, y, x + 0.01, y);
       }
       ctx.lineCap = "round";
       for (let b = 0; b < NB; b++) {
@@ -498,11 +500,13 @@ export function VictoryFireworksLayer({ vp, win, clock, timeZone, anchors }: {
         if (!s.length) continue;
         const a = b % NA, rest = (b - a) / NA, col = rest % NC, hh = (rest - col) / NC, hot = hh % 2, thick = (hh - hot) / 2;
         const [h, sat, l] = COLORS[col]!;
-        ctx.strokeStyle = hot ? `hsla(${h},${Math.round(sat * 0.45)}%,92%,${ALPHAS[a]})` : `hsla(${h},${sat}%,${l}%,${ALPHAS[a]})`;
-        ctx.lineWidth = (thick ? 3.1 : 1.9) / ke;
+        ctx.strokeStyle = hot ? `hsla(${h},${Math.round(sat * 0.65)}%,86%,${ALPHAS[a]})` : `hsla(${h},${sat}%,${Math.min(78, l + 8)}%,${ALPHAS[a]})`;
+        ctx.lineWidth = (thick ? 3 : 1.5) / ke;
         ctx.beginPath();
         for (let j = 0; j < s.length; j += 4) { ctx.moveTo(s[j]!, s[j + 1]!); ctx.lineTo(s[j + 2]!, s[j + 3]!); }
         ctx.stroke();
+        // Ореол вокруг головок: тот же путь шире и совсем прозрачный — свечение без размытия.
+        if (thick) { ctx.lineWidth = 10 / ke; ctx.globalAlpha = 0.11; ctx.stroke(); ctx.globalAlpha = 1; }
         s.length = 0;
       }
       ctx.globalCompositeOperation = "source-over";
@@ -534,7 +538,7 @@ export function VictoryFireworksLayer({ vp, win, clock, timeZone, anchors }: {
       if (stats && winRef.current.debug) {
         const ms = performance.now() - t0; frameMs = frameMs ? frameMs * 0.9 + ms * 0.1 : ms;
         peak = Math.max(peak, n); sumParts += n; sumFrames++;
-        stats.parts = n; stats.peak = peak; stats.avgParts = Math.round(sumParts / sumFrames); stats.bursts = burstsLive; stats.frameMs = Math.round(frameMs * 100) / 100; stats.frames = sumFrames;
+        stats.parts = n; stats.peak = peak; stats.avgParts = Math.round(sumParts / sumFrames); stats.bursts = burstsLive; stats.frameMs = Math.round(frameMs * 100) / 100; stats.frames = sumFrames; stats.barrage = barrageEnd > 0; stats.T = Math.round(T * 10) / 10; stats.rockets = rockets.length;
       }
     };
     const start = () => {
