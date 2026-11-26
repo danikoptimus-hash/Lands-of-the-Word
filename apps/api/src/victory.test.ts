@@ -293,4 +293,35 @@ describe("празднование победы", () => {
     expect(g).toMatchObject({ status: "ACTIVE", victoryTeamId: G.team1, finishReason: null });
     expect(await endsAtOf(G.gameId)).toBe(new Date(g.victoryAt!.getTime() + VICTORY_MS).toISOString());
   });
+  it("H: срок ответа и срок осады позже конца игры, обход опоздал — игра кончается по сроку, празднования нет", async () => {
+    const H = await setupGame("Победа H", null);
+    // Конец игры — минуту назад; срок ответа хранителей Руфи и срок осады Есфири — 20 с назад, то есть уже после конца.
+    const b = await prisma.battle.create({ data: { gameId: H.gameId, nodeKey: H.rutKey, bookCode: "rut", attackerId: H.team1, defenderId: H.team2, bid: 10, status: "DEFENSE", startedAt: new Date(Date.now() - HOUR), defenseDeadline: new Date(Date.now() - 20_000) } });
+    const siege = await prisma.siege.create({ data: { gameId: H.gameId, nodeKey: H.estKey, attackerId: H.team1, defenderId: H.team2, startedAt: new Date(Date.now() - HOUR), endsAt: new Date(Date.now() - 20_000) } });
+    const deed = await prisma.deed.findFirstOrThrow({ where: { gameId: H.gameId } });
+    await prisma.teamEdgeTask.create({ data: { gameId: H.gameId, teamId: H.team1, fromKey: "h-1", toKey: "h-2", deedId: deed.id, status: "APPROVED", decidedAt: new Date(Date.now() - 30 * 60_000) } });
+    await setSettings(H.gameId, { endsAt: new Date(Date.now() - 60_000).toISOString() });
+    await sweep(H.gameId);
+    expect((await prisma.battle.findUniqueOrThrow({ where: { id: b.id } })).status).toBe("CANCELLED");
+    expect((await prisma.siege.findUniqueOrThrow({ where: { id: siege.id } })).status).toBe("CANCELLED");
+    // Лидер — без этих городов: у «Странников» два города (Руфь и Есфирь), у «Ковчега» один.
+    const g = await gameRow(H.gameId);
+    expect(g).toMatchObject({ status: "FINISHED", finishReason: "time_limit", winnerTeamId: H.team2, victoryAt: null });
+    expect((await prisma.team.findUniqueOrThrow({ where: { id: H.team2 } })).status).not.toBe("defeated");
+  });
+
+  it("I: завершение игры снимает и осады; в завершённой игре осада не разрешается", async () => {
+    const I = await setupGame("Победа I", null);
+    const deed = await prisma.deed.findFirstOrThrow({ where: { gameId: I.gameId } });
+    const siege = await prisma.siege.create({ data: { gameId: I.gameId, nodeKey: I.rutKey, attackerId: I.team1, defenderId: I.team2, startedAt: new Date(Date.now() - 60_000), endsAt: new Date(Date.now() + HOUR) } });
+    await prisma.teamEdgeTask.create({ data: { gameId: I.gameId, teamId: I.team1, fromKey: "i-1", toKey: "i-2", deedId: deed.id, status: "APPROVED", decidedAt: new Date(Date.now() - 5000) } });
+    expect((await post(`/api/games/${I.gameId}/finish`, ck.admin)).statusCode).toBe(200);
+    expect((await prisma.siege.findUniqueOrThrow({ where: { id: siege.id } })).status).toBe("CANCELLED");
+    // Страховка: осада, оставшаяся идущей в завершённой игре (как в партиях до правки), так и не разрешается.
+    await prisma.siege.update({ where: { id: siege.id }, data: { status: "ACTIVE", resolvedAt: null, endsAt: new Date(Date.now() - 1000) } });
+    await sweep(I.gameId);
+    expect((await prisma.siege.findUniqueOrThrow({ where: { id: siege.id } })).status).toBe("ACTIVE");
+    expect((await prisma.team.findUniqueOrThrow({ where: { id: I.team2 } })).status).not.toBe("defeated");
+    expect((await prisma.teamCityState.findUniqueOrThrow({ where: { teamId_nodeKey: { teamId: I.team2, nodeKey: I.rutKey } } })).capturedAt).toBeTruthy();
+  });
 });
